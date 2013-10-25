@@ -1,0 +1,30 @@
+{
+  "name": "videojs-media-sources",
+  "version": "0.0.0",
+  "description": "A Media Source Extensions plugin for video.js",
+  "main": "videojs-media-sources.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/dmlap/video-js-media-sources.git"
+  },
+  "keywords": [
+    "video.js",
+    "mse",
+    "media",
+    "source",
+    "extensions",
+    "video",
+    "html",
+    "flash",
+    "video"
+  ],
+  "author": "Brightcove",
+  "license": "Apache 2",
+  "gitHead": "3374dc863816b74f90a62275c42ff3f1aca0a523",
+  "dependencies": {
+    "video.js": "~4.2.2"
+  }
+}

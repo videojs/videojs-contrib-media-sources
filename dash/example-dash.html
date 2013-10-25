@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MPEG-DASH / Media Source demo</title>
+    <link rel="stylesheet" href="style.css" />
+    <link href="http://vjs.zencdn.net/4.0/video-js.css" rel="stylesheet">
+
+    <script src="../video-js/src/js/core.js"></script>
+    <script src="../video-js/src/js/core-object.js"></script>
+    <script src="../video-js/src/js/events.js"></script>
+    <script src="../video-js/src/js/lib.js"></script>
+    <script src="../video-js/src/js/component.js"></script>
+    <script src="../video-js/src/js/button.js"></script>
+    <script src="../video-js/src/js/slider.js"></script>
+    <script src="../video-js/src/js/menu.js"></script>
+    <script src="../video-js/src/js/player.js"></script>
+    <script src="../video-js/src/js/control-bar/control-bar.js"></script>
+    <script src="../video-js/src/js/control-bar/play-toggle.js"></script>
+    <script src="../video-js/src/js/control-bar/time-display.js"></script>
+    <script src="../video-js/src/js/control-bar/fullscreen-toggle.js"></script>
+    <script src="../video-js/src/js/control-bar/progress-control.js"></script>
+    <script src="../video-js/src/js/control-bar/volume-control.js"></script>
+    <script src="../video-js/src/js/control-bar/mute-toggle.js"></script>
+    <script src="../video-js/src/js/control-bar/volume-menu-button.js"></script>
+    <script src="../video-js/src/js/poster.js"></script>
+    <script src="../video-js/src/js/loading-spinner.js"></script>
+    <script src="../video-js/src/js/big-play-button.js"></script>
+    <script src="../video-js/src/js/media/media.js"></script>
+    <script src="../video-js/src/js/media/html5.js"></script>
+    <script src="../video-js/src/js/media/flash.js"></script>
+    <script src="../video-js/src/js/media/loader.js"></script>
+    <script src="../video-js/src/js/tracks.js"></script>
+    <script src="../video-js/src/js/json.js"></script>
+    <script src="../video-js/src/js/setup.js"></script>
+    <script src="../video-js/src/js/plugins.js"></script>
+    <script src="../videojs-media-sources.js"></script>
+
+    <script type="text/javascript">
+(function() {
+
+// Log messages to stdio console. This avoids having to load developer tools in
+// debug builds, which is painfully slow.
+var LOG_CONSOLE=true;
+
+var start_time = Date.now();
+
+function log() {
+  if (!LOG_CONSOLE)
+    console.log.apply(console, arguments);
+
+  var t = Math.round(Date.now() - start_time);
+  var vals = [];
+  for (var i = 0; i < arguments.length; i++) {
+    var v = '' + arguments[i];
+    if (v.slice(0, 4) == '[obj') continue;
+    vals.push(v);
+  }
+  var msg = t + ': ' + vals.join(', ');
+  var box = document.getElementById('console');
+  if (box) box.value += msg + '\n';
+  if (LOG_CONSOLE) console.log(msg);
+}
+window.log = log;
+
+// TODO(strobe): Add on-page verbosity level control
+var DLOG_LEVEL=4;
+
+function dlog(level) {
+  if (level <= DLOG_LEVEL) {
+    log.apply(null, arguments);
+  }
+}
+window.dlog = dlog;
+
+})();
+    </script>
+    <script type="text/javascript" src="dash-manifest.js"></script>
+    <script type="text/javascript" src="dash-eme.js"></script>
+    <script type="text/javascript" src="segmentindex.js"></script>
+  </head>
+  <body>
+    <div class="content">
+      <header>
+        <h1>MPEG-DASH / Media Source demo</h1>
+        <em>Shamelessly copied from the talented engineers at YouTube</em>
+      </header>
+      <p class="attention" id="choose_example">Choose an example MPD:</p>
+      <p>From Cloud Storage:
+      <a href="?url=http://yt-dash-mse-test.commondatastorage.googleapis.com/car-20120827-manifest.mpd">car</a>
+      <a href="?url=http://yt-dash-mse-test.commondatastorage.googleapis.com/oops_cenc-20121114-signedlicenseurl-manifest.mpd">oops_cenc</a>
+      <a href="?url=http://yt-dash-mse-test.commondatastorage.googleapis.com/feelings-manifest.mpd">feelings_vp9</a>
+      </p>
+      <!--
+      <p>From YouTube (start Chrome with --disable_web_security):
+      <a href="?url=http://www.youtube.com/api/manifest/dash/id/ba1fa58900c4ddc3/source/youtube">jump</a>
+      <a style="text-decoration:line-through;" href="?url=http://www.youtube.com/api/manifest/dash/id/25a155aff7092486/source/youtube">life_cenc</a>
+      <a href="?url=http://www.youtube.com/api/manifest/dash/id/03681262dc412c06/source/youtube">oops_cenc</a>
+      -->
+      <form action="dash-player.html" id="player-conf">
+        <input id="url" type="text" name="url" size=80 required
+          placeholder="URL of DASH .mpd" />
+        <input type="submit"/>
+        <br />
+        <input id="autoplay" type="checkbox" name="autoplay" checked />
+        <label for="autoplay">Autoplay</label>
+        <label for="adapt">Adaptive</label>
+        <select id="adapt" name="adapt">
+          <option value="auto">Automatic</option>
+          <option value="no">Disabled</option>
+          <option value="random">Random</option>
+        </select>
+        <label for="flavor">CDM</label>
+        <select id="flavor" name="flavor">
+          <option value="">auto</option>
+          <option value="clearkey">Clear Key</option>
+          <option value="playready">PlayReady</option>
+          <option value="widevine">Widevine</option>
+        </select>
+      </form>
+
+      <div id="dashcontrols">
+        <form id="seekform">
+          <label for="time">Time:</label>
+          <input type="text" size=8 name="time" placeholder="seconds" />
+          <input type="button" id="seekbtn" name="seek" value="Seek" />
+        </form>
+        <form id="repform">Representations:</form>
+      </div>
+
+      <video id="v" class="vjs-default-skin video-js" height="480" width="100%" controls></video>
+
+      <div id="bufbar" class="progressbox">
+        <div class="sizelbl"></div>
+        <div class="posbar"></div>
+      </div>
+
+      <textarea readonly=true rows=12 id="console"></textarea>
+    <script type="text/javascript" src="player.js"></script>
+  </body>
+</html>
