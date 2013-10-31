@@ -95,17 +95,26 @@
 
     // accept video data and pass to the video (swf) object
     appendBuffer: function(uint8Array){
-      var array = [], 
-          i = uint8Array.length, 
-          self = this;
+      var binary = '',
+          i = 0,
+          len = uint8Array.byteLength,
+          b64str;
 
       this.buffer.push(uint8Array);
-      while (i--) {
-        array[i] = uint8Array[i];
+
+      // base64 encode the bytes
+      for (i = 0; i < len; i++) {
+        binary += String.fromCharCode(uint8Array[i])
       }
-      if (this.source.swfObj) {
-        this.source.swfObj.vjs_appendBuffer(array);
-      }
+      b64str = window.btoa(binary);
+
+      // bypass normal ExternalInterface calls and pass xml directly
+      // EI can be slow by default
+      this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"'
+      + 'returntype="javascript"><arguments><string>'
+      + b64str
+      + '</string></arguments></invoke>');
+
       this.trigger('update');
       this.trigger('updateend');
     },
