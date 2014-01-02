@@ -24,7 +24,7 @@
   "author": "Brightcove",
   "license": "Apache 2",
   "gitHead": "3374dc863816b74f90a62275c42ff3f1aca0a523",
-  "dependencies": {
-    "video.js": "~4.2.2"
+  "devDependencies": {
+    "video.js": "git+https://github.com/dmlap/video-js.git#v4.3.0-4"
   }
 }
