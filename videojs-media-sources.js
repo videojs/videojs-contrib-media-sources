@@ -70,6 +70,7 @@
     return sourceBuffer;
   };
   videojs.MediaSource.prototype.endOfStream = function(){
+    this.swfObj.vjs_endOfStream();
     this.readyState = 'ended';
   };
 
