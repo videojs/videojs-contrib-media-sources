@@ -2,14 +2,34 @@
   var urlCount = 0,
       NativeMediaSource = window.MediaSource || window.WebKitMediaSource || {},
       nativeUrl = window.URL || {},
+      EventEmitter,
       flvCodec = /video\/flv; codecs=["']vp6,aac["']/,
       objectUrlPrefix = 'blob:vjs-media-source/';
+
+  EventEmitter = function(){};
+  EventEmitter.prototype.init = function(){
+    this.listeners = [];
+  };
+  EventEmitter.prototype.addEventListener = function(type, listener){
+    if (!this.listeners[type]){
+      this.listeners[type] = [];
+    }
+    this.listeners[type].unshift(listener);
+  };
+  EventEmitter.prototype.trigger = function(event){
+    var listeners = this.listeners[event.type] || [],
+        i = listeners.length;
+    while (i--) {
+      listeners[i](event);
+    }
+  };
 
   // extend the media source APIs
 
   // Media Source
   videojs.MediaSource = function(){
     var self = this;
+    videojs.MediaSource.prototype.init.call(this);
 
     this.sourceBuffers = [];
     this.readyState = 'closed';
@@ -31,41 +51,27 @@
       }]
     };
   };
+  videojs.MediaSource.prototype = new EventEmitter();
 
-  videojs.MediaSource.prototype = {
+  // create a new source buffer to receive a type of media data
+  videojs.MediaSource.prototype.addSourceBuffer = function(type){
+    var sourceBuffer;
 
-    // create a new source buffer to receive a type of media data
-    addSourceBuffer: function(type){
-      var sourceBuffer;
-
-      // if this is an FLV type, we'll push data to flash
-      if (flvCodec.test(type)) {
-        // Flash source buffers
-        sourceBuffer = new videojs.SourceBuffer(this);
-      } else {
-        // native source buffers
-        sourceBuffer = this.nativeSource.addSourceBuffer.apply(this.nativeSource, arguments);
-      }
-
-      this.sourceBuffers.push(sourceBuffer);
-      return sourceBuffer;
-    },
-    endOfStream: function(){
-      this.readyState = 'ended';
-    },
-    addEventListener: function(type, listener){
-      if (!this.listeners[type]) {
-        this.listeners[type] = [];
-      }
-      this.listeners[type].unshift(listener);
-    },
-    trigger: function(event){
-      var listeners = this.listeners[event.type] || [],
-          i = listeners.length;
-      while (i--) {
-        listeners[i](event);
-      }
+    // if this is an FLV type, we'll push data to flash
+    if (flvCodec.test(type)) {
+      // Flash source buffers
+      sourceBuffer = new videojs.SourceBuffer(this);
+    } else {
+      // native source buffers
+      sourceBuffer = this.nativeSource.addSourceBuffer.apply(this.nativeSource, arguments);
     }
+
+    this.sourceBuffers.push(sourceBuffer);
+    return sourceBuffer;
+  };
+  videojs.MediaSource.prototype.endOfStream = function(){
+    this.swfObj.vjs_endOfStream();
+    this.readyState = 'ended';
   };
 
   // store references to the media sources so they can be connected
@@ -87,46 +93,36 @@
 
   // Source Buffer
   videojs.SourceBuffer = function(source){
+    videojs.SourceBuffer.prototype.init.call(this);
     this.source = source;
     this.buffer = [];
   };
+  videojs.SourceBuffer.prototype = new EventEmitter();
 
-  videojs.SourceBuffer.prototype = {
+  // accept video data and pass to the video (swf) object
+  videojs.SourceBuffer.prototype.appendBuffer = function(uint8Array){
+    var binary = '',
+        i = 0,
+        len = uint8Array.byteLength,
+        b64str;
 
-    // accept video data and pass to the video (swf) object
-    appendBuffer: function(uint8Array){
-      var binary = '',
-          i = 0,
-          len = uint8Array.byteLength,
-          b64str;
+    this.buffer.push(uint8Array);
 
-      this.buffer.push(uint8Array);
-
-      // base64 encode the bytes
-      for (i = 0; i < len; i++) {
-        binary += String.fromCharCode(uint8Array[i])
-      }
-      b64str = window.btoa(binary);
-
-      // bypass normal ExternalInterface calls and pass xml directly
-      // EI can be slow by default
-      this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"'
-      + 'returntype="javascript"><arguments><string>'
-      + b64str
-      + '</string></arguments></invoke>');
-
-      this.trigger('update');
-      this.trigger('updateend');
-    },
-    trigger: function(type){
-      videojs.trigger(this, type);
-    },
-    on: function(type, listener){
-      videojs.on(this, type, listener);
-    },
-    off: function(type, listener){
-      videojs.off(this, type, listener);
+    // base64 encode the bytes
+    for (i = 0; i < len; i++) {
+      binary += String.fromCharCode(uint8Array[i])
     }
+    b64str = window.btoa(binary);
+
+    // bypass normal ExternalInterface calls and pass xml directly
+    // EI can be slow by default
+    this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"'
+                                    + 'returntype="javascript"><arguments><string>'
+                                    + b64str
+                                    + '</string></arguments></invoke>');
+
+    this.trigger('update');
+    this.trigger('updateend');
   };
 
   // URL
@@ -144,10 +140,10 @@
   };
 
   // plugin
-  videojs.plugin('mediaSource', function(options) {
+  videojs.plugin('mediaSource', function(options){
     var player = this;
     
-    player.on('loadstart', function() {
+    player.on('loadstart', function(){
       var url = player.currentSrc(),
           trigger = function(event){
             mediaSource.trigger(event);
