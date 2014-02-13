@@ -114,6 +114,8 @@
     }
     b64str = window.btoa(binary);
 
+    this.trigger({type:'update'});
+
     // bypass normal ExternalInterface calls and pass xml directly
     // EI can be slow by default
     this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"'
@@ -121,8 +123,8 @@
                                     + b64str
                                     + '</string></arguments></invoke>');
 
-    this.trigger('update');
-    this.trigger('updateend');
+
+    this.trigger({type:'updateend'});
   };
 
   // URL
