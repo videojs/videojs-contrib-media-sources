@@ -1,6 +1,6 @@
 {
   "name": "videojs-contrib-media-sources",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A Media Source Extensions plugin for video.js",
   "main": "videojs-media-sources.js",
   "scripts": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/dmlap/video-js-media-sources.git"
+    "url": "git://github.com/videojs/video-js-media-sources.git"
   },
   "keywords": [
     "video.js",
@@ -25,6 +25,6 @@
   "license": "Apache 2",
   "gitHead": "3374dc863816b74f90a62275c42ff3f1aca0a523",
   "devDependencies": {
-    "video.js": "git+https://github.com/dmlap/video-js.git#v4.3.0-4"
+    "video.js": "git+https://github.com/videojs/video.js.git#v4.4.1"
   }
 }
