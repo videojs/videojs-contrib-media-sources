@@ -5,10 +5,18 @@ module.exports = function(grunt) {
       files: ['Gruntfile.js', 'src/**/*.js', 'test/**/*.js']
     },
     qunit: {
-      files: ['test/**/*.html']
+      files: ['test/index.html']
+    },
+    connect: {
+      server: {
+        options: {
+          keepalive: true
+        }
+      }
     }
   });
 
+  grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-qunit');
 
