@@ -110,7 +110,7 @@
 
     // base64 encode the bytes
     for (i = 0; i < len; i++) {
-      binary += String.fromCharCode(uint8Array[i])
+      binary += String.fromCharCode(uint8Array[i]);
     }
     b64str = window.btoa(binary);
 
@@ -118,10 +118,10 @@
 
     // bypass normal ExternalInterface calls and pass xml directly
     // EI can be slow by default
-    this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"'
-                                    + 'returntype="javascript"><arguments><string>'
-                                    + b64str
-                                    + '</string></arguments></invoke>');
+    this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                    'returntype="javascript"><arguments><string>' +
+                                    b64str +
+                                    '</string></arguments></invoke>');
 
 
     this.trigger({type:'updateend'});

@@ -25,6 +25,11 @@
   "license": "Apache 2",
   "gitHead": "3374dc863816b74f90a62275c42ff3f1aca0a523",
   "devDependencies": {
+    "grunt": "^0.4.1",
+    "grunt-contrib-jshint": "^0.10.0",
+    "video.js": "^4.4"
+  },
+  "peerDependencies": {
     "video.js": "^4.4"
   }
 }
