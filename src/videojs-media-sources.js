@@ -3,8 +3,22 @@
       NativeMediaSource = window.MediaSource || window.WebKitMediaSource || {},
       nativeUrl = window.URL || {},
       EventEmitter,
-      flvCodec = /video\/flv; codecs=["']vp6,aac["']/,
-      objectUrlPrefix = 'blob:vjs-media-source/';
+      flvCodec = /video\/flv(;\s*codecs=["']vp6,aac["'])?$/,
+      objectUrlPrefix = 'blob:vjs-media-source/',
+
+      /**
+       * Polyfill for requestAnimationFrame
+       * @param callback {function} the function to run at the next frame
+       * @see https://developer.mozilla.org/en-US/docs/Web/API/window.requestAnimationFrame
+       */
+      requestAnimationFrame = function(callback) {
+        return (window.requestAnimationFrame ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame ||
+                function(callback) {
+                  return window.setTimeout(callback, 1000 / 60);
+                })(callback);
+      };
 
   EventEmitter = function(){};
   EventEmitter.prototype.init = function(){
@@ -61,9 +75,11 @@
     if (flvCodec.test(type)) {
       // Flash source buffers
       sourceBuffer = new videojs.SourceBuffer(this);
-    } else {
+    } else if (this.nativeSource) {
       // native source buffers
       sourceBuffer = this.nativeSource.addSourceBuffer.apply(this.nativeSource, arguments);
+    } else {
+      throw new Error('NotSupportedError (Video.js)');
     }
 
     this.sourceBuffers.push(sourceBuffer);
@@ -93,39 +109,49 @@
 
   // Source Buffer
   videojs.SourceBuffer = function(source){
+    var self = this,
+        append = function() {
+          var binary, chunk, i, length;
+          while (self.buffer.length) {
+            chunk = self.buffer.pop();
+
+            // base64 encode the bytes
+            for (i = 0, length = chunk.length; i < length; i++) {
+              binary += String.fromCharCode(chunk[i]);
+            }
+            b64str = window.btoa(binary);
+
+            // bypass normal ExternalInterface calls and pass xml directly
+            // EI can be slow by default
+            self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                            'returntype="javascript"><arguments><string>' +
+                                            b64str +
+                                            '</string></arguments></invoke>');
+          }
+        };
     videojs.SourceBuffer.prototype.init.call(this);
     this.source = source;
     this.buffer = [];
+
+    // accept video data and pass to the video (swf) object
+    this.appendBuffer = function(uint8Array){
+      var binary = '',
+          i = 0,
+          len = uint8Array.byteLength,
+          b64str;
+
+      if (this.buffer.length === 0) {
+        requestAnimationFrame(append);
+      }
+
+      this.trigger({ type: 'update' });
+
+      this.buffer.push(uint8Array);
+
+      this.trigger({ type: 'updateend' });
+    };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();
-
-  // accept video data and pass to the video (swf) object
-  videojs.SourceBuffer.prototype.appendBuffer = function(uint8Array){
-    var binary = '',
-        i = 0,
-        len = uint8Array.byteLength,
-        b64str;
-
-    this.buffer.push(uint8Array);
-
-    // base64 encode the bytes
-    for (i = 0; i < len; i++) {
-      binary += String.fromCharCode(uint8Array[i]);
-    }
-    b64str = window.btoa(binary);
-
-    this.trigger({type:'update'});
-
-    // bypass normal ExternalInterface calls and pass xml directly
-    // EI can be slow by default
-    this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                    'returntype="javascript"><arguments><string>' +
-                                    b64str +
-                                    '</string></arguments></invoke>');
-
-
-    this.trigger({type:'updateend'});
-  };
 
   // URL
   videojs.URL = {
