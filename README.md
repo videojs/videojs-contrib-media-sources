@@ -11,7 +11,7 @@ The plugin exposes a MediaSource shim that can be used to feed dynamic content t
 On browsers that natively support Media Source Extensions, the HTML implementation will be used.
 If you're running in an environment without MSE, a Flash-backed polyfill will be used.
 Currently, the Flash polyfill only supports video content encoded in the FLV file format.
-For information on how FLVs are structured, Adobe hosts the [latest version of the spec] on their site.
+For information on how FLVs are structured, Adobe hosts the [latest version of the spec](http://www.adobe.com/devnet/f4v.html) on their site.
 
 The Flash polyfill attempts to balance throughput to the FLV with end-user responsiveness by asynchronously feeding bytes to the SWF at a fixed rate.
 By default, that rate is capped at 4MB/s.
