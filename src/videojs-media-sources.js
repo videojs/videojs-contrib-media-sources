@@ -30,6 +30,15 @@
     }
     this.listeners[type].unshift(listener);
   };
+  EventEmitter.prototype.removeEventListener = function(type, listener){
+    var listeners = this.listeners[type],
+        i = listeners.length;
+    while (i--) {
+      if (listeners[i] === listener) {
+        return listeners.splice(i, 1);
+      }
+    }
+  };
   EventEmitter.prototype.trigger = function(event){
     var listeners = this.listeners[event.type] || [],
         i = listeners.length;
@@ -67,6 +76,25 @@
   };
   videojs.MediaSource.prototype = new EventEmitter();
 
+  /**
+   * The maximum size in bytes for append operations to the video.js
+   * SWF. Calling through to Flash blocks and can be expensive so
+   * tuning this parameter may improve playback on slower
+   * systems. There are two factors to consider:
+   * - Each interaction with the SWF must be quick or you risk dropping
+   * video frames. To maintain 60fps for the rest of the page, each append
+   * cannot take longer than 16ms. Given the likelihood that the page will
+   * be executing more javascript than just playback, you probably want to
+   * aim for ~8ms.
+   * - Bigger appends significantly increase throughput. The total number of
+   * bytes over time delivered to the SWF must exceed the video bitrate or
+   * playback will stall.
+   *
+   * The default is set so that a 4MB/s stream should playback
+   * without stuttering.
+   */
+  videojs.MediaSource.MAX_APPEND_SIZE = Math.ceil((4 * 1024 * 1024) / 60);
+
   // create a new source buffer to receive a type of media data
   videojs.MediaSource.prototype.addSourceBuffer = function(type){
     var sourceBuffer;
@@ -95,10 +123,10 @@
   videojs.mediaSources = {};
   // provide a method for a swf object to notify JS that a media source is now open
   videojs.MediaSource.open = function(msObjectURL, swfId){
-    var ms = videojs.mediaSources[msObjectURL];
+    var mediaSource = videojs.mediaSources[msObjectURL];
 
-    if (ms) {
-      ms.trigger({
+    if (mediaSource) {
+      mediaSource.trigger({
         type: 'sourceopen',
         swfId: swfId
       });
@@ -111,35 +139,57 @@
   videojs.SourceBuffer = function(source){
     var self = this,
         append = function() {
-          var binary, chunk, i, length;
-          while (self.buffer.length) {
-            chunk = self.buffer.pop();
+          var binary, chunk, i, length, payload;
 
-            // base64 encode the bytes
-            for (i = 0, length = chunk.length; i < length; i++) {
-              binary += String.fromCharCode(chunk[i]);
+          // concatenate appends up to the max append size
+          payload = new Uint8Array(Math.min(videojs.MediaSource.MAX_APPEND_SIZE, self.bufferSize));
+          i = payload.byteLength;
+          while (i) {
+            chunk = self.buffer[0].subarray(0, i);
+
+            payload.set(chunk, payload.byteLength - i);
+
+            // requeue any bytes that won't make it this round
+            if (chunk.byteLength < self.buffer[0].byteLength) {
+              self.buffer[0] = self.buffer[0].subarray(i);
+            } else {
+              self.buffer.shift();
             }
-            b64str = window.btoa(binary);
 
-            // bypass normal ExternalInterface calls and pass xml directly
-            // EI can be slow by default
-            self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                            'returntype="javascript"><arguments><string>' +
-                                            b64str +
-                                            '</string></arguments></invoke>');
+            i -= chunk.byteLength;
           }
-        };
+          self.bufferSize -= payload.byteLength;
+
+          // schedule another append if necessary
+          if (self.bufferSize !== 0) {
+            requestAnimationFrame(append);
+          } else {
+            self.trigger({ type: 'updateend' });
+          }
+
+          // base64 encode the bytes
+          for (i = 0, length = payload.length; i < length; i++) {
+            binary += String.fromCharCode(payload[i]);
+          }
+          b64str = window.btoa(binary);
+
+          // bypass normal ExternalInterface calls and pass xml directly
+          // EI can be slow by default
+          self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                          'returntype="javascript"><arguments><string>' +
+                                          b64str +
+                                          '</string></arguments></invoke>');
+          };
+
     videojs.SourceBuffer.prototype.init.call(this);
     this.source = source;
+    // byte arrays queued to be appended
     this.buffer = [];
+    // the total number of queued bytes
+    this.bufferSize = 0;
 
     // accept video data and pass to the video (swf) object
     this.appendBuffer = function(uint8Array){
-      var binary = '',
-          i = 0,
-          len = uint8Array.byteLength,
-          b64str;
-
       if (this.buffer.length === 0) {
         requestAnimationFrame(append);
       }
@@ -147,8 +197,7 @@
       this.trigger({ type: 'update' });
 
       this.buffer.push(uint8Array);
-
-      this.trigger({ type: 'updateend' });
+      this.bufferSize += uint8Array.byteLength;
     };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();

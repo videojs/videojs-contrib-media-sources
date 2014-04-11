@@ -23,11 +23,11 @@
   <legend>Test Parameters</legend>
   <label>
     Number of bytes per append:
-    <input id="byte-count" type="number" min="1" value="100">
+    <input id="byte-count" type="number" min="1" value="1000">
   </label>
   <label>
     Number of appends:
-    <input id="append-count" type="number" min="1" value="100">
+    <input id="append-count" type="number" min="1" value="10000">
   </label>
 </form>
 <button disabled>Run Test</button>
@@ -56,16 +56,22 @@ var player = videojs(document.querySelector('video'), {
           appendCount = +document.querySelector('#append-count').value,
           i = appendCount,
           result = document.createElement('tr'),
+          printResults = function() {
+            result.innerHTML = '<td>' + byteCount + '</td><td>' +
+                               appendCount + '</td><td>' +
+                               (Date.now() - start) + '</td>';
+            document.querySelector('#results').appendChild(result);
+            sourceBuffer.removeEventListener('updateend', printResults);
+            button.disabled = false;
+          },
           start;
 
+      button.disabled = true;
+      sourceBuffer.addEventListener('updateend', printResults);
       start = Date.now();
       while (i--) {
         sourceBuffer.appendBuffer(bytes, player);
       }
-      result.innerHTML = '<td>' + byteCount + '</td><td>' +
-                         appendCount + '</td><td>' +
-                         (Date.now() - start) + '</td>';
-      document.querySelector('#results').appendChild(result);
     }, false);
   }, false);
 

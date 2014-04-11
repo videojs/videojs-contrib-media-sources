@@ -1,6 +1,6 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldRAF, oldCanPlay, oldFlashSupport,
+  var player, video, mediaSource, oldRAF, oldCanPlay, oldFlashSupport, oldMaxAppend,
       swfCalls,
       timers,
       fakeRAF = function() {
@@ -21,6 +21,8 @@
       videojs.Flash.canPlaySource = videojs.Flash.isSupported = function() {
         return true;
       };
+
+      oldMaxAppend = videojs.MediaSource.MAX_APPEND_SIZE;
 
       video = document.createElement('video');
       document.getElementById('qunit-fixture').appendChild(video);
@@ -44,6 +46,7 @@
     teardown: function() {
       videojs.Flash.isSupported = oldFlashSupport;
       videojs.Flash.canPlaySource = oldCanPlay;
+      videojs.MediaSource.MAX_APPEND_SIZE = oldMaxAppend;
       unfakeRAF();
     }
   });
@@ -76,5 +79,36 @@
 
     strictEqual(swfCalls.length, 1, 'the SWF was called');
     ok(swfCalls[0].indexOf(expected) > 0, 'contains the base64 encoded data');
+  });
+
+  test('splits appends that are bigger than the maximum configured size', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    videojs.MediaSource.MAX_APPEND_SIZE = 1;
+
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+    sourceBuffer.appendBuffer(new Uint8Array([2,3]));
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(0))) > 0,
+       'contains the first byte');
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(1))) > 0,
+       'contains the first byte');
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(2))) > 0,
+       'contains the first byte');
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(3))) > 0,
+       'contains the first byte');
+
+    strictEqual(timers.length, 0, 'no more appends are scheduled');
+
   });
 })(window, window.document, window.videojs);
