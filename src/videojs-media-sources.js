@@ -138,37 +138,44 @@
   // Source Buffer
   videojs.SourceBuffer = function(source){
     var self = this,
+
+        // byte arrays queued to be appended
+        buffer = [],
+
+        // the total number of queued bytes
+        bufferSize = 0,
         append = function() {
-          var binary, chunk, i, length, payload;
+          var chunk, i, length, payload,
+              binary = '';
 
           // concatenate appends up to the max append size
-          payload = new Uint8Array(Math.min(videojs.MediaSource.MAX_APPEND_SIZE, self.bufferSize));
+          payload = new Uint8Array(Math.min(videojs.MediaSource.MAX_APPEND_SIZE, bufferSize));
           i = payload.byteLength;
           while (i) {
-            chunk = self.buffer[0].subarray(0, i);
+            chunk = buffer[0].subarray(0, i);
 
             payload.set(chunk, payload.byteLength - i);
 
             // requeue any bytes that won't make it this round
-            if (chunk.byteLength < self.buffer[0].byteLength) {
-              self.buffer[0] = self.buffer[0].subarray(i);
+            if (chunk.byteLength < buffer[0].byteLength) {
+              buffer[0] = buffer[0].subarray(i);
             } else {
-              self.buffer.shift();
+              buffer.shift();
             }
 
             i -= chunk.byteLength;
           }
-          self.bufferSize -= payload.byteLength;
+          bufferSize -= payload.byteLength;
 
           // schedule another append if necessary
-          if (self.bufferSize !== 0) {
+          if (bufferSize !== 0) {
             requestAnimationFrame(append);
           } else {
             self.trigger({ type: 'updateend' });
           }
 
           // base64 encode the bytes
-          for (i = 0, length = payload.length; i < length; i++) {
+          for (i = 0, length = payload.byteLength; i < length; i++) {
             binary += String.fromCharCode(payload[i]);
           }
           b64str = window.btoa(binary);
@@ -183,21 +190,17 @@
 
     videojs.SourceBuffer.prototype.init.call(this);
     this.source = source;
-    // byte arrays queued to be appended
-    this.buffer = [];
-    // the total number of queued bytes
-    this.bufferSize = 0;
 
     // accept video data and pass to the video (swf) object
     this.appendBuffer = function(uint8Array){
-      if (this.buffer.length === 0) {
+      if (buffer.length === 0) {
         requestAnimationFrame(append);
       }
 
       this.trigger({ type: 'update' });
 
-      this.buffer.push(uint8Array);
-      this.bufferSize += uint8Array.byteLength;
+      buffer.push(uint8Array);
+      bufferSize += uint8Array.byteLength;
     };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();

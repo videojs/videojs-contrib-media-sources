@@ -72,13 +72,16 @@
 
   test('passes bytes to Flash', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/flv'),
-        expected = window.btoa(String.fromCharCode(0) + String.fromCharCode(1));
+        expected = '<invoke name="vjs_appendBuffer"' +
+                   'returntype="javascript"><arguments><string>' +
+                   window.btoa(String.fromCharCode(0) + String.fromCharCode(1)) +
+                   '</string></arguments></invoke>';
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     timers.pop()();
 
     strictEqual(swfCalls.length, 1, 'the SWF was called');
-    ok(swfCalls[0].indexOf(expected) > 0, 'contains the base64 encoded data');
+    strictEqual(swfCalls[0], expected, 'contains the base64 encoded data');
   });
 
   test('splits appends that are bigger than the maximum configured size', function() {
