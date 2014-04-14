@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>VideoJS Media Sources Test Suite</title>
+  <link rel="stylesheet" href="../node_modules/qunitjs/qunit/qunit.css">
+  <script src="../node_modules/qunitjs/qunit/qunit.js"></script>
+</head>
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture"></div>
+  <script>
+    module('Environment');
+    test('is sane', function() {
+      ok(true, 'true is true');
+    });
+  </script>
+  <script src="../node_modules/video.js/dist/video-js/video.js"></script>
+  <script src="../src/videojs-media-sources.js"></script>
+  <script src="media-sources_test.js"></script>
+</body>
+</html>

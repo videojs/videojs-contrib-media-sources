@@ -1,8 +1,8 @@
 .DS_Store
-
 node_modules
 npm-debug.log
-
 *.orig
-
 *.log
+
+# ignore emacs scratch files
+*~
