@@ -27,8 +27,7 @@ Check out an example of the plugin in use in [example.html](example.html).
 
 ## Release History
 
-A short list of features, fixes and changes for each release.
-
+ * 0.2.0: Improve interactivity by batching communication with Flash.
  * 0.1.0: Initial release
 
 ## License
