@@ -148,6 +148,11 @@
           var chunk, i, length, payload,
               binary = '';
 
+          if (!buffer.length) {
+            // do nothing if the buffer is empty
+            return;
+          }
+
           // concatenate appends up to the max append size
           payload = new Uint8Array(Math.min(videojs.MediaSource.MAX_APPEND_SIZE, bufferSize));
           i = payload.byteLength;
@@ -201,6 +206,12 @@
 
       buffer.push(uint8Array);
       bufferSize += uint8Array.byteLength;
+    };
+
+    // reset the parser and remove any data queued to be sent to the swf
+    this.abort = function() {
+      buffer = [];
+      bufferSize = 0;
     };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();

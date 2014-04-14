@@ -114,4 +114,13 @@
     strictEqual(timers.length, 0, 'no more appends are scheduled');
 
   });
+
+  test('abort() clears any buffered input', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    sourceBuffer.appendBuffer(new Uint8Array([0]));
+    sourceBuffer.abort();
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 0, 'made no appends');
+  });
 })(window, window.document, window.videojs);
