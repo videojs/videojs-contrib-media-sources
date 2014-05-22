@@ -212,6 +212,7 @@
     this.abort = function() {
       buffer = [];
       bufferSize = 0;
+      this.source.swfObj.vjs_abort();
     };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();

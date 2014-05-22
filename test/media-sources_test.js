@@ -33,6 +33,9 @@
       mediaSource.swfObj = {
         CallFunction: function(xml) {
           swfCalls.push(xml);
+        },
+        vjs_abort: function() {
+          swfCalls.push('abort');
         }
       };
       player.src({
@@ -121,6 +124,7 @@
     sourceBuffer.abort();
 
     timers.pop()();
-    strictEqual(swfCalls.length, 0, 'made no appends');
+    strictEqual(swfCalls.length, 1, 'called the swf');
+    strictEqual(swfCalls[0], 'abort', 'invoked abort');
   });
 })(window, window.document, window.videojs);
