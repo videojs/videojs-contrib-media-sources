@@ -61,7 +61,7 @@
         // find the swf where we will push media data
         self.swfObj = document.getElementById(event.swfId);
         self.readyState = 'open';
-        
+
         // trigger load events
         if (self.swfObj) {
           self.swfObj.vjs_load();
@@ -221,7 +221,7 @@
   videojs.URL = {
     createObjectURL: function(object){
       var url = objectUrlPrefix + urlCount;
-      
+
       urlCount++;
 
       // setup the mapping back to object
@@ -234,7 +234,7 @@
   // plugin
   videojs.plugin('mediaSource', function(options){
     var player = this;
-    
+
     player.on('loadstart', function(){
       var url = player.currentSrc(),
           trigger = function(event){
