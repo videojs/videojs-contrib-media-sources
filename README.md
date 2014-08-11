@@ -19,9 +19,9 @@ If you'd like to play higher bitrate content, you can adjust that setting:
 
 ```javascript
 // 8MB/s at 60fps
-videojs.MediaSource.MAX_APPEND_SIZE = Math.ceil((8 * 1024 * 1024) / 60);
+videojs.MediaSource.BYTES_PER_SECOND_GOAL = 8 * 1024 * 1024;
 ```
-Setting the `MAX_APPEND_SIZE` too high may lead to dropped frames during playback on slower computers.
+Setting the `BYTES_PER_SECOND_GOAL` too high may lead to dropped frames during playback on slower computers.
 
 Check out an example of the plugin in use in [example.html](example.html).
 
