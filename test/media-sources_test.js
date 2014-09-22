@@ -34,6 +34,8 @@
         CallFunction: function(xml) {
           swfCalls.push(xml);
         },
+        vjs_appendBuffer: function() {
+        },
         vjs_abort: function() {
           swfCalls.push('abort');
         }
