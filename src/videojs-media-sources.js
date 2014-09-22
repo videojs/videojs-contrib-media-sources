@@ -187,10 +187,12 @@
 
           // bypass normal ExternalInterface calls and pass xml directly
           // EI can be slow by default
-          self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                          'returntype="javascript"><arguments><string>' +
-                                          b64str +
-                                          '</string></arguments></invoke>');
+          if (self.source.swfObj.vjs_appendBuffer !== undefined) {
+            self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                            'returntype="javascript"><arguments><string>' +
+                                            b64str +
+                                            '</string></arguments></invoke>');
+          }
           };
 
     videojs.SourceBuffer.prototype.init.call(this);
@@ -212,7 +214,9 @@
     this.abort = function() {
       buffer = [];
       bufferSize = 0;
-      this.source.swfObj.vjs_abort();
+      if (this.source.swfObj.vjs_abort !== undefined) {
+        this.source.swfObj.vjs_abort();
+      }
     };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();
