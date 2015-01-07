@@ -4,21 +4,7 @@
       nativeUrl = window.URL || {},
       EventEmitter,
       flvCodec = /video\/flv(;\s*codecs=["']vp6,aac["'])?$/,
-      objectUrlPrefix = 'blob:vjs-media-source/',
-
-      /**
-       * Polyfill for requestAnimationFrame
-       * @param callback {function} the function to run at the next frame
-       * @see https://developer.mozilla.org/en-US/docs/Web/API/window.requestAnimationFrame
-       */
-      requestAnimationFrame = function(callback) {
-        return (window.requestAnimationFrame ||
-                window.webkitRequestAnimationFrame ||
-                window.mozRequestAnimationFrame ||
-                function(callback) {
-                  return window.setTimeout(callback, 1000 / 60);
-                })(callback);
-      };
+      objectUrlPrefix = 'blob:vjs-media-source/';
 
   EventEmitter = function(){};
   EventEmitter.prototype.init = function(){
@@ -93,7 +79,8 @@
    * The default is set so that a 4MB/s stream should playback
    * without stuttering.
    */
-  videojs.MediaSource.MAX_APPEND_SIZE = Math.ceil((4 * 1024 * 1024) / 60);
+  videojs.MediaSource.BYTES_PER_SECOND_GOAL = 4 * 1024 * 1024;
+  videojs.MediaSource.TICKS_PER_SECOND = 60;
 
   // create a new source buffer to receive a type of media data
   videojs.MediaSource.prototype.addSourceBuffer = function(type){
@@ -144,8 +131,14 @@
 
         // the total number of queued bytes
         bufferSize = 0,
+        scheduleTick = function(func) {
+          // Chrome doesn't invoke requestAnimationFrame callbacks
+          // in background tabs, so use setTimeout.
+          window.setTimeout(func,
+                            Math.ceil(1000 / videojs.MediaSource.TICKS_PER_SECOND));
+        },
         append = function() {
-          var chunk, i, length, payload,
+          var chunk, i, length, payload, maxSize,
               binary = '';
 
           if (!buffer.length) {
@@ -153,8 +146,19 @@
             return;
           }
 
+          if (document.hidden) {
+            // When the document is hidden, the browser will likely
+            // invoke callbacks less frequently than we want. Just
+            // append a whole second's worth of data. It doesn't
+            // matter if the video janks, since the user can't see it.
+            maxSize = videojs.MediaSource.BYTES_PER_SECOND_GOAL;
+          } else {
+            maxSize = Math.ceil(videojs.MediaSource.BYTES_PER_SECOND_GOAL/
+                                videojs.MediaSource.TICKS_PER_SECOND);
+          }
+
           // concatenate appends up to the max append size
-          payload = new Uint8Array(Math.min(videojs.MediaSource.MAX_APPEND_SIZE, bufferSize));
+          payload = new Uint8Array(Math.min(maxSize, bufferSize));
           i = payload.byteLength;
           while (i) {
             chunk = buffer[0].subarray(0, i);
@@ -174,7 +178,7 @@
 
           // schedule another append if necessary
           if (bufferSize !== 0) {
-            requestAnimationFrame(append);
+            scheduleTick(append);
           } else {
             self.trigger({ type: 'updateend' });
           }
@@ -199,7 +203,7 @@
     // accept video data and pass to the video (swf) object
     this.appendBuffer = function(uint8Array){
       if (buffer.length === 0) {
-        requestAnimationFrame(append);
+        scheduleTick(append);
       }
 
       this.trigger({ type: 'update' });

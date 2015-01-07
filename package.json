@@ -4,7 +4,7 @@
   "description": "A Media Source Extensions plugin for video.js",
   "main": "videojs-media-sources.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "grunt"
   },
   "repository": {
     "type": "git",

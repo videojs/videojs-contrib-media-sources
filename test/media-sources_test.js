@@ -1,17 +1,17 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldRAF, oldCanPlay, oldFlashSupport, oldMaxAppend,
+  var player, video, mediaSource, oldSTO, oldCanPlay, oldFlashSupport, oldBPS,
       swfCalls,
       timers,
-      fakeRAF = function() {
-        oldRAF = window.requestAnimationFrame;
+      fakeSTO = function() {
+        oldSTO = window.setTimeout;
         timers = [];
-        window.requestAnimationFrame = function(callback) {
+        window.setTimeout = function(callback) {
           timers.push(callback);
         };
       },
-      unfakeRAF = function() {
-        window.requestAnimationFrame = oldRAF;
+      unfakeSTO = function() {
+        window.setTimeout = oldSTO;
       };
 
   module('SourceBuffer', {
@@ -22,7 +22,7 @@
         return true;
       };
 
-      oldMaxAppend = videojs.MediaSource.MAX_APPEND_SIZE;
+      oldBPS = videojs.MediaSource.BYTES_PER_SECOND_GOAL;
 
       video = document.createElement('video');
       document.getElementById('qunit-fixture').appendChild(video);
@@ -44,13 +44,13 @@
       });
       mediaSource.trigger('sourceopen');
 
-      fakeRAF();
+      fakeSTO();
     },
     teardown: function() {
       videojs.Flash.isSupported = oldFlashSupport;
       videojs.Flash.canPlaySource = oldCanPlay;
-      videojs.MediaSource.MAX_APPEND_SIZE = oldMaxAppend;
-      unfakeRAF();
+      videojs.MediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
+      unfakeSTO();
     }
   });
 
@@ -89,7 +89,7 @@
 
   test('splits appends that are bigger than the maximum configured size', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
-    videojs.MediaSource.MAX_APPEND_SIZE = 1;
+    videojs.MediaSource.BYTES_PER_SECOND_GOAL = 60;
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     sourceBuffer.appendBuffer(new Uint8Array([2,3]));
@@ -126,5 +126,24 @@
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'called the swf');
     strictEqual(swfCalls[0], 'abort', 'invoked abort');
+  });
+
+  // requestAnimationFrame is heavily throttled or unscheduled when
+  // the browser tab running contrib-media-sources is in a background
+  // tab. If that happens, video data can continuously build up in
+  // memory and cause the tab or browser to crash.
+  test('does not use requestAnimationFrame', function() {
+    var oldRFA = window.requestAnimationFrame, requests = 0, sourceBuffer;
+    window.requestAnimationFrame = function() {
+      requests++;
+    };
+
+    sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3]));
+    while (timers.length) {
+      timers.pop()();
+    }
+    equal(requests, 0, 'no calls to requestAnimationFrame were made');
+    window.requestAnimationFrame = oldRFA;
   });
 })(window, window.document, window.videojs);
