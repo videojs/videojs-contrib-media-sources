@@ -1,22 +1,17 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldSTO, oldRFA, oldCanPlay, oldFlashSupport, oldBPS,
+  var player, video, mediaSource, oldSTO, oldCanPlay, oldFlashSupport, oldBPS,
       swfCalls,
       timers,
-      fakeRFA = function() {
-        oldRFA = window.requestAnimationFrame;
+      fakeSTO = function() {
         oldSTO = window.setTimeout;
         timers = [];
-        window.requestAnimationFrame = function(callback) {
-          timers.push(callback);
-        };
         window.setTimeout = function(callback) {
           timers.push(callback);
         };
       },
-      unfakeRFA = function() {
+      unfakeSTO = function() {
         window.setTimeout = oldSTO;
-        window.requestAnimationFrame = oldRFA;
       };
 
   module('SourceBuffer', {
@@ -49,13 +44,13 @@
       });
       mediaSource.trigger('sourceopen');
 
-      fakeRFA();
+      fakeSTO();
     },
     teardown: function() {
       videojs.Flash.isSupported = oldFlashSupport;
       videojs.Flash.canPlaySource = oldCanPlay;
       videojs.MediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
-      unfakeRFA();
+      unfakeSTO();
     }
   });
 
@@ -131,5 +126,24 @@
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'called the swf');
     strictEqual(swfCalls[0], 'abort', 'invoked abort');
+  });
+
+  // requestAnimationFrame is heavily throttled or unscheduled when
+  // the browser tab running contrib-media-sources is in a background
+  // tab. If that happens, video data can continuously build up in
+  // memory and cause the tab or browser to crash.
+  test('does not use requestAnimationFrame', function() {
+    var oldRFA = window.requestAnimationFrame, requests = 0, sourceBuffer;
+    window.requestAnimationFrame = function() {
+      requests++;
+    };
+
+    sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3]));
+    while (timers.length) {
+      timers.pop()();
+    }
+    equal(requests, 0, 'no calls to requestAnimationFrame were made');
+    window.requestAnimationFrame = oldRFA;
   });
 })(window, window.document, window.videojs);

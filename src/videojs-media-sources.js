@@ -4,21 +4,7 @@
       nativeUrl = window.URL || {},
       EventEmitter,
       flvCodec = /video\/flv(;\s*codecs=["']vp6,aac["'])?$/,
-      objectUrlPrefix = 'blob:vjs-media-source/',
-
-      /**
-       * Polyfill for requestAnimationFrame
-       * @param callback {function} the function to run at the next frame
-       * @see https://developer.mozilla.org/en-US/docs/Web/API/window.requestAnimationFrame
-       */
-      requestAnimationFrame = function(callback) {
-        return (window.requestAnimationFrame ||
-                window.webkitRequestAnimationFrame ||
-                window.mozRequestAnimationFrame ||
-                function(callback) {
-                  return window.setTimeout(callback, 1000 / 60);
-                })(callback);
-      };
+      objectUrlPrefix = 'blob:vjs-media-source/';
 
   EventEmitter = function(){};
   EventEmitter.prototype.init = function(){
@@ -146,21 +132,10 @@
         // the total number of queued bytes
         bufferSize = 0,
         scheduleTick = function(func) {
-          if (document.hidden) {
-            // Chrome doesn't invoke requestAnimationFrame callbacks
-            // in background tabs, so use setTimeout.
-            window.setTimeout(func, Math.ceil(1000/videojs.MediaSource.TICKS_PER_SECOND));
-          } else {
-            requestAnimationFrame(func);
-          }
-        },
-        onVisibilityChange = function() {
-          // If the document just became hidden, requestAnimationFrame
-          // may not be ever called, so schedule the tick using
-          // setTimeout.
-          if (document.hidden && buffer.length > 0) {
-            scheduleTick(append);
-          }
+          // Chrome doesn't invoke requestAnimationFrame callbacks
+          // in background tabs, so use setTimeout.
+          window.setTimeout(func,
+                            Math.ceil(1000 / videojs.MediaSource.TICKS_PER_SECOND));
         },
         append = function() {
           var chunk, i, length, payload, maxSize,
@@ -204,9 +179,7 @@
           // schedule another append if necessary
           if (bufferSize !== 0) {
             scheduleTick(append);
-            document.addEventListener("visibilitychange", onVisibilityChange);
           } else {
-            document.removeEventListener("visibilitychange", onVisibilityChange);
             self.trigger({ type: 'updateend' });
           }
 
