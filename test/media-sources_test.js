@@ -1,17 +1,22 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldRFA, oldCanPlay, oldFlashSupport, oldBPS,
+  var player, video, mediaSource, oldSTO, oldRFA, oldCanPlay, oldFlashSupport, oldBPS,
       swfCalls,
       timers,
       fakeRFA = function() {
         oldRFA = window.requestAnimationFrame;
+        oldSTO = window.setTimeout;
         timers = [];
         window.requestAnimationFrame = function(callback) {
           timers.push(callback);
         };
+        window.setTimeout = function(callback) {
+          timers.push(callback);
+        };
       },
       unfakeRFA = function() {
-        window.setTimeout = oldRFA;
+        window.setTimeout = oldSTO;
+        window.requestAnimationFrame = oldRFA;
       };
 
   module('SourceBuffer', {

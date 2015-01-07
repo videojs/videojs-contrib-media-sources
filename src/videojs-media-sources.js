@@ -162,7 +162,7 @@
             scheduleTick(append);
           }
         },
-        append = function() {4
+        append = function() {
           var chunk, i, length, payload, maxSize,
               binary = '';
 
