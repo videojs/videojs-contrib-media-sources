@@ -1,17 +1,17 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldRAF, oldCanPlay, oldFlashSupport, oldMaxAppend,
+  var player, video, mediaSource, oldRFA, oldCanPlay, oldFlashSupport, oldBPS,
       swfCalls,
       timers,
-      fakeRAF = function() {
-        oldRAF = window.requestAnimationFrame;
+      fakeRFA = function() {
+        oldRFA = window.requestAnimationFrame;
         timers = [];
         window.requestAnimationFrame = function(callback) {
           timers.push(callback);
         };
       },
-      unfakeRAF = function() {
-        window.requestAnimationFrame = oldRAF;
+      unfakeRFA = function() {
+        window.setTimeout = oldRFA;
       };
 
   module('SourceBuffer', {
@@ -22,7 +22,7 @@
         return true;
       };
 
-      oldMaxAppend = videojs.MediaSource.MAX_APPEND_SIZE;
+      oldBPS = videojs.MediaSource.BYTES_PER_SECOND_GOAL;
 
       video = document.createElement('video');
       document.getElementById('qunit-fixture').appendChild(video);
@@ -44,13 +44,13 @@
       });
       mediaSource.trigger('sourceopen');
 
-      fakeRAF();
+      fakeRFA();
     },
     teardown: function() {
       videojs.Flash.isSupported = oldFlashSupport;
       videojs.Flash.canPlaySource = oldCanPlay;
-      videojs.MediaSource.MAX_APPEND_SIZE = oldMaxAppend;
-      unfakeRAF();
+      videojs.MediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
+      unfakeRFA();
     }
   });
 
@@ -89,7 +89,7 @@
 
   test('splits appends that are bigger than the maximum configured size', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
-    videojs.MediaSource.MAX_APPEND_SIZE = 1;
+    videojs.MediaSource.BYTES_PER_SECOND_GOAL = 60;
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     sourceBuffer.appendBuffer(new Uint8Array([2,3]));
