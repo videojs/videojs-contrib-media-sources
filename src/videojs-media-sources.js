@@ -176,13 +176,6 @@
           }
           bufferSize -= payload.byteLength;
 
-          // schedule another append if necessary
-          if (bufferSize !== 0) {
-            scheduleTick(append);
-          } else {
-            self.trigger({ type: 'updateend' });
-          }
-
           // base64 encode the bytes
           for (i = 0, length = payload.byteLength; i < length; i++) {
             binary += String.fromCharCode(payload[i]);
@@ -195,7 +188,14 @@
                                           'returntype="javascript"><arguments><string>' +
                                           b64str +
                                           '</string></arguments></invoke>');
-          };
+
+          // schedule another append if necessary
+          if (bufferSize !== 0) {
+            scheduleTick(append);
+          } else {
+            self.trigger({ type: 'updateend' });
+          }
+        };
 
     videojs.SourceBuffer.prototype.init.call(this);
     this.source = source;

@@ -118,6 +118,33 @@
 
   });
 
+  test('fires updateend after the last append', function() {
+    var
+      sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+
+    videojs.MediaSource.BYTES_PER_SECOND_GOAL = 60;
+
+    sourceBuffer.addEventListener('updateend', function(){
+      swfCalls.push('updateend');
+    });
+
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(0))) > 0,
+       'contains the first byte');
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 2, 'two calls should have been made');
+    ok(swfCalls.shift().indexOf(window.btoa(String.fromCharCode(1))) > 0,
+       'the first call should contain the first byte');
+    ok(swfCalls.shift().indexOf('updateend') === 0,
+       'the second call should be for the updateend');
+
+    strictEqual(timers.length, 0, 'no more appends are scheduled');
+  });
+
   test('abort() clears any buffered input', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
     sourceBuffer.appendBuffer(new Uint8Array([0]));
