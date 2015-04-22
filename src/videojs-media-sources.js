@@ -101,7 +101,6 @@
     return sourceBuffer;
   };
   videojs.MediaSource.prototype.endOfStream = function(){
-    this.swfObj.vjs_endOfStream();
     this.readyState = 'ended';
   };
 
@@ -183,7 +182,7 @@
           b64str = window.btoa(binary);
 
           // bypass normal ExternalInterface calls and pass xml directly
-          // EI can be slow by default
+          // IE can be slow by default
           self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
                                           'returntype="javascript"><arguments><string>' +
                                           b64str +
@@ -192,8 +191,8 @@
           // schedule another append if necessary
           if (bufferSize !== 0) {
             scheduleTick(append);
-          } else {
-            self.trigger({ type: 'updateend' });
+          } else if (self.source.readyState === 'ended') {
+            self.source.swfObj.vjs_endOfStream();
           }
         };
 
@@ -206,6 +205,7 @@
         scheduleTick(append);
       }
 
+      this.source.readyState = 'open';
       this.trigger({ type: 'update' });
 
       buffer.push(uint8Array);
