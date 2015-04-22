@@ -118,17 +118,21 @@
 
   });
 
-  test('fires updateend after the last append', function() {
+  test('calls endOfStream on the swf after the last append', function() {
     var
       sourceBuffer = mediaSource.addSourceBuffer('video/flv');
 
     videojs.MediaSource.BYTES_PER_SECOND_GOAL = 60;
 
-    sourceBuffer.addEventListener('updateend', function(){
-      swfCalls.push('updateend');
-    });
+    mediaSource.swfObj.vjs_endOfStream = function() {
+      swfCalls.push('endOfStream');
+    };
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+
+    //ready state is ended when the last segment has been appended
+    //to the mediaSource
+    sourceBuffer.source.readyState = 'ended';
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
@@ -138,10 +142,49 @@
     timers.pop()();
     strictEqual(swfCalls.length, 2, 'two calls should have been made');
     ok(swfCalls.shift().indexOf(window.btoa(String.fromCharCode(1))) > 0,
-       'the first call should contain the first byte');
-    ok(swfCalls.shift().indexOf('updateend') === 0,
+       'the first call should contain the second byte');
+    ok(swfCalls.shift().indexOf('endOfStream') === 0,
        'the second call should be for the updateend');
 
+    strictEqual(timers.length, 0, 'no more appends are scheduled');
+  });
+
+  test('opens the stream on sourceBuffer.appendBuffer after endOfStream', function() {
+    var
+      sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+
+    videojs.MediaSource.BYTES_PER_SECOND_GOAL = 60;
+
+    mediaSource.swfObj.vjs_endOfStream = function() {
+      swfCalls.push('endOfStream');
+    };
+
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+
+    //ready state is ended when the last segment has been appended
+    //to the mediaSource
+    sourceBuffer.source.readyState = 'ended';
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(0))) > 0,
+       'contains the first byte');
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 2, 'two calls should have been made');
+    ok(swfCalls.shift().indexOf(window.btoa(String.fromCharCode(1))) > 0,
+       'the first call should contain the second byte');
+    ok(swfCalls.shift().indexOf('endOfStream') === 0,
+       'the second call should be for the updateend');
+
+    sourceBuffer.appendBuffer(new Uint8Array([2]));
+
+    timers.pop()();
+    strictEqual(swfCalls.length, 1, 'made one append');
+    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(2))) > 0,
+       'contains the third byte');
+    strictEqual(sourceBuffer.source.readyState, 'open',
+      'The streams should be open if more bytes are appended to an "ended" stream');
     strictEqual(timers.length, 0, 'no more appends are scheduled');
   });
 
