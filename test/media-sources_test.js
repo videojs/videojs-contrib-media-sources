@@ -92,7 +92,6 @@
     videojs.MediaSource.BYTES_PER_SECOND_GOAL = 60;
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
-    sourceBuffer.appendBuffer(new Uint8Array([2,3]));
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
@@ -102,17 +101,19 @@
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
     ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(1))) > 0,
-       'contains the first byte');
+       'contains the second byte');
+
+    sourceBuffer.appendBuffer(new Uint8Array([2,3]));
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
     ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(2))) > 0,
-       'contains the first byte');
+       'contains the third byte');
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
     ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(3))) > 0,
-       'contains the first byte');
+       'contains the fourth byte');
 
     strictEqual(timers.length, 0, 'no more appends are scheduled');
 
@@ -216,4 +217,46 @@
     equal(requests, 0, 'no calls to requestAnimationFrame were made');
     window.requestAnimationFrame = oldRFA;
   });
+
+  test('updating is true while an append is in progress', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/flv'), ended = false;
+
+    sourceBuffer.addEventListener('updateend', function() {
+      ended = true;
+    });
+
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+
+    equal(sourceBuffer.updating, true, 'updating is set');
+
+    while (!ended) {
+      timers.pop()();
+    }
+    equal(sourceBuffer.updating, false, 'updating is unset');
+  });
+
+  test('throws an error if append is called while updating', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+
+    throws(function() {
+      sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+    }, function(e) {
+      return e.name === 'InvalidStateError' &&
+        e.code === window.DOMException.INVALID_STATE_ERR;
+    },'threw an InvalidStateError');
+  });
+
+  test('stops updating if abort is called', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/flv'), updateEnds = 0;
+    sourceBuffer.addEventListener('updateend', function() {
+      updateEnds++;
+    });
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+
+    sourceBuffer.abort();
+    equal(sourceBuffer.updating, false, 'no longer updating');
+    equal(updateEnds, 1, 'triggered updateend');
+  });
+
 })(window, window.document, window.videojs);
