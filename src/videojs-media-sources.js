@@ -191,20 +191,40 @@
           // schedule another append if necessary
           if (bufferSize !== 0) {
             scheduleTick(append);
-          } else if (self.source.readyState === 'ended') {
-            self.source.swfObj.vjs_endOfStream();
+          } else {
+            self.updating = false;
+            self.trigger({ type: 'updateend' });
+
+            if (self.source.readyState === 'ended') {
+              self.source.swfObj.vjs_endOfStream();
+            }
           }
         };
 
     videojs.SourceBuffer.prototype.init.call(this);
     this.source = source;
 
+    // indicates whether the asynchronous continuation of an operation
+    // is still being processed
+    // see https://w3c.github.io/media-source/#widl-SourceBuffer-updating
+    this.updating = false;
+
     // accept video data and pass to the video (swf) object
     this.appendBuffer = function(uint8Array){
+      var error;
+
+      if (this.updating) {
+        error = new Error('SourceBuffer.append() cannot be called ' +
+                          'while an update is in progress');
+        error.name = 'InvalidStateError';
+        error.code = 11;
+        throw error;
+      }
       if (buffer.length === 0) {
         scheduleTick(append);
       }
 
+      this.updating = true;
       this.source.readyState = 'open';
       this.trigger({ type: 'update' });
 
@@ -217,6 +237,13 @@
       buffer = [];
       bufferSize = 0;
       this.source.swfObj.vjs_abort();
+
+      // report any outstanding updates have ended
+      if (this.updating) {
+        this.updating = false;
+        this.trigger({ type: 'updateend' });
+      }
+
     };
   };
   videojs.SourceBuffer.prototype = new EventEmitter();
