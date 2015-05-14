@@ -27,6 +27,7 @@ Check out an example of the plugin in use in [example.html](example.html).
 
 ## Release History
 
+ * 1.0.0: throw an error if appends are called during an update
  * 0.3.0: Delegate SourceBuffer.abort() calls to the SWF
  * 0.2.0: Improve interactivity by batching communication with Flash.
  * 0.1.0: Initial release
