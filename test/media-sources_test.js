@@ -1,6 +1,6 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldSTO, oldCanPlay, oldFlashSupport, oldBPS,
+  var player, video, mediaSource, oldSTO, oldCanPlay, Flash, oldFlashSupport, oldBPS,
       swfCalls,
       timers,
       fakeSTO = function() {
@@ -16,9 +16,10 @@
 
   module('SourceBuffer', {
     setup: function() {
-      oldFlashSupport = videojs.Flash.isSupported;
-      oldCanPlay= videojs.Flash.canPlaySource;
-      videojs.Flash.canPlaySource = videojs.Flash.isSupported = function() {
+      Flash = videojs.getComponent('Flash');
+      oldFlashSupport = Flash.isSupported;
+      oldCanPlay = Flash.canPlaySource;
+      Flash.canPlaySource = Flash.isSupported = function() {
         return true;
       };
 
@@ -36,7 +37,8 @@
         },
         vjs_abort: function() {
           swfCalls.push('abort');
-        }
+        },
+        vjs_getProperty: function() {}
       };
       player.src({
         src: videojs.URL.createObjectURL(mediaSource),
@@ -47,8 +49,8 @@
       fakeSTO();
     },
     teardown: function() {
-      videojs.Flash.isSupported = oldFlashSupport;
-      videojs.Flash.canPlaySource = oldCanPlay;
+      Flash.isSupported = oldFlashSupport;
+      Flash.canPlaySource = oldCanPlay;
       videojs.MediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
       unfakeSTO();
     }

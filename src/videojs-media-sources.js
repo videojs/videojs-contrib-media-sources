@@ -262,31 +262,4 @@
     }
   };
 
-  // plugin
-  videojs.plugin('mediaSource', function(options){
-    var player = this;
-
-    player.on('loadstart', function(){
-      var url = player.currentSrc(),
-          trigger = function(event){
-            mediaSource.trigger(event);
-          },
-          mediaSource;
-
-      if (player.techName === 'Html5' && url.indexOf(objectUrlPrefix) === 0) {
-        // use the native media source implementation
-        mediaSource = videojs.mediaSources[url];
-
-        if (!mediaSource.nativeUrl) {
-          // initialize the native source
-          mediaSource.nativeSource = new NativeMediaSource();
-          mediaSource.nativeSource.addEventListener('sourceopen', trigger, false);
-          mediaSource.nativeSource.addEventListener('webkitsourceopen', trigger, false);
-          mediaSource.nativeUrl = nativeUrl.createObjectURL(mediaSource.nativeSource);
-        }
-        player.src(mediaSource.nativeUrl);
-      }
-    });
-  });
-
 })(this);
