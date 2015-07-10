@@ -138,7 +138,7 @@
         },
         append = function() {
           var chunk, i, length, payload, maxSize,
-              binary = '';
+              binary = '', b64str;
 
           if (!buffer.length) {
             // do nothing if the buffer is empty
