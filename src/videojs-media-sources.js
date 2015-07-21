@@ -100,6 +100,23 @@
     this.sourceBuffers.push(sourceBuffer);
     return sourceBuffer;
   };
+
+  /**
+   * Set or return the presentation duration.
+   * @param value {double} the duration of the media in seconds
+   * @param {double} the current presentation duration
+   * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
+   */
+  videojs.MediaSource.prototype.duration = function(value){
+    if (value !== undefined) {
+      this.swfObj.vjs_setProperty('duration', value);
+      return value;
+    }
+    return this.swfObj.vjs_getProperty('duration');
+  };
+  /**
+   * Signals the end of the stream.
+   */
   videojs.MediaSource.prototype.endOfStream = function(){
     this.readyState = 'ended';
   };

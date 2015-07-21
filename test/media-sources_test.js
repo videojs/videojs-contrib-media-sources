@@ -38,7 +38,12 @@
         vjs_abort: function() {
           swfCalls.push('abort');
         },
-        vjs_getProperty: function() {}
+        vjs_getProperty: function(attr) {
+          swfCalls.push({ attr: attr });
+        },
+        vjs_setProperty: function(attr, value) {
+          swfCalls.push({ attr: attr, value: value });
+        }
       };
       player.src({
         src: videojs.URL.createObjectURL(mediaSource),
@@ -259,6 +264,19 @@
     sourceBuffer.abort();
     equal(sourceBuffer.updating, false, 'no longer updating');
     equal(updateEnds, 1, 'triggered updateend');
+  });
+
+  test('forwards duration overrides to the SWF', function() {
+    mediaSource.duration();
+    deepEqual(swfCalls[0], {
+      attr: 'duration'
+    }, 'requests duration from the SWF');
+
+    mediaSource.duration(101.3);
+    deepEqual(swfCalls[1], {
+      attr: 'duration', value: 101.3
+    }, 'set the duration override');
+
   });
 
 })(window, window.document, window.videojs);
