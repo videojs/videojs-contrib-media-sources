@@ -1,6 +1,6 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldSTO, oldCanPlay, oldFlashSupport, oldBPS,
+  var player, video, mediaSource, oldSTO, oldCanPlay, Flash, oldFlashSupport, oldBPS,
       swfCalls,
       timers,
       fakeSTO = function() {
@@ -16,9 +16,10 @@
 
   module('SourceBuffer', {
     setup: function() {
-      oldFlashSupport = videojs.Flash.isSupported;
-      oldCanPlay= videojs.Flash.canPlaySource;
-      videojs.Flash.canPlaySource = videojs.Flash.isSupported = function() {
+      Flash = videojs.getComponent('Flash');
+      oldFlashSupport = Flash.isSupported;
+      oldCanPlay = Flash.canPlaySource;
+      Flash.canPlaySource = Flash.isSupported = function() {
         return true;
       };
 
@@ -36,6 +37,12 @@
         },
         vjs_abort: function() {
           swfCalls.push('abort');
+        },
+        vjs_getProperty: function(attr) {
+          swfCalls.push({ attr: attr });
+        },
+        vjs_setProperty: function(attr, value) {
+          swfCalls.push({ attr: attr, value: value });
         }
       };
       player.src({
@@ -47,8 +54,8 @@
       fakeSTO();
     },
     teardown: function() {
-      videojs.Flash.isSupported = oldFlashSupport;
-      videojs.Flash.canPlaySource = oldCanPlay;
+      Flash.isSupported = oldFlashSupport;
+      Flash.canPlaySource = oldCanPlay;
       videojs.MediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
       unfakeSTO();
     }
@@ -257,6 +264,19 @@
     sourceBuffer.abort();
     equal(sourceBuffer.updating, false, 'no longer updating');
     equal(updateEnds, 1, 'triggered updateend');
+  });
+
+  test('forwards duration overrides to the SWF', function() {
+    mediaSource.duration();
+    deepEqual(swfCalls[0], {
+      attr: 'duration'
+    }, 'requests duration from the SWF');
+
+    mediaSource.duration(101.3);
+    deepEqual(swfCalls[1], {
+      attr: 'duration', value: 101.3
+    }, 'set the duration override');
+
   });
 
 })(window, window.document, window.videojs);

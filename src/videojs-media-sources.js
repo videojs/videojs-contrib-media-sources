@@ -100,6 +100,23 @@
     this.sourceBuffers.push(sourceBuffer);
     return sourceBuffer;
   };
+
+  /**
+   * Set or return the presentation duration.
+   * @param value {double} the duration of the media in seconds
+   * @param {double} the current presentation duration
+   * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
+   */
+  videojs.MediaSource.prototype.duration = function(value){
+    if (value !== undefined) {
+      this.swfObj.vjs_setProperty('duration', value);
+      return value;
+    }
+    return this.swfObj.vjs_getProperty('duration');
+  };
+  /**
+   * Signals the end of the stream.
+   */
   videojs.MediaSource.prototype.endOfStream = function(){
     this.readyState = 'ended';
   };
@@ -261,32 +278,5 @@
       return url;
     }
   };
-
-  // plugin
-  videojs.plugin('mediaSource', function(options){
-    var player = this;
-
-    player.on('loadstart', function(){
-      var url = player.currentSrc(),
-          trigger = function(event){
-            mediaSource.trigger(event);
-          },
-          mediaSource;
-
-      if (player.techName === 'Html5' && url.indexOf(objectUrlPrefix) === 0) {
-        // use the native media source implementation
-        mediaSource = videojs.mediaSources[url];
-
-        if (!mediaSource.nativeUrl) {
-          // initialize the native source
-          mediaSource.nativeSource = new NativeMediaSource();
-          mediaSource.nativeSource.addEventListener('sourceopen', trigger, false);
-          mediaSource.nativeSource.addEventListener('webkitsourceopen', trigger, false);
-          mediaSource.nativeUrl = nativeUrl.createObjectURL(mediaSource.nativeSource);
-        }
-        player.src(mediaSource.nativeUrl);
-      }
-    });
-  });
 
 })(this);
