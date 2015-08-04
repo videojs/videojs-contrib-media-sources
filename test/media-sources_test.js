@@ -279,4 +279,10 @@
 
   });
 
+  test('returns NaN for duration before the SWF is ready', function() {
+    mediaSource.swfObj = undefined;
+
+    ok(isNaN(mediaSource.duration()), 'duration is NaN');
+  });
+
 })(window, window.document, window.videojs);

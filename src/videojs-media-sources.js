@@ -108,10 +108,16 @@
    * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
    */
   videojs.MediaSource.prototype.duration = function(value){
+    // setter
     if (value !== undefined) {
       this.swfObj.vjs_setProperty('duration', value);
       return value;
     }
+    // before the media source is ready, duration should be NaN
+    if (!this.swfObj) {
+      return NaN;
+    }
+    // get the current duration from the SWF
     return this.swfObj.vjs_getProperty('duration');
   };
   /**
