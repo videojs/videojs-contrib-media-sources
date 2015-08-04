@@ -1,66 +1,36 @@
 (function(window){
   var urlCount = 0,
-      NativeMediaSource = window.MediaSource || window.WebKitMediaSource || {},
-      nativeUrl = window.URL || {},
-      EventEmitter,
+      EventTarget = videojs.EventTarget,
       flvCodec = /video\/flv(;\s*codecs=["']vp6,aac["'])?$/,
       objectUrlPrefix = 'blob:vjs-media-source/';
-
-  EventEmitter = function(){};
-  EventEmitter.prototype.init = function(){
-    this.listeners = [];
-  };
-  EventEmitter.prototype.addEventListener = function(type, listener){
-    if (!this.listeners[type]){
-      this.listeners[type] = [];
-    }
-    this.listeners[type].unshift(listener);
-  };
-  EventEmitter.prototype.removeEventListener = function(type, listener){
-    var listeners = this.listeners[type],
-        i = listeners.length;
-    while (i--) {
-      if (listeners[i] === listener) {
-        return listeners.splice(i, 1);
-      }
-    }
-  };
-  EventEmitter.prototype.trigger = function(event){
-    var listeners = this.listeners[event.type] || [],
-        i = listeners.length;
-    while (i--) {
-      listeners[i](event);
-    }
-  };
 
   // extend the media source APIs
 
   // Media Source
-  videojs.MediaSource = function(){
-    var self = this;
-    videojs.MediaSource.prototype.init.call(this);
+  videojs.MediaSource = videojs.extends(EventTarget, {
+    constructor: function(){
+      // if native MediaSources are supported, use them
+      var NativeMediaSource = window.MediaSource || window.WebKitMediaSource;
+      if (NativeMediaSource) {
+        return new NativeMediaSource();
+      }
 
-    this.sourceBuffers = [];
-    this.readyState = 'closed';
-    this.listeners = {
-      sourceopen: [function(event){
+      // otherwise, emulate MediaSources through the video.js SWF
+      this.sourceBuffers = [];
+      this.readyState = 'closed';
+
+      this.on(['sourceopen', 'webkitsourceopen'], function(event){
         // find the swf where we will push media data
-        self.swfObj = document.getElementById(event.swfId);
-        self.readyState = 'open';
+        this.swfObj = document.getElementById(event.swfId);
+        this.readyState = 'open';
 
         // trigger load events
-        if (self.swfObj) {
-          self.swfObj.vjs_load();
+        if (this.swfObj) {
+          this.swfObj.vjs_load();
         }
-      }],
-      webkitsourceopen: [function(event){
-        self.trigger({
-          type: 'sourceopen'
-        });
-      }]
-    };
-  };
-  videojs.MediaSource.prototype = new EventEmitter();
+      });
+    }
+  });
 
   /**
    * The maximum size in bytes for append operations to the video.js
@@ -101,25 +71,27 @@
     return sourceBuffer;
   };
 
+
   /**
    * Set or return the presentation duration.
    * @param value {double} the duration of the media in seconds
    * @param {double} the current presentation duration
    * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
    */
-  videojs.MediaSource.prototype.duration = function(value){
-    // setter
-    if (value !== undefined) {
+  Object.defineProperty(videojs.MediaSource.prototype, 'duration', {
+    get: function(){
+      if (!this.swfObj) {
+        return NaN;
+      }
+      // get the current duration from the SWF
+      return this.swfObj.vjs_getProperty('duration');
+    },
+    set: function(value){
       this.swfObj.vjs_setProperty('duration', value);
       return value;
     }
-    // before the media source is ready, duration should be NaN
-    if (!this.swfObj) {
-      return NaN;
-    }
-    // get the current duration from the SWF
-    return this.swfObj.vjs_getProperty('duration');
-  };
+  });
+
   /**
    * Signals the end of the stream.
    */
@@ -145,136 +117,145 @@
   };
 
   // Source Buffer
-  videojs.SourceBuffer = function(source){
-    var self = this,
+  videojs.SourceBuffer = videojs.extends(EventTarget, {
+    constructor: function(source){
+      var self = this,
 
-        // byte arrays queued to be appended
-        buffer = [],
+          // byte arrays queued to be appended
+          buffer = [],
 
-        // the total number of queued bytes
-        bufferSize = 0,
-        scheduleTick = function(func) {
-          // Chrome doesn't invoke requestAnimationFrame callbacks
-          // in background tabs, so use setTimeout.
-          window.setTimeout(func,
-                            Math.ceil(1000 / videojs.MediaSource.TICKS_PER_SECOND));
-        },
-        append = function() {
-          var chunk, i, length, payload, maxSize,
-              binary = '';
+          // the total number of queued bytes
+          bufferSize = 0,
+          scheduleTick = function(func) {
+            // Chrome doesn't invoke requestAnimationFrame callbacks
+            // in background tabs, so use setTimeout.
+            window.setTimeout(func,
+                              Math.ceil(1000 / videojs.MediaSource.TICKS_PER_SECOND));
+          },
+          append = function() {
+            var chunk, i, length, payload, maxSize,
+                binary = '';
 
-          if (!buffer.length) {
-            // do nothing if the buffer is empty
-            return;
-          }
+            if (!buffer.length) {
+              // do nothing if the buffer is empty
+              return;
+            }
 
-          if (document.hidden) {
-            // When the document is hidden, the browser will likely
-            // invoke callbacks less frequently than we want. Just
-            // append a whole second's worth of data. It doesn't
-            // matter if the video janks, since the user can't see it.
-            maxSize = videojs.MediaSource.BYTES_PER_SECOND_GOAL;
-          } else {
-            maxSize = Math.ceil(videojs.MediaSource.BYTES_PER_SECOND_GOAL/
-                                videojs.MediaSource.TICKS_PER_SECOND);
-          }
-
-          // concatenate appends up to the max append size
-          payload = new Uint8Array(Math.min(maxSize, bufferSize));
-          i = payload.byteLength;
-          while (i) {
-            chunk = buffer[0].subarray(0, i);
-
-            payload.set(chunk, payload.byteLength - i);
-
-            // requeue any bytes that won't make it this round
-            if (chunk.byteLength < buffer[0].byteLength) {
-              buffer[0] = buffer[0].subarray(i);
+            if (document.hidden) {
+              // When the document is hidden, the browser will likely
+              // invoke callbacks less frequently than we want. Just
+              // append a whole second's worth of data. It doesn't
+              // matter if the video janks, since the user can't see it.
+              maxSize = videojs.MediaSource.BYTES_PER_SECOND_GOAL;
             } else {
-              buffer.shift();
+              maxSize = Math.ceil(videojs.MediaSource.BYTES_PER_SECOND_GOAL/
+                                  videojs.MediaSource.TICKS_PER_SECOND);
             }
 
-            i -= chunk.byteLength;
-          }
-          bufferSize -= payload.byteLength;
+            // concatenate appends up to the max append size
+            payload = new Uint8Array(Math.min(maxSize, bufferSize));
+            i = payload.byteLength;
+            while (i) {
+              chunk = buffer[0].subarray(0, i);
 
-          // base64 encode the bytes
-          for (i = 0, length = payload.byteLength; i < length; i++) {
-            binary += String.fromCharCode(payload[i]);
-          }
-          b64str = window.btoa(binary);
+              payload.set(chunk, payload.byteLength - i);
 
-          // bypass normal ExternalInterface calls and pass xml directly
-          // IE can be slow by default
-          self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                          'returntype="javascript"><arguments><string>' +
-                                          b64str +
-                                          '</string></arguments></invoke>');
+              // requeue any bytes that won't make it this round
+              if (chunk.byteLength < buffer[0].byteLength) {
+                buffer[0] = buffer[0].subarray(i);
+              } else {
+                buffer.shift();
+              }
 
-          // schedule another append if necessary
-          if (bufferSize !== 0) {
-            scheduleTick(append);
-          } else {
-            self.updating = false;
-            self.trigger({ type: 'updateend' });
-
-            if (self.source.readyState === 'ended') {
-              self.source.swfObj.vjs_endOfStream();
+              i -= chunk.byteLength;
             }
-          }
-        };
+            bufferSize -= payload.byteLength;
 
-    videojs.SourceBuffer.prototype.init.call(this);
-    this.source = source;
+            // base64 encode the bytes
+            for (i = 0, length = payload.byteLength; i < length; i++) {
+              binary += String.fromCharCode(payload[i]);
+            }
+            b64str = window.btoa(binary);
 
-    // indicates whether the asynchronous continuation of an operation
-    // is still being processed
-    // see https://w3c.github.io/media-source/#widl-SourceBuffer-updating
-    this.updating = false;
+            // bypass normal ExternalInterface calls and pass xml directly
+            // IE can be slow by default
+            self.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                            'returntype="javascript"><arguments><string>' +
+                                            b64str +
+                                            '</string></arguments></invoke>');
 
-    // accept video data and pass to the video (swf) object
-    this.appendBuffer = function(uint8Array){
-      var error;
+            // schedule another append if necessary
+            if (bufferSize !== 0) {
+              scheduleTick(append);
+            } else {
+              self.updating = false;
+              self.trigger({ type: 'updateend' });
 
-      if (this.updating) {
-        error = new Error('SourceBuffer.append() cannot be called ' +
-                          'while an update is in progress');
-        error.name = 'InvalidStateError';
-        error.code = 11;
-        throw error;
-      }
-      if (buffer.length === 0) {
-        scheduleTick(append);
-      }
+              if (self.source.readyState === 'ended') {
+                self.source.swfObj.vjs_endOfStream();
+              }
+            }
+          };
+      this.source = source;
 
-      this.updating = true;
-      this.source.readyState = 'open';
-      this.trigger({ type: 'update' });
+      // indicates whether the asynchronous continuation of an operation
+      // is still being processed
+      // see https://w3c.github.io/media-source/#widl-SourceBuffer-updating
+      this.updating = false;
 
-      buffer.push(uint8Array);
-      bufferSize += uint8Array.byteLength;
-    };
+      // accept video data and pass to the video (swf) object
+      this.appendBuffer = function(uint8Array){
+        var error;
 
-    // reset the parser and remove any data queued to be sent to the swf
-    this.abort = function() {
-      buffer = [];
-      bufferSize = 0;
-      this.source.swfObj.vjs_abort();
+        if (this.updating) {
+          error = new Error('SourceBuffer.append() cannot be called ' +
+                            'while an update is in progress');
+          error.name = 'InvalidStateError';
+          error.code = 11;
+          throw error;
+        }
+        if (buffer.length === 0) {
+          scheduleTick(append);
+        }
 
-      // report any outstanding updates have ended
-      if (this.updating) {
-        this.updating = false;
-        this.trigger({ type: 'updateend' });
-      }
+        this.updating = true;
+        this.source.readyState = 'open';
+        this.trigger({ type: 'update' });
 
-    };
-  };
-  videojs.SourceBuffer.prototype = new EventEmitter();
+        buffer.push(uint8Array);
+        bufferSize += uint8Array.byteLength;
+      };
+
+      // reset the parser and remove any data queued to be sent to the swf
+      this.abort = function() {
+        buffer = [];
+        bufferSize = 0;
+        this.source.swfObj.vjs_abort();
+
+        // report any outstanding updates have ended
+        if (this.updating) {
+          this.updating = false;
+          this.trigger({ type: 'updateend' });
+        }
+
+      };
+    }
+  });
 
   // URL
   videojs.URL = {
     createObjectURL: function(object){
-      var url = objectUrlPrefix + urlCount;
+      var url;
+
+      // if the object isn't an emulated MediaSource, delegate to the
+      // native implementation
+      if (!(object instanceof videojs.MediaSource)) {
+        return window.URL.createObjectURL(object);
+      }
+
+      // build a URL that can be used to map back to the emulated
+      // MediaSource
+      url = objectUrlPrefix + urlCount;
 
       urlCount++;
 

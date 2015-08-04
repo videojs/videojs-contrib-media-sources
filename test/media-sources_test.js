@@ -1,6 +1,7 @@
 (function(window, document, videojs) {
   'use strict';
-  var player, video, mediaSource, oldSTO, oldCanPlay, Flash, oldFlashSupport, oldBPS,
+  var player, video, mediaSource, Flash,
+      oldFlashSupport, oldBPS, oldMediaSourceConstructor, oldSTO, oldCanPlay,
       swfCalls,
       timers,
       fakeSTO = function() {
@@ -14,8 +15,27 @@
         window.setTimeout = oldSTO;
       };
 
-  module('SourceBuffer', {
+  module('HTML MediaSource', {
+    setup: function(){
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource,
+      window.MediaSource = window.WebKitMediaSource = function(){
+        this.isNative = true;
+      };
+    },
+    teardown: function(){
+      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
+    }
+  });
+
+  test('constructs a native MediaSource', function(){
+    ok(new videojs.MediaSource().isNative, 'constructed a MediaSource');
+  });
+
+  module('Flash MediaSource', {
     setup: function() {
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource,
+      window.MediaSource = window.WebKitMediaSource = null;
+
       Flash = videojs.getComponent('Flash');
       oldFlashSupport = Flash.isSupported;
       oldCanPlay = Flash.canPlaySource;
@@ -31,6 +51,11 @@
 
       swfCalls = [];
       mediaSource = new videojs.MediaSource();
+      player.src({
+        src: videojs.URL.createObjectURL(mediaSource),
+        type: "video/flv"
+      });
+      mediaSource.trigger('sourceopen');
       mediaSource.swfObj = {
         CallFunction: function(xml) {
           swfCalls.push(xml);
@@ -45,15 +70,11 @@
           swfCalls.push({ attr: attr, value: value });
         }
       };
-      player.src({
-        src: videojs.URL.createObjectURL(mediaSource),
-        type: "video/flv"
-      });
-      mediaSource.trigger('sourceopen');
 
       fakeSTO();
     },
     teardown: function() {
+      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
       Flash.isSupported = oldFlashSupport;
       Flash.canPlaySource = oldCanPlay;
       videojs.MediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
@@ -267,12 +288,12 @@
   });
 
   test('forwards duration overrides to the SWF', function() {
-    mediaSource.duration();
+    var ignored = mediaSource.duration;
     deepEqual(swfCalls[0], {
       attr: 'duration'
     }, 'requests duration from the SWF');
 
-    mediaSource.duration(101.3);
+    mediaSource.duration = 101.3;
     deepEqual(swfCalls[1], {
       attr: 'duration', value: 101.3
     }, 'set the duration override');
@@ -282,7 +303,27 @@
   test('returns NaN for duration before the SWF is ready', function() {
     mediaSource.swfObj = undefined;
 
-    ok(isNaN(mediaSource.duration()), 'duration is NaN');
+    ok(isNaN(mediaSource.duration), 'duration is NaN');
+  });
+
+  module('createObjectURL', {
+    setup: function(){
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource,
+      window.MediaSource = window.WebKitMediaSource = null
+    },
+    teardown: function(){
+      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
+    }
+  });
+
+  test('delegates to the native implementation', function() {
+    ok(!(/blob:vjs-media-source\//).test(videojs.URL.createObjectURL(new Blob())),
+       'created a native blob URL');
+  });
+
+  test('emulates a URL for the shim', function() {
+    ok((/blob:vjs-media-source\//).test(videojs.URL.createObjectURL(new videojs.MediaSource())),
+       'created an emulated blob URL');
   });
 
 })(window, window.document, window.videojs);
