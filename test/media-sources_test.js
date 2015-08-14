@@ -13,7 +13,9 @@
       },
       unfakeSTO = function() {
         window.setTimeout = oldSTO;
-      };
+      },
+      oldFlashTransmuxer,
+      MockSegmentParser;
 
   module('HTML MediaSource', {
     setup: function(){
@@ -24,7 +26,8 @@
         this.isNative = true;
         this.addSourceBuffer = function(type) {
           var buffer = new (videojs.extends(videojs.EventTarget, {
-            type: type
+            type: type,
+            appendBuffer: function() {}
           }))();
           sourceBuffers.push(buffer);
           return buffer;
@@ -113,6 +116,23 @@
     equal(sourceBuffer.buffered.end(0), 7, 'ends at the latest shared time');
   });
 
+  test('sets native timestamp offsets on appends', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+    sourceBuffer.timestampOffset = 42;
+    sourceBuffer.appendBuffer(new Uint8Array(1));
+    sourceBuffer.transmuxer_.trigger('data', {
+      type: 'audio',
+      data: new Uint8Array(1)
+    });sourceBuffer.transmuxer_.trigger('data', {
+      type: 'video',
+      data: new Uint8Array(1)
+    });
+
+    equal(mediaSource.sourceBuffers[0].timestampOffset, 42, 'set the first offset');
+    equal(mediaSource.sourceBuffers[1].timestampOffset, 42, 'set the second offset');
+  });
+
   test('does not wrap mp4 source buffers', function(){
     var mediaSource = new videojs.MediaSource(),
         video = mediaSource.addSourceBuffer('video/mp4;codecs=avc1.4d400d'),
@@ -137,6 +157,8 @@
       };
 
       oldBPS = videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL;
+      oldFlashTransmuxer = muxjs.SegmentParser;
+      muxjs.SegmentParser = MockSegmentParser;
 
       video = document.createElement('video');
       document.getElementById('qunit-fixture').appendChild(video);
@@ -146,7 +168,7 @@
       mediaSource = new videojs.MediaSource();
       player.src({
         src: videojs.URL.createObjectURL(mediaSource),
-        type: "video/flv"
+        type: "video/mp2t"
       });
       mediaSource.trigger('sourceopen');
       mediaSource.swfObj = {
@@ -161,6 +183,10 @@
         },
         vjs_setProperty: function(attr, value) {
           swfCalls.push({ attr: attr, value: value });
+        },
+        vjs_appendBuffer: function(flvHeader) {
+          // only the FLV header directly invokes this so we can
+          // ignore it
         }
       };
 
@@ -171,9 +197,29 @@
       Flash.isSupported = oldFlashSupport;
       Flash.canPlaySource = oldCanPlay;
       videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
+      muxjs.SegmentParser = oldFlashTransmuxer;
       unfakeSTO();
     }
   });
+
+  MockSegmentParser = function() {
+    var tags = [];
+    this.getFlvHeader = function() {
+      return new Uint8Array([1, 2, 3]);
+    }
+    this.parseSegmentBinaryData = function(data) {
+      tags.push({
+        bytes: data
+      });
+    };
+    this.flushTags = function() {};
+    this.tagsAvailable = function() {
+      return tags.length !== 0;
+    };
+    this.getNextTag = function() {
+      return tags.shift();
+    }
+  };
 
   test('raises an exception for unrecognized MIME types', function() {
     try {
@@ -185,20 +231,23 @@
     ok(false, 'no error was thrown');
   });
 
-  test('creates FlashSourceBuffers for video/flv', function() {
-    ok(mediaSource.addSourceBuffer('video/flv'), 'create source buffer');
+  test('creates FlashSourceBuffers for video/mp2t', function() {
+    ok(mediaSource.addSourceBuffer('video/mp2t') instanceof videojs.FlashSourceBuffer,
+       'create source buffer');
   });
 
-  test('waits for the next frame to append', function() {
-    mediaSource.addSourceBuffer('video/flv').appendBuffer(new Uint8Array([0,1]));
+  test('waits for the next tick to append', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     strictEqual(swfCalls.length, 0, 'no SWF calls were made');
   });
 
   test('passes bytes to Flash', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/flv'),
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
         expected = '<invoke name="vjs_appendBuffer"' +
                    'returntype="javascript"><arguments><string>' +
-                   window.btoa(String.fromCharCode(0) + String.fromCharCode(1)) +
+                   window.btoa(String.fromCharCode(0, 1)) +
                    '</string></arguments></invoke>';
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
@@ -209,7 +258,7 @@
   });
 
   test('splits appends that are bigger than the maximum configured size', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
@@ -242,7 +291,7 @@
 
   test('calls endOfStream on the swf after the last append', function() {
     var
-      sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+      sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
 
@@ -273,7 +322,7 @@
 
   test('opens the stream on sourceBuffer.appendBuffer after endOfStream', function() {
     var
-      sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+      sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
 
@@ -311,7 +360,7 @@
   });
 
   test('abort() clears any buffered input', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     sourceBuffer.appendBuffer(new Uint8Array([0]));
     sourceBuffer.abort();
 
@@ -330,7 +379,7 @@
       requests++;
     };
 
-    sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3]));
     while (timers.length) {
       timers.pop()();
@@ -340,7 +389,7 @@
   });
 
   test('updating is true while an append is in progress', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/flv'), ended = false;
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'), ended = false;
 
     sourceBuffer.addEventListener('updateend', function() {
       ended = true;
@@ -357,7 +406,7 @@
   });
 
   test('throws an error if append is called while updating', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/flv');
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
 
     throws(function() {
@@ -369,7 +418,7 @@
   });
 
   test('stops updating if abort is called', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/flv'), updateEnds = 0;
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'), updateEnds = 0;
     sourceBuffer.addEventListener('updateend', function() {
       updateEnds++;
     });

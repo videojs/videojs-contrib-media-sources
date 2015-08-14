@@ -65,7 +65,9 @@
   VirtualSourceBuffer = videojs.extends(EventTarget, {
     constructor: function VirtualSourceBuffer(audioBuffer, videoBuffer) {
       this.audioBuffer_ = audioBuffer;
+      this.audioUpdating_ = false;
       this.videoBuffer_ = videoBuffer;
+      this.videoUpdating_ = false;
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
@@ -74,8 +76,13 @@
         var buffer;
         if (event.type === 'video') {
           buffer = this.videoBuffer_;
+          this.videoUpdating_ = false;
         } else {
           buffer = this.audioBuffer_;
+          this.audioUpdating_ = false;
+        }
+        if (this.timestampOffset !== undefined) {
+          buffer.timestampOffset = this.timestampOffset;
         }
         buffer.appendBuffer(event.data);
       }.bind(this));
@@ -83,7 +90,8 @@
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
         get: function() {
-          return this.audioBuffer_.updating || this.videoBuffer_.updating;
+          return this.audioUpdating_ || this.videoUpdating_ ||
+            this.audioBuffer_.updating || this.videoBuffer_.updating;
         }
       });
       // the buffered property is the intersection of the buffered
@@ -104,6 +112,7 @@
       });
     },
     appendBuffer: function(segment) {
+      this.audioUpdating_ = this.videoUpdating_ = true;
       this.transmuxer_.push(segment);
       this.transmuxer_.end();
     }
@@ -221,13 +230,16 @@
 
   // Source Buffer
   videojs.FlashSourceBuffer = videojs.extends(EventTarget, {
-    // byte arrays queued to be appended
-    buffer_: [],
-
-    // the total number of queued bytes
-    bufferSize_: 0,
 
     constructor: function(source){
+      var flvHeader;
+
+      // byte arrays queued to be appended
+      this.buffer_ = [];
+
+      // the total number of queued bytes
+      this.bufferSize_ =  0;
+
       this.source = source;
 
       // indicates whether the asynchronous continuation of an operation
@@ -237,7 +249,8 @@
 
       // TS to FLV transmuxer
       this.segmentParser_ = new muxjs.SegmentParser();
-      this.appendBuffer(this.segmentParser_.getFlvHeader(), true);
+      flvHeader = this.segmentParser_.getFlvHeader();
+      this.source.swfObj.vjs_appendBuffer(flvHeader);
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
@@ -247,7 +260,7 @@
     },
 
     // accept video data and pass to the video (swf) object
-    appendBuffer: function(uint8Array, skipConversion){
+    appendBuffer: function(uint8Array){
       var error, flvBytes;
 
       if (this.updating) {
@@ -265,11 +278,7 @@
       this.source.readyState = 'open';
       this.trigger({ type: 'update' });
 
-      if (skipConversion) {
-        flvBytes = uint8Array;
-      } else {
-        flvBytes = this.tsToFlv_(uint8Array);
-      }
+      flvBytes = this.tsToFlv_(uint8Array);
       this.buffer_.push(flvBytes);
       this.bufferSize_ += flvBytes.byteLength;
     },
