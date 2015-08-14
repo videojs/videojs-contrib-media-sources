@@ -31,5 +31,8 @@
     "grunt-contrib-qunit": "^0.4.0",
     "qunitjs": "^1.14.0",
     "video.js": "^5.0.0-rc.4"
+  },
+  "dependencies": {
+    "mux.js": "git+ssh://git@github.com:dmlap/mux.js.git"
   }
 }
