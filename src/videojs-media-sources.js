@@ -2,6 +2,7 @@
   'use strict';
   var urlCount = 0,
       EventTarget = videojs.EventTarget,
+      defaults,
       VirtualSourceBuffer,
       flvCodec = /video\/flv(;\s*codecs=["']vp6,aac["'])?$/,
       objectUrlPrefix = 'blob:vjs-media-source/',
@@ -13,11 +14,26 @@
   // Media Source
   // ------------
 
+  defaults = {
+    // how to determine the MediaSource implementation to use. There
+    // are three available modes:
+    // - auto: use native MediaSources where available and Flash
+    //   everywhere else
+    // - html5: always use native MediaSources
+    // - flash: always use the Flash MediaSource polyfill
+    mode: 'auto'
+  };
+
   videojs.MediaSource = videojs.extends(EventTarget, {
-    constructor: function(){
-      // if native MediaSources are supported, use them
+    constructor: function(options){
       var self;
-      if (window.MediaSource) {
+
+      this.settings_ = videojs.mergeOptions(defaults, options);
+
+      // determine whether native MediaSources should be used
+      if ((this.settings_.mode === 'auto' &&
+           videojs.MediaSource.supportsNativeMediaSources()) ||
+          this.settings_.mode === 'html5') {
         self = new window.MediaSource();
         interceptBufferCreation(self);
         return self;
@@ -28,7 +44,7 @@
     }
   });
   videojs.MediaSource.supportsNativeMediaSources = function() {
-    return window.MediaSource;
+    return !!window.MediaSource;
   };
 
   // ----
@@ -232,7 +248,7 @@
   videojs.FlashSourceBuffer = videojs.extends(EventTarget, {
 
     constructor: function(source){
-      var flvHeader;
+      var encodedHeader;
 
       // byte arrays queued to be appended
       this.buffer_ = [];
@@ -249,8 +265,8 @@
 
       // TS to FLV transmuxer
       this.segmentParser_ = new muxjs.SegmentParser();
-      flvHeader = this.segmentParser_.getFlvHeader();
-      this.source.swfObj.vjs_appendBuffer(flvHeader);
+      encodedHeader = window.btoa(String.fromCharCode.apply(null, this.segmentParser_.getFlvHeader()));
+      this.source.swfObj.vjs_appendBuffer(encodedHeader);
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
@@ -299,8 +315,7 @@
 
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
-      var chunk, i, length, payload, maxSize, b64str,
-          binary = '';
+      var chunk, i, length, payload, maxSize, b64str;
 
       if (!this.buffer_.length) {
         // do nothing if the buffer is empty
@@ -338,10 +353,7 @@
       this.bufferSize_ -= payload.byteLength;
 
       // base64 encode the bytes
-      for (i = 0, length = payload.byteLength; i < length; i++) {
-        binary += String.fromCharCode(payload[i]);
-      }
-      b64str = window.btoa(binary);
+      b64str = window.btoa(String.fromCharCode.apply(null, payload));
 
       // bypass normal ExternalInterface calls and pass xml directly
       // IE can be slow by default

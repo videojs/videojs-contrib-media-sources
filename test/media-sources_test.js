@@ -17,6 +17,32 @@
       oldFlashTransmuxer,
       MockSegmentParser;
 
+  module('General', {
+    setup: function() {
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
+    },
+    teardown: function() {
+      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
+    }
+  });
+
+  test('implementation selection is overridable', function() {
+    ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
+       'forced Flash');
+    // mock native MediaSources
+    window.MediaSource = function() {};
+    ok(new videojs.MediaSource({ mode: 'html5' }) instanceof window.MediaSource,
+       'forced HTML5');
+
+    // 'auto' should use native MediaSources when they're available
+    ok(new videojs.MediaSource() instanceof window.MediaSource,
+       'used HTML5');
+    window.MediaSource = null;
+    // 'auto' should use Flash when native MediaSources are not available
+    ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
+       'used Flash');
+  });
+
   module('HTML MediaSource', {
     setup: function(){
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource,
@@ -446,6 +472,17 @@
     mediaSource.swfObj = undefined;
 
     ok(isNaN(mediaSource.duration), 'duration is NaN');
+  });
+
+
+  test('flushes the transmuxer after each append', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'), flushes = 0;
+    sourceBuffer.segmentParser_.flushTags = function() {
+      flushes++;
+    };
+
+    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+    equal(flushes, 1, 'flushed the transmuxer');
   });
 
   module('createObjectURL');

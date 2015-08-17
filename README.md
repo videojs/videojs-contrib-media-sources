@@ -24,6 +24,25 @@ Setting the `BYTES_PER_SECOND_GOAL` too high may lead to dropped frames during p
 
 Check out an example of the plugin in use in [example.html](example.html).
 
+## Options
+You can configure some aspects of the MediaSource polyfill by
+specifying a hash of options when you construct it:
+
+```js
+var mediaSource = new videojs.MediaSource({ mode: 'html5' });
+```
+
+### mode
+Type: `string`
+Values: `'auto'`, `'html5'`, `'flash'`
+Default Value: `'auto'`
+
+How to determine the MediaSources implementation to use. With the
+default value of `auto`, the presence of native MediaSources is
+detected at construction time and they're used if available. Choosing
+`html5` or `flash` will force the use of that respective MediaSource
+implementation, even if it does not appear the browser supports it.
+
 ## Release History
 
  * 1.0.0: throw an error if appends are called during an update
