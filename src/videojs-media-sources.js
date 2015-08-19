@@ -100,21 +100,30 @@
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
-      this.transmuxer_ = new muxjs.mp2t.Transmuxer();
-      this.transmuxer_.on('data', function(event) {
-        var buffer;
-        if (event.type === 'video') {
-          buffer = this.videoBuffer_;
-          this.videoUpdating_ = false;
-        } else {
-          buffer = this.audioBuffer_;
-          this.audioUpdating_ = false;
+      this.transmuxer_ = new Worker('../node_modules/videojs-contrib-media-sources/node_modules/mux.js/lib/transmuxer_worker.js');
+
+      this.transmuxer_.onmessage = function (event) {
+        if (event.data.action === 'data') {
+          var
+            buffer,
+            segment = event.data;
+          // Cast to type
+          segment.data = new Uint8Array(segment.data);
+
+          if (segment.type === 'video') {
+            buffer = this.videoBuffer_;
+            this.videoUpdating_ = false;
+          } else {
+            buffer = this.audioBuffer_;
+            this.audioUpdating_ = false;
+          }
+          if (this.timestampOffset !== undefined) {
+            buffer.timestampOffset = this.timestampOffset;
+          }
+
+          buffer.appendBuffer(segment.data);
         }
-        if (this.timestampOffset !== undefined) {
-          buffer.timestampOffset = this.timestampOffset;
-        }
-        buffer.appendBuffer(event.data);
-      }.bind(this));
+      }.bind(this);
 
       // aggregate buffer events
       this.audioBuffer_.addEventListener('updatestart',
@@ -156,8 +165,9 @@
     },
     appendBuffer: function(segment) {
       this.audioUpdating_ = this.videoUpdating_ = true;
-      this.transmuxer_.push(segment);
-      this.transmuxer_.flush();
+
+      this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
+      this.transmuxer_.postMessage({action: 'flush'});
     }
   });
 
