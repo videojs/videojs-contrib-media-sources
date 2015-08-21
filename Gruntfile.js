@@ -103,6 +103,25 @@ module.exports = function(grunt) {
         dest: 'dist/videojs-media-sources.min.js'
       }
     },
+    concat: {
+      dist: {
+        options: {
+          banner: '<%= banner %>'
+        },
+        src: [
+          'node_modules/mux.js/lib/stream.js',
+          'node_modules/mux.js/lib/exp-golomb.js',
+          'node_modules/mux.js/legacy/flv-tag.js',
+          'node_modules/mux.js/legacy/aac-stream.js',
+          'node_modules/mux.js/legacy/h264-stream.js',
+          'node_modules/mux.js/legacy/metadata-stream.js',
+          'node_modules/mux.js/legacy/h264-extradata.js',
+          'node_modules/mux.js/legacy/segment-parser.js',
+          '<%= blobify.build.dest %>'
+        ],
+        dest: 'dist/videojs-media-sources.js'
+      }
+    },
     blobify: {
       build: {
         src: 'src/videojs-media-sources.js',
