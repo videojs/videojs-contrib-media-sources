@@ -28,6 +28,7 @@
     "falafel": "^1.2.0",
     "grunt": "^0.4.1",
     "grunt-contrib-clean": "^0.6.0",
+    "grunt-contrib-concat": "^0.5.1",
     "grunt-contrib-connect": "^0.7.1",
     "grunt-contrib-jshint": "^0.10.0",
     "grunt-karma": "^0.12.0",
