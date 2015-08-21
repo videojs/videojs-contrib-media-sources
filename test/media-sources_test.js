@@ -327,7 +327,7 @@
       return new Uint8Array([1, 2, 3]);
     };
     this.parseSegmentBinaryData = function(data) {
-      tags.push({
+      this.tags_.push({
         bytes: data
       });
     };
