@@ -59,9 +59,11 @@
           return buffer;
         };
       };
+      window.WebKitMediaSource = window.MediaSource;
     },
     teardown: function(){
       window.MediaSource = oldMediaSourceConstructor;
+      window.WebKitMediaSource = window.MediaSource;
     }
   });
 
@@ -245,11 +247,10 @@
   });
 
   module('Flash MediaSource', {
-    setup: function(assert) {
-      var swfObj;
-
+    setup: function() {
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = null;
+      window.WebKitMediaSource = null;
 
       Flash = videojs.getComponent('Flash');
       oldFlashSupport = Flash.isSupported;
@@ -319,7 +320,11 @@
     this.getFlvHeader = function() {
       return new Uint8Array([1, 2, 3]);
     };
-    this.parseSegmentBinaryData = function(data) {};
+    this.parseSegmentBinaryData = function(data) {
+      tags.push({
+        bytes: data
+      });
+    };
     this.flushTags = function() {};
     this.tagsAvailable = function() {
       return this.tags_.length !== 0;
