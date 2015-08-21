@@ -100,7 +100,7 @@
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
-      this.transmuxer_ = new Worker('../node_modules/videojs-contrib-media-sources/node_modules/mux.js/lib/transmuxer_worker.js');
+      this.transmuxer_ = new Worker('../node_modules/videojs-contrib-media-sources/src/transmuxer_worker.js');
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
