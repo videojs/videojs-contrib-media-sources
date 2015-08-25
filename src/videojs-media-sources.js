@@ -215,8 +215,19 @@
 
   /**
    * Signals the end of the stream.
+   * @param error {string} (optional) Signals that a playback error
+   * has occurred. If specified, it must be either "network" or
+   * "decode".
+   * @see https://w3c.github.io/media-source/#widl-MediaSource-endOfStream-void-EndOfStreamError-error
    */
-  videojs.FlashMediaSource.prototype.endOfStream = function(){
+  videojs.FlashMediaSource.prototype.endOfStream = function(error){
+    if (error === 'network') {
+      // MEDIA_ERR_NETWORK
+      this.tech_.error(2);
+    } else if (error === 'decode') {
+      // MEDIA_ERR_DECODE
+      this.tech_.error(3);
+    }
     this.readyState = 'ended';
   };
 
