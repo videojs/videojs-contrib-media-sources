@@ -45,8 +45,8 @@
 
   module('HTML MediaSource', {
     setup: function(){
-      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource,
-      window.MediaSource = window.WebKitMediaSource = function(){
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
+      window.MediaSource = function(){
         var sourceBuffers = [];
         this.sourceBuffers = sourceBuffers;
         this.isNative = true;
@@ -61,7 +61,7 @@
       };
     },
     teardown: function(){
-      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
+      window.MediaSource = oldMediaSourceConstructor;
     }
   });
 
@@ -150,13 +150,70 @@
     sourceBuffer.transmuxer_.trigger('data', {
       type: 'audio',
       data: new Uint8Array(1)
-    });sourceBuffer.transmuxer_.trigger('data', {
+    });
+    sourceBuffer.transmuxer_.trigger('data', {
       type: 'video',
       data: new Uint8Array(1)
     });
 
     equal(mediaSource.sourceBuffers[0].timestampOffset, 42, 'set the first offset');
     equal(mediaSource.sourceBuffers[1].timestampOffset, 42, 'set the second offset');
+  });
+
+  test('aggregates source buffer update events', function() {
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        updates = 0,
+        updateends = 0,
+        updatestarts = 0;
+    sourceBuffer.addEventListener('updatestart', function() {
+      updatestarts++;
+    });
+    sourceBuffer.addEventListener('update', function() {
+      updates++;
+    });
+    sourceBuffer.addEventListener('updateend', function() {
+      updateends++;
+    });
+    equal(updatestarts, 0, 'no updatestarts before an append');
+    equal(updates, 0, 'no updates before an append');
+    equal(updateends, 0, 'no updateends before an append');
+
+    sourceBuffer.appendBuffer(new Uint8Array(1));
+    sourceBuffer.transmuxer_.trigger('data', {
+      type: 'audio',
+      data: new Uint8Array(1)
+    });
+    sourceBuffer.transmuxer_.trigger('data', {
+      type: 'video',
+      data: new Uint8Array(1)
+    });
+    // the video buffer begins updating first:
+    sourceBuffer.videoBuffer_.updating = true;
+    sourceBuffer.audioBuffer_.updating = false;
+    sourceBuffer.videoBuffer_.trigger('updatestart');
+    equal(updatestarts, 1, 'aggregated updatestart');
+    sourceBuffer.audioBuffer_.updating = true;
+    sourceBuffer.audioBuffer_.trigger('updatestart');
+    equal(updatestarts, 1, 'aggregated updatestart');
+
+    // the audio buffer finishes first:
+    sourceBuffer.audioBuffer_.updating = false;
+    sourceBuffer.videoBuffer_.updating = true;
+    sourceBuffer.audioBuffer_.trigger('update');
+    equal(updates, 0, 'waited for the second update');
+    sourceBuffer.videoBuffer_.updating = false;
+    sourceBuffer.videoBuffer_.trigger('update');
+    equal(updates, 1, 'aggregated update');
+
+    // audio finishes first:
+    sourceBuffer.videoBuffer_.updating = true;
+    sourceBuffer.audioBuffer_.updating = false;
+    sourceBuffer.audioBuffer_.trigger('updateend');
+    equal(updateends, 0, 'waited for the second updateend');
+    sourceBuffer.videoBuffer_.updating = false;
+    sourceBuffer.videoBuffer_.trigger('updateend');
+    equal(updateends, 1, 'aggregated updateend');
   });
 
   test('does not wrap mp4 source buffers', function(){
@@ -171,9 +228,11 @@
   });
 
   module('Flash MediaSource', {
-    setup: function() {
-      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource,
-      window.MediaSource = window.WebKitMediaSource = null;
+    setup: function(assert) {
+      var swfObj;
+
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
+      window.MediaSource = null;
 
       Flash = videojs.getComponent('Flash');
       oldFlashSupport = Flash.isSupported;
@@ -196,30 +255,38 @@
         src: videojs.URL.createObjectURL(mediaSource),
         type: "video/mp2t"
       });
-      mediaSource.trigger('sourceopen');
-      mediaSource.swfObj = {
-        CallFunction: function(xml) {
-          swfCalls.push(xml);
-        },
-        vjs_abort: function() {
-          swfCalls.push('abort');
-        },
-        vjs_getProperty: function(attr) {
-          swfCalls.push({ attr: attr });
-        },
-        vjs_setProperty: function(attr, value) {
-          swfCalls.push({ attr: attr, value: value });
-        },
-        vjs_appendBuffer: function(flvHeader) {
-          // only the FLV header directly invokes this so we can
-          // ignore it
-        }
+      swfObj = document.createElement('fake-object');
+      swfObj.id = 'fake-swf-' + assert.test.testId;
+      player.el().replaceChild(swfObj, player.tech.el());
+      player.tech.el_ = swfObj;
+      swfObj.CallFunction = function(xml) {
+        swfCalls.push(xml);
       };
+      swfObj.vjs_abort =  function() {
+        swfCalls.push('abort');
+      };
+      swfObj.vjs_getProperty = function(attr) {
+        swfCalls.push({ attr: attr });
+      };
+      swfObj.vjs_load = function() {
+        swfCalls.push('load');
+      };
+      swfObj.vjs_setProperty = function(attr, value) {
+        swfCalls.push({ attr: attr, value: value });
+      };
+      swfObj.vjs_appendBuffer = function(flvHeader) {
+        // only the FLV header directly invokes this so we can
+        // ignore it
+      };
+      mediaSource.trigger({
+        type: 'sourceopen',
+        swfId: swfObj.id
+      });
 
       fakeSTO();
     },
     teardown: function() {
-      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
+      window.MediaSource = oldMediaSourceConstructor;
       Flash.isSupported = oldFlashSupport;
       Flash.canPlaySource = oldCanPlay;
       videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
@@ -229,22 +296,20 @@
   });
 
   MockSegmentParser = function() {
-    var tags = [];
+    this.tags_ = [{
+      bytes: new Uint8Array([0, 1])
+    }];
     this.getFlvHeader = function() {
       return new Uint8Array([1, 2, 3]);
-    }
-    this.parseSegmentBinaryData = function(data) {
-      tags.push({
-        bytes: data
-      });
     };
+    this.parseSegmentBinaryData = function(data) {};
     this.flushTags = function() {};
     this.tagsAvailable = function() {
-      return tags.length !== 0;
+      return this.tags_.length !== 0;
     };
     this.getNextTag = function() {
-      return tags.shift();
-    }
+      return this.tags_.shift();
+    };
   };
 
   test('raises an exception for unrecognized MIME types', function() {
@@ -265,8 +330,10 @@
   test('waits for the next tick to append', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
+    equal(swfCalls.length, 1, 'made one call on init');
+    equal(swfCalls[0], 'load', 'called load');
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
-    strictEqual(swfCalls.length, 0, 'no SWF calls were made');
+    strictEqual(swfCalls.length, 1, 'no additional calls were made');
   });
 
   test('passes bytes to Flash', function() {
@@ -276,6 +343,7 @@
                    window.btoa(String.fromCharCode(0, 1)) +
                    '</string></arguments></invoke>';
 
+    swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     timers.pop()();
 
@@ -287,7 +355,12 @@
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
 
-    sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+    swfCalls.length = 0;
+    sourceBuffer.segmentParser_.tags_.length = 0;
+    sourceBuffer.segmentParser_.tags_.push({
+      bytes: new Uint8Array([0, 1])
+    });
+    sourceBuffer.appendBuffer(new Uint8Array([0]));
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
@@ -299,7 +372,10 @@
     ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(1))) > 0,
        'contains the second byte');
 
-    sourceBuffer.appendBuffer(new Uint8Array([2,3]));
+    sourceBuffer.segmentParser_.tags_.push({
+      bytes: new Uint8Array([2, 3])
+    });
+    sourceBuffer.appendBuffer(new Uint8Array([0]));
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
@@ -315,6 +391,20 @@
 
   });
 
+  test('clears the SWF on seeking', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        aborts = 0,
+        bytes = [];
+
+    // track calls to abort()
+    mediaSource.swfObj.vjs_abort = function() {
+      aborts++;
+    };
+
+    mediaSource.tech_.trigger('seeking');
+    strictEqual(1, aborts, 'aborted pending buffer');
+  });
+
   test('calls endOfStream on the swf after the last append', function() {
     var
       sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
@@ -325,6 +415,7 @@
       swfCalls.push('endOfStream');
     };
 
+    swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
 
     //ready state is ended when the last segment has been appended
@@ -347,8 +438,7 @@
   });
 
   test('opens the stream on sourceBuffer.appendBuffer after endOfStream', function() {
-    var
-      sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
 
@@ -356,6 +446,7 @@
       swfCalls.push('endOfStream');
     };
 
+    swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
 
     //ready state is ended when the last segment has been appended
@@ -371,10 +462,14 @@
     strictEqual(swfCalls.length, 2, 'two calls should have been made');
     ok(swfCalls.shift().indexOf(window.btoa(String.fromCharCode(1))) > 0,
        'the first call should contain the second byte');
-    ok(swfCalls.shift().indexOf('endOfStream') === 0,
-       'the second call should be for the updateend');
+    equal(swfCalls.shift(),
+          'endOfStream',
+          'the second call should be for the updateend');
 
-    sourceBuffer.appendBuffer(new Uint8Array([2]));
+    sourceBuffer.segmentParser_.tags_.push({
+      bytes: new Uint8Array([2])
+    });
+    sourceBuffer.appendBuffer(new Uint8Array(1));
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
@@ -387,6 +482,7 @@
 
   test('abort() clears any buffered input', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+    swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0]));
     sourceBuffer.abort();
 
@@ -457,12 +553,12 @@
 
   test('forwards duration overrides to the SWF', function() {
     var ignored = mediaSource.duration;
-    deepEqual(swfCalls[0], {
+    deepEqual(swfCalls[1], {
       attr: 'duration'
     }, 'requests duration from the SWF');
 
     mediaSource.duration = 101.3;
-    deepEqual(swfCalls[1], {
+    deepEqual(swfCalls[2], {
       attr: 'duration', value: 101.3
     }, 'set the duration override');
 
@@ -474,6 +570,39 @@
     ok(isNaN(mediaSource.duration), 'duration is NaN');
   });
 
+  test('calculates the base PTS for the media', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        data;
+
+    // seek to 15 seconds
+    player.tech.seeking = function() {
+      return true;
+    };
+    player.tech.currentTime = function() {
+      return 15;
+    };
+    // FLV tags for this segment start at 10 seconds in the media
+    // timeline
+    sourceBuffer.segmentParser_.tags_.length = 0;
+    sourceBuffer.segmentParser_.tags_.push({
+      // zero in the media timeline is PTS 3
+      pts: (10 + 3) * 90000,
+      bytes: new Uint8Array([10])
+    }, {
+      pts: (15 + 3) * 90000,
+      bytes: new Uint8Array([15])
+    });
+    // let the source buffer know the segment start time
+    sourceBuffer.timestampOffset = 10;
+
+    swfCalls.length = 0;
+    sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+    timers.pop()();
+
+    equal(swfCalls.length, 1, 'made a SWF call');
+    data = /<string>(.*)<\/string>/.exec(swfCalls[0])[1];
+    equal(data, window.btoa(String.fromCharCode(15)), 'dropped the early tag');
+  });
 
   test('flushes the transmuxer after each append', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'), flushes = 0;
@@ -483,6 +612,18 @@
 
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     equal(flushes, 1, 'flushed the transmuxer');
+  });
+
+  test('passes endOfStream network errors to the tech', function() {
+    mediaSource.endOfStream('network');
+
+    equal(player.tech.error().code, 2, 'set a network error');
+  });
+
+  test('passes endOfStream network errors to the tech', function() {
+    mediaSource.endOfStream('decode');
+
+    equal(player.tech.error().code, 3, 'set a decode error');
   });
 
   module('createObjectURL');

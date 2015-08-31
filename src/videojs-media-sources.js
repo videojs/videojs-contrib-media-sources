@@ -8,6 +8,7 @@
       objectUrlPrefix = 'blob:vjs-media-source/',
       interceptBufferCreation,
       addSourceBuffer,
+      aggregateUpdateHandler,
       scheduleTick;
 
   // ------------
@@ -69,7 +70,7 @@
     if (type === 'video/mp2t') {
       audio = this.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
       video = this.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
-      buffer = new VirtualSourceBuffer(audio, video)
+      buffer = new VirtualSourceBuffer(audio, video);
       this.virtualBuffers.push(buffer);
       return buffer;
     }
@@ -78,12 +79,24 @@
     return this.addSourceBuffer_(type);
   };
 
+  aggregateUpdateHandler = function(buffer, guardBuffer, type) {
+    return function() {
+      if (!guardBuffer.updating) {
+        return this.trigger(type);
+      }
+    }.bind(buffer);
+  };
+
   VirtualSourceBuffer = videojs.extends(EventTarget, {
     constructor: function VirtualSourceBuffer(audioBuffer, videoBuffer) {
       this.audioBuffer_ = audioBuffer;
       this.audioUpdating_ = false;
       this.videoBuffer_ = videoBuffer;
       this.videoUpdating_ = false;
+
+      // the MPEG2-TS presentation timestamp corresponding to zero in
+      // the media timeline
+      this.basePts_ = undefined;
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
@@ -102,6 +115,20 @@
         }
         buffer.appendBuffer(event.data);
       }.bind(this));
+
+      // aggregate buffer events
+      this.audioBuffer_.addEventListener('updatestart',
+                                         aggregateUpdateHandler(this, this.videoBuffer_, 'updatestart'));
+      this.videoBuffer_.addEventListener('updatestart',
+                                         aggregateUpdateHandler(this, this.audioBuffer_, 'updatestart'));
+      this.audioBuffer_.addEventListener('update',
+                                         aggregateUpdateHandler(this, this.videoBuffer_, 'update'));
+      this.videoBuffer_.addEventListener('update',
+                                         aggregateUpdateHandler(this, this.audioBuffer_, 'update'));
+      this.audioBuffer_.addEventListener('updateend',
+                                         aggregateUpdateHandler(this, this.videoBuffer_, 'updateend'));
+      this.videoBuffer_.addEventListener('updateend',
+                                         aggregateUpdateHandler(this, this.audioBuffer_, 'updateend'));
 
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
@@ -130,7 +157,7 @@
     appendBuffer: function(segment) {
       this.audioUpdating_ = this.videoUpdating_ = true;
       this.transmuxer_.push(segment);
-      this.transmuxer_.end();
+      this.transmuxer_.flush();
     }
   });
 
@@ -140,13 +167,19 @@
 
   videojs.FlashMediaSource = videojs.extends(EventTarget, {
     constructor: function(){
+      var self = this;
       this.sourceBuffers = [];
       this.readyState = 'closed';
 
       this.on(['sourceopen', 'webkitsourceopen'], function(event){
         // find the swf where we will push media data
         this.swfObj = document.getElementById(event.swfId);
+        this.tech_ = videojs(this.swfObj.parentNode).tech;
         this.readyState = 'open';
+
+        this.tech_.on('seeking', function() {
+          self.swfObj.vjs_abort();
+        });
 
         // trigger load events
         if (this.swfObj) {
@@ -276,7 +309,7 @@
 
       // TS to FLV transmuxer
       this.segmentParser_ = new muxjs.SegmentParser();
-      encodedHeader = window.btoa(String.fromCharCode.apply(null, this.segmentParser_.getFlvHeader()));
+      encodedHeader = window.btoa(String.fromCharCode.apply(null, Array.prototype.slice.call(this.segmentParser_.getFlvHeader())));
       this.source.swfObj.vjs_appendBuffer(encodedHeader);
 
       Object.defineProperty(this, 'buffered', {
@@ -288,7 +321,7 @@
 
     // accept video data and pass to the video (swf) object
     appendBuffer: function(uint8Array){
-      var error, flvBytes;
+      var error, flvBytes, ptsTarget;
 
       if (this.updating) {
         error = new Error('SourceBuffer.append() cannot be called ' +
@@ -389,7 +422,8 @@
     // transmux segment data from MP2T to FLV
     tsToFlv_: function(bytes) {
       var segmentByteLength = 0, tags = [],
-          i, j, segment;
+          tech = this.source.tech_,
+          start, i, j, segment, targetPts;
 
       // transmux the TS to FLV
       this.segmentParser_.parseSegmentBinaryData(bytes);
@@ -400,12 +434,25 @@
         tags.push(this.segmentParser_.getNextTag());
       }
 
+      // if the player is seeking, determine the PTS value for the
+      // target media timeline position
+      if (tech.seeking()) {
+        targetPts = tech.currentTime() - this.timestampOffset;
+        targetPts *= 1e3; // PTS values are represented in milliseconds
+        targetPts += tags[0].pts;
+      }
+
+      // skip tags less than the seek target
+      for (start = 0;
+           start < tags.length && tags[start].pts < targetPts;
+           start++) {
+      }
       // concatenate the bytes into a single segment
-      for (i = 0; i < tags.length; i++) {
+      for (i = start; i < tags.length; i++) {
         segmentByteLength += tags[i].bytes.byteLength;
       }
       segment = new Uint8Array(segmentByteLength);
-      for (i = 0, j = 0; i < tags.length; i++) {
+      for (i = start, j = 0; i < tags.length; i++) {
         segment.set(tags[i].bytes, j);
         j += tags[i].bytes.byteLength;
       }
