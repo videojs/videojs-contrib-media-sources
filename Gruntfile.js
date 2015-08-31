@@ -4,8 +4,10 @@ module.exports = function(grunt) {
     jshint: {
       files: ['Gruntfile.js', 'src/**/*.js', 'test/**/*.js']
     },
-    qunit: {
-      files: ['test/index.html']
+    karma: {
+      test: {
+        configFile: 'test/karma.conf.js'
+      }
     },
     connect: {
       server: {
@@ -18,7 +20,7 @@ module.exports = function(grunt) {
 
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.loadNpmTasks('grunt-contrib-jshint');
-  grunt.loadNpmTasks('grunt-contrib-qunit');
+  grunt.loadNpmTasks('grunt-karma');
 
-  grunt.registerTask('default', ['jshint', 'qunit']);
+  grunt.registerTask('default', ['jshint', 'karma']);
 };
