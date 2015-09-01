@@ -79,7 +79,7 @@
 
   aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
     return function() {
-      if (!mediaSource[guardBufferName].updating) {
+      if (!mediaSource[guardBufferName] || !mediaSource[guardBufferName].updating) {
         return mediaSource.trigger(type);
       }
     };
