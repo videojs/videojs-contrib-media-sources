@@ -59,9 +59,11 @@
           return buffer;
         };
       };
+      window.WebKitMediaSource = window.MediaSource;
     },
     teardown: function(){
       window.MediaSource = oldMediaSourceConstructor;
+      window.WebKitMediaSource = window.MediaSource;
     }
   });
 
@@ -92,26 +94,36 @@
         mediaSource, sourceBuffer;
     mediaSource = new videojs.MediaSource();
     sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
-    sourceBuffer.transmuxer_.push = function(segment) {
-        mp2tSegments.push(segment);
+    sourceBuffer.transmuxer_.postMessage = function(segment) {
+      if (segment.action === 'push') {
+        var buffer = new Uint8Array(segment.data);
+        mp2tSegments.push(buffer);
+      }
     };
 
     sourceBuffer.appendBuffer(data);
     equal(mp2tSegments.length, 1, 'transmuxed one segment');
-    equal(mp2tSegments[0], data, 'did not alter the segment');
+    equal(mp2tSegments[0].length, 1, 'did not alter the segment');
+    equal(mp2tSegments[0][0], data[0], 'did not alter the segment');
 
     mediaSource.sourceBuffers[1].appendBuffer = function(segment) {
       mp4Segments.push(segment);
     };
     // an init segment
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'video',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'video',
+        data: new Uint8Array(1).buffer
+      }
     });
     // a media segment
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'video',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'video',
+        data: new Uint8Array(1).buffer
+      }
     });
     equal(mp4Segments.length, 2, 'appended the segments');
   });
@@ -147,13 +159,20 @@
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     sourceBuffer.timestampOffset = 42;
     sourceBuffer.appendBuffer(new Uint8Array(1));
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'audio',
-      data: new Uint8Array(1)
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'audio',
+        data: new Uint8Array(1)
+      }
     });
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'video',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'video',
+        data: new Uint8Array(1)
+      }
     });
 
     equal(mediaSource.sourceBuffers[0].timestampOffset, 42, 'set the first offset');
@@ -180,13 +199,19 @@
     equal(updateends, 0, 'no updateends before an append');
 
     sourceBuffer.appendBuffer(new Uint8Array(1));
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'audio',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'audio',
+        data: new Uint8Array(1)
+      }
     });
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'video',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'video',
+        data: new Uint8Array(1)
+      }
     });
     // the video buffer begins updating first:
     sourceBuffer.videoBuffer_.updating = true;
@@ -228,11 +253,10 @@
   });
 
   module('Flash MediaSource', {
-    setup: function(assert) {
-      var swfObj;
-
+    setup: function() {
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = null;
+      window.WebKitMediaSource = null;
 
       Flash = videojs.getComponent('Flash');
       oldFlashSupport = Flash.isSupported;
@@ -302,7 +326,11 @@
     this.getFlvHeader = function() {
       return new Uint8Array([1, 2, 3]);
     };
-    this.parseSegmentBinaryData = function(data) {};
+    this.parseSegmentBinaryData = function(data) {
+      tags.push({
+        bytes: data
+      });
+    };
     this.flushTags = function() {};
     this.tagsAvailable = function() {
       return this.tags_.length !== 0;

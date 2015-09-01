@@ -28,7 +28,7 @@ module.exports = function(config) {
       'node_modules/mux.js/legacy/metadata-stream.js',
       'node_modules/mux.js/legacy/segment-parser.js',
 
-      'src/*.js',
+      'src/videojs-media-sources.js',
       'test/*.js'
     ],
 
