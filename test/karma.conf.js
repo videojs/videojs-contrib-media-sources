@@ -27,11 +27,10 @@ module.exports = function(config) {
       'node_modules/mux.js/legacy/aac-stream.js',
       'node_modules/mux.js/legacy/metadata-stream.js',
       'node_modules/mux.js/legacy/segment-parser.js',
-
+      {pattern: 'src/transmuxer_worker.js', included: false},
       'src/videojs-media-sources.js',
       'test/*.js'
     ],
-
 
     // list of files to exclude
     exclude: [

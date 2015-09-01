@@ -17,6 +17,11 @@
       oldFlashTransmuxer,
       MockSegmentParser;
 
+  // Override default webWorkerURI for karma
+  if (!videojs.MediaSource.webWorkerURI) {
+    videojs.MediaSource.webWorkerURI = '/base/src/transmuxer_worker.js';
+  }
+
   module('General', {
     setup: function() {
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
@@ -254,20 +259,7 @@
         updates = 0,
         updateends = 0,
         updatestarts = 0;
-    sourceBuffer.addEventListener('updatestart', function() {
-      updatestarts++;
-    });
-    sourceBuffer.addEventListener('update', function() {
-      updates++;
-    });
-    sourceBuffer.addEventListener('updateend', function() {
-      updateends++;
-    });
-    equal(updatestarts, 0, 'no updatestarts before an append');
-    equal(updates, 0, 'no updates before an append');
-    equal(updateends, 0, 'no updateends before an append');
 
-    sourceBuffer.appendBuffer(new Uint8Array(1));
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
@@ -282,6 +274,27 @@
         data: new Uint8Array(1)
       }
     });
+
+    sourceBuffer.addEventListener('updatestart', function() {
+      updatestarts++;
+    });
+    sourceBuffer.addEventListener('update', function() {
+      updates++;
+    });
+    sourceBuffer.addEventListener('updateend', function() {
+      updateends++;
+    });
+
+    equal(updatestarts, 0, 'no updatestarts before a `done` message is received');
+    equal(updates, 0, 'no updates before a `done` message is received');
+    equal(updateends, 0, 'no updateends before a `done` message is received');
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'done'
+      }
+    });
+
     // the video buffer begins updating first:
     sourceBuffer.videoBuffer_.updating = true;
     sourceBuffer.audioBuffer_.updating = false;
@@ -322,7 +335,8 @@
   });
 
   module('Flash MediaSource', {
-    setup: function() {
+    setup: function(assert) {
+      var swfObj;
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = null;
       window.WebKitMediaSource = null;
@@ -395,11 +409,7 @@
     this.getFlvHeader = function() {
       return new Uint8Array([1, 2, 3]);
     };
-    this.parseSegmentBinaryData = function(data) {
-      this.tags_.push({
-        bytes: data
-      });
-    };
+    this.parseSegmentBinaryData = function(data) {};
     this.flushTags = function() {};
     this.tagsAvailable = function() {
       return this.tags_.length !== 0;

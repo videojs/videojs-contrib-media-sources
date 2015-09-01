@@ -26,29 +26,6 @@ module.exports = function(grunt) {
         dest: 'build/transmuxer_worker.js'
       }
     },
-    uglify: {
-      webworker: {
-        src: '<%= importscripts.build.dest %>',
-        dest: 'build/transmuxer_worker.min.js'
-      },
-      mediasource: {
-        options: {
-          banner: '<%= banner %>'
-        },
-        src: [
-          'node_modules/mux.js/lib/stream.js',
-          'node_modules/mux.js/lib/exp-golomb.js',
-          'node_modules/mux.js/legacy/flv-tag.js',
-          'node_modules/mux.js/legacy/aac-stream.js',
-          'node_modules/mux.js/legacy/h264-stream.js',
-          'node_modules/mux.js/legacy/metadata-stream.js',
-          'node_modules/mux.js/legacy/h264-extradata.js',
-          'node_modules/mux.js/legacy/segment-parser.js',
-          '<%= blobify.build.dest %>'
-        ],
-        dest: 'dist/videojs-media-sources.min.js'
-      }
-    },
     concat: {
       dist: {
         options: {
@@ -74,12 +51,6 @@ module.exports = function(grunt) {
         dest: 'build/videojs-media-sources.js'
       }
     },
-    importscripts: {
-      build: {
-        src: 'src/transmuxer_worker.js',
-        dest: 'build/transmuxer_worker.js'
-      }
-    },
     uglify: {
       webworker: {
         src: '<%= importscripts.build.dest %>',
@@ -101,31 +72,6 @@ module.exports = function(grunt) {
           '<%= blobify.build.dest %>'
         ],
         dest: 'dist/videojs-media-sources.min.js'
-      }
-    },
-    concat: {
-      dist: {
-        options: {
-          banner: '<%= banner %>'
-        },
-        src: [
-          'node_modules/mux.js/lib/stream.js',
-          'node_modules/mux.js/lib/exp-golomb.js',
-          'node_modules/mux.js/legacy/flv-tag.js',
-          'node_modules/mux.js/legacy/aac-stream.js',
-          'node_modules/mux.js/legacy/h264-stream.js',
-          'node_modules/mux.js/legacy/metadata-stream.js',
-          'node_modules/mux.js/legacy/h264-extradata.js',
-          'node_modules/mux.js/legacy/segment-parser.js',
-          '<%= blobify.build.dest %>'
-        ],
-        dest: 'dist/videojs-media-sources.js'
-      }
-    },
-    blobify: {
-      build: {
-        src: 'src/videojs-media-sources.js',
-        dest: 'build/videojs-media-sources.js'
       }
     },
     connect: {

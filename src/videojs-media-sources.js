@@ -77,12 +77,12 @@
     return this.addSourceBuffer_(type);
   };
 
-  aggregateUpdateHandler = function(buffer, guardBuffer, type) {
+  aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
     return function() {
-      if (!guardBuffer.updating) {
-        return this.trigger(type);
+      if (!mediaSource[guardBufferName].updating) {
+        return mediaSource.trigger(type);
       }
-    }.bind(buffer);
+    };
   };
 
   VirtualSourceBuffer = videojs.extends(EventTarget, {
@@ -98,7 +98,7 @@
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
-      this.transmuxer_ = new Worker(videojs.MediaSource.muxerURI || '/absolute/src/transmuxer_worker.js');
+      this.transmuxer_ = new Worker(videojs.MediaSource.webWorkerURI || '/src/transmuxer_worker.js');
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
@@ -114,10 +114,24 @@
               // 4d400d
               // 42c01e
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
+              // aggregate buffer events
+              self.videoBuffer_.addEventListener('updatestart',
+                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'updatestart'));
+              self.videoBuffer_.addEventListener('update',
+                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'update'));
+              self.videoBuffer_.addEventListener('updateend',
+                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'updateend'));
             }
           } else {
             if (!self.audioBuffer_) {
               self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
+              // aggregate buffer events
+              self.audioBuffer_.addEventListener('updatestart',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
+              self.audioBuffer_.addEventListener('update',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'update'));
+              self.audioBuffer_.addEventListener('updateend',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
             }
           }
 
@@ -129,20 +143,6 @@
           self.processPendingSegments_();
         }
       };
-
-      // aggregate buffer events
-      this.audioBuffer_.addEventListener('updatestart',
-                                         aggregateUpdateHandler(this, this.videoBuffer_, 'updatestart'));
-      this.videoBuffer_.addEventListener('updatestart',
-                                         aggregateUpdateHandler(this, this.audioBuffer_, 'updatestart'));
-      this.audioBuffer_.addEventListener('update',
-                                         aggregateUpdateHandler(this, this.videoBuffer_, 'update'));
-      this.videoBuffer_.addEventListener('update',
-                                         aggregateUpdateHandler(this, this.audioBuffer_, 'update'));
-      this.audioBuffer_.addEventListener('updateend',
-                                         aggregateUpdateHandler(this, this.videoBuffer_, 'updateend'));
-      this.videoBuffer_.addEventListener('updateend',
-                                         aggregateUpdateHandler(this, this.audioBuffer_, 'updateend'));
 
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {

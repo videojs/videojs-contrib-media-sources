@@ -29,6 +29,9 @@
   <script src="../node_modules/mux.js/legacy/metadata-stream.js"></script>
   <script src="../node_modules/mux.js/legacy/segment-parser.js"></script>
   <script src="../src/videojs-media-sources.js"></script>
+  <script>
+    videojs.MediaSource.webWorkerURI = '/src/transmuxer_worker.js';
+  </script>
   <script src="media-sources_test.js"></script>
 </body>
 </html>
