@@ -199,13 +199,19 @@
     equal(updateends, 0, 'no updateends before an append');
 
     sourceBuffer.appendBuffer(new Uint8Array(1));
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'audio',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'audio',
+        data: new Uint8Array(1)
+      }
     });
-    sourceBuffer.transmuxer_.trigger('data', {
-      type: 'video',
-      data: new Uint8Array(1)
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        type: 'video',
+        data: new Uint8Array(1)
+      }
     });
     // the video buffer begins updating first:
     sourceBuffer.videoBuffer_.updating = true;

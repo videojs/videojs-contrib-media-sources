@@ -112,6 +112,8 @@ module.exports = function(grunt) {
           var fileName = node.arguments[0].value;
           var inlineSrc = grunt.file.read(path.resolve(currentPath, fileName));
 
+          grunt.log.debug('Inlining importScripts file "' + path.resolve(currentPath, fileName) + '"...');
+
           // Replace the entire importScripts expression with the source of the file
           node.update(inlineSrc);
         }
@@ -162,7 +164,8 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-karma');
-  grunt.registerTask('default', ['jshint', 'karma']);
   grunt.loadNpmTasks('grunt-contrib-uglify');
+
+  grunt.registerTask('default', ['jshint', 'karma']);
   grunt.registerTask('build', ['clean', 'importscripts', 'uglify:webworker', 'blobify', 'uglify:mediasource']);
 };

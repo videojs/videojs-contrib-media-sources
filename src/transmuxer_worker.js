@@ -13,6 +13,7 @@ var muxjs = {};
 importScripts('../node_modules/mux.js/lib/exp-golomb.js');
 importScripts('../node_modules/mux.js/lib/mp4-generator.js');
 importScripts('../node_modules/mux.js/lib/stream.js');
+importScripts('../node_modules/mux.js/lib/metadata-stream.js');
 importScripts('../node_modules/mux.js/lib/transmuxer.js');
 
 var transmuxer = new muxjs.mp2t.Transmuxer();
