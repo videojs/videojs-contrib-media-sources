@@ -68,9 +68,7 @@
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if (type === 'video/mp2t') {
-      audio = this.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
-      video = this.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
-      buffer = new VirtualSourceBuffer(audio, video);
+      buffer = new VirtualSourceBuffer(this);
       this.virtualBuffers.push(buffer);
       return buffer;
     }
@@ -88,11 +86,11 @@
   };
 
   VirtualSourceBuffer = videojs.extends(EventTarget, {
-    constructor: function VirtualSourceBuffer(audioBuffer, videoBuffer) {
-      this.audioBuffer_ = audioBuffer;
-      this.audioUpdating_ = false;
-      this.videoBuffer_ = videoBuffer;
-      this.videoUpdating_ = false;
+    constructor: function VirtualSourceBuffer(mediaSource) {
+      var self = this;
+
+      this.pendingBuffers_ = [];
+      this.bufferUpdating_ = false;
 
       // the MPEG2-TS presentation timestamp corresponding to zero in
       // the media timeline
@@ -100,7 +98,7 @@
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
-      this.transmuxer_ = new Worker('/absolute/src/transmuxer_worker.js');
+      this.transmuxer_ = new Worker(videojs.MediaSource.muxerURI || '/absolute/src/transmuxer_worker.js');
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
@@ -110,20 +108,27 @@
           // Cast to type
           segment.data = new Uint8Array(segment.data);
 
+          // If any sourceBuffers have not been created, do so now
           if (segment.type === 'video') {
-            buffer = this.videoBuffer_;
-            this.videoUpdating_ = false;
+            if (!self.videoBuffer_) {
+              // 4d400d
+              // 42c01e
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
+            }
           } else {
-            buffer = this.audioBuffer_;
-            this.audioUpdating_ = false;
-          }
-          if (this.timestampOffset !== undefined) {
-            buffer.timestampOffset = this.timestampOffset;
+            if (!self.audioBuffer_) {
+              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
+            }
           }
 
-          buffer.appendBuffer(segment.data);
+          // Add the segments to the pendingBuffers array
+          self.pendingBuffers_.push(segment);
+        } else if (event.data.action === 'done') {
+          // All buffers should have been flushed from the muxer
+          // start processing anything we have received
+          self.processPendingSegments_();
         }
-      }.bind(this);
+      };
 
       // aggregate buffer events
       this.audioBuffer_.addEventListener('updatestart',
@@ -142,32 +147,107 @@
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
         get: function() {
-          return this.audioUpdating_ || this.videoUpdating_ ||
-            this.audioBuffer_.updating || this.videoBuffer_.updating;
+          return this.bufferUpdating_ ||
+            (this.audioBuffer_ && this.audioBuffer_.updating) ||
+            (this.videoBuffer_ && this.videoBuffer_.updating);
         }
       });
       // the buffered property is the intersection of the buffered
       // ranges of the native source buffers
       Object.defineProperty(this, 'buffered', {
         get: function() {
-          var start, end;
-          if (this.videoBuffer_.buffered.length === 0 ||
-              this.audioBuffer_.buffered.length === 0) {
+          var
+            start,
+            end,
+            starts = [],
+            ends = [],
+            lastIndex;
+
+          // Handle the case where there is no buffer
+          if ((this.videoBuffer_ && this.videoBuffer_.buffered.length === 0) ||
+              (this.audioBuffer_ && this.audioBuffer_.buffered.length === 0)) {
             return videojs.createTimeRange();
           }
-          start = Math.max(this.videoBuffer_.buffered.start(0),
-                           this.audioBuffer_.buffered.start(0));
-          end = Math.min(this.videoBuffer_.buffered.end(0),
-                         this.audioBuffer_.buffered.end(0));
+
+          // TODO: Calculate and return the true intersection of the buffered
+          //       property
+          if (this.videoBuffer_) {
+            lastIndex = this.videoBuffer_.buffered.length - 1;
+            starts.push(this.videoBuffer_.buffered.start(0));
+            ends.push(this.videoBuffer_.buffered.end(lastIndex));
+          }
+          if (this.audioBuffer_) {
+            lastIndex = this.audioBuffer_.buffered.length - 1;
+            starts.push(this.audioBuffer_.buffered.start(0));
+            ends.push(this.audioBuffer_.buffered.end(lastIndex));
+          }
+
+          start = Math.max.apply(Math, starts);
+          end = Math.min.apply(Math, ends);
           return videojs.createTimeRange(start, end);
         }
       });
     },
     appendBuffer: function(segment) {
-      this.audioUpdating_ = this.videoUpdating_ = true;
+      // Start the internal "updating" state
+      this.bufferUpdating_ = true;
 
       this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
+    },
+    /**
+     * Process any segments that the muxer has output
+     * Concatenate segments together based on type and append them into
+     * their respective sourceBuffers
+     */
+    processPendingSegments_: function() {
+      var segment, buffer, i, offset,
+        videoSegments = [],
+        audioSegments = [],
+        videoBytes = 0,
+        audioBytes = 0;
+
+      // Sort segments into separate video/audio arrays and
+      // keep track of their total byte lengths
+      while ((segment = this.pendingBuffers_.shift())) {
+        if (segment.type === 'video') {
+          videoSegments.push(segment.data);
+          videoBytes += segment.data.byteLength;
+        } else {
+          audioSegments.push(segment.data);
+          audioBytes += segment.data.byteLength;
+        }
+      }
+
+      // Merge multiple video segments into one and append
+      if (videoBytes) {
+        this.concatAndAppendSegments_(videoSegments, videoBytes, this.videoBuffer_);
+      }
+
+      // Merge multiple audio segments into one and append
+      if (audioBytes) {
+        this.concatAndAppendSegments_(audioSegments,audioBytes, this.audioBuffer_);
+      }
+
+      // We are no longer in the internal "updating" state
+      this.bufferUpdating_ = false;
+    },
+    concatAndAppendSegments_: function(segments, totalBytes, destinationBuffer) {
+      var offset = 0;
+      var tempBuffer = new Uint8Array(totalBytes);
+
+      // Combine the individual segments into one large typed-array
+      segments.forEach(function (segment) {
+        tempBuffer.set(segment, offset);
+        offset += segment.byteLength;
+      });
+
+      // Set timestampOffset if we have been given one
+      if (this.timestampOffset !== undefined) {
+        destinationBuffer.timestampOffset = this.timestampOffset;
+      }
+
+      destinationBuffer.appendBuffer(tempBuffer);
     }
   });
 
