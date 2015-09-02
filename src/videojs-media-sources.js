@@ -68,9 +68,7 @@
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if (type === 'video/mp2t') {
-      audio = this.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
-      video = this.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
-      buffer = new VirtualSourceBuffer(audio, video);
+      buffer = new VirtualSourceBuffer(this);
       this.virtualBuffers.push(buffer);
       return buffer;
     }
@@ -79,20 +77,20 @@
     return this.addSourceBuffer_(type);
   };
 
-  aggregateUpdateHandler = function(buffer, guardBuffer, type) {
+  aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
     return function() {
-      if (!guardBuffer.updating) {
-        return this.trigger(type);
+      if (!mediaSource[guardBufferName] || !mediaSource[guardBufferName].updating) {
+        return mediaSource.trigger(type);
       }
-    }.bind(buffer);
+    };
   };
 
   VirtualSourceBuffer = videojs.extends(EventTarget, {
-    constructor: function VirtualSourceBuffer(audioBuffer, videoBuffer) {
-      this.audioBuffer_ = audioBuffer;
-      this.audioUpdating_ = false;
-      this.videoBuffer_ = videoBuffer;
-      this.videoUpdating_ = false;
+    constructor: function VirtualSourceBuffer(mediaSource) {
+      var self = this;
+
+      this.pendingBuffers_ = [];
+      this.bufferUpdating_ = false;
 
       // the MPEG2-TS presentation timestamp corresponding to zero in
       // the media timeline
@@ -100,64 +98,166 @@
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
-      this.transmuxer_ = new muxjs.mp2t.Transmuxer();
-      this.transmuxer_.on('data', function(event) {
-        var buffer;
-        if (event.type === 'video') {
-          buffer = this.videoBuffer_;
-          this.videoUpdating_ = false;
-        } else {
-          buffer = this.audioBuffer_;
-          this.audioUpdating_ = false;
-        }
-        if (this.timestampOffset !== undefined) {
-          buffer.timestampOffset = this.timestampOffset;
-        }
-        buffer.appendBuffer(event.data);
-      }.bind(this));
+      this.transmuxer_ = new Worker(videojs.MediaSource.webWorkerURI || '/src/transmuxer_worker.js');
 
-      // aggregate buffer events
-      this.audioBuffer_.addEventListener('updatestart',
-                                         aggregateUpdateHandler(this, this.videoBuffer_, 'updatestart'));
-      this.videoBuffer_.addEventListener('updatestart',
-                                         aggregateUpdateHandler(this, this.audioBuffer_, 'updatestart'));
-      this.audioBuffer_.addEventListener('update',
-                                         aggregateUpdateHandler(this, this.videoBuffer_, 'update'));
-      this.videoBuffer_.addEventListener('update',
-                                         aggregateUpdateHandler(this, this.audioBuffer_, 'update'));
-      this.audioBuffer_.addEventListener('updateend',
-                                         aggregateUpdateHandler(this, this.videoBuffer_, 'updateend'));
-      this.videoBuffer_.addEventListener('updateend',
-                                         aggregateUpdateHandler(this, this.audioBuffer_, 'updateend'));
+      this.transmuxer_.onmessage = function (event) {
+        if (event.data.action === 'data') {
+          var segment = event.data;
+          // Cast to type
+          segment.data = new Uint8Array(segment.data);
+
+          // If any sourceBuffers have not been created, do so now
+          if (segment.type === 'video') {
+            if (!self.videoBuffer_) {
+              // Some common mp4 codec strings. Saved for future twittling:
+              // 4d400d
+              // 42c01e & 42c01f
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
+              // aggregate buffer events
+              self.videoBuffer_.addEventListener('updatestart',
+                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'updatestart'));
+              self.videoBuffer_.addEventListener('update',
+                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'update'));
+              self.videoBuffer_.addEventListener('updateend',
+                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'updateend'));
+            }
+          } else {
+            if (!self.audioBuffer_) {
+              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
+              // aggregate buffer events
+              self.audioBuffer_.addEventListener('updatestart',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
+              self.audioBuffer_.addEventListener('update',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'update'));
+              self.audioBuffer_.addEventListener('updateend',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
+            }
+          }
+
+          // Add the segments to the pendingBuffers array
+          self.pendingBuffers_.push(segment);
+        } else if (event.data.action === 'done') {
+          // All buffers should have been flushed from the muxer
+          // start processing anything we have received
+          self.processPendingSegments_();
+        }
+      };
 
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
         get: function() {
-          return this.audioUpdating_ || this.videoUpdating_ ||
-            this.audioBuffer_.updating || this.videoBuffer_.updating;
+          return this.bufferUpdating_ ||
+            (this.audioBuffer_ && this.audioBuffer_.updating) ||
+            (this.videoBuffer_ && this.videoBuffer_.updating);
         }
       });
       // the buffered property is the intersection of the buffered
       // ranges of the native source buffers
       Object.defineProperty(this, 'buffered', {
         get: function() {
-          var start, end;
-          if (this.videoBuffer_.buffered.length === 0 ||
-              this.audioBuffer_.buffered.length === 0) {
+          var
+            start,
+            end,
+            starts = [],
+            ends = [],
+            lastIndex;
+
+          // Handle the case where there is no buffer
+          if ((this.videoBuffer_ && this.videoBuffer_.buffered.length === 0) ||
+              (this.audioBuffer_ && this.audioBuffer_.buffered.length === 0)) {
             return videojs.createTimeRange();
           }
-          start = Math.max(this.videoBuffer_.buffered.start(0),
-                           this.audioBuffer_.buffered.start(0));
-          end = Math.min(this.videoBuffer_.buffered.end(0),
-                         this.audioBuffer_.buffered.end(0));
+
+          // TODO: Calculate and return the true intersection of the buffered
+          //       property
+          if (this.videoBuffer_) {
+            lastIndex = this.videoBuffer_.buffered.length - 1;
+            starts.push(this.videoBuffer_.buffered.start(0));
+            ends.push(this.videoBuffer_.buffered.end(lastIndex));
+          }
+          if (this.audioBuffer_) {
+            lastIndex = this.audioBuffer_.buffered.length - 1;
+            starts.push(this.audioBuffer_.buffered.start(0));
+            ends.push(this.audioBuffer_.buffered.end(lastIndex));
+          }
+
+          start = Math.max.apply(Math, starts);
+          end = Math.min.apply(Math, ends);
           return videojs.createTimeRange(start, end);
         }
       });
     },
     appendBuffer: function(segment) {
-      this.audioUpdating_ = this.videoUpdating_ = true;
-      this.transmuxer_.push(segment);
-      this.transmuxer_.flush();
+      // Start the internal "updating" state
+      this.bufferUpdating_ = true;
+
+      this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
+      this.transmuxer_.postMessage({action: 'flush'});
+    },
+    /**
+     * Process any segments that the muxer has output
+     * Concatenate segments together based on type and append them into
+     * their respective sourceBuffers
+     */
+    processPendingSegments_: function() {
+      var sortedSegments = {
+          video: {
+            segments: [],
+            bytes: 0
+          },
+          audio: {
+            segments: [],
+            bytes: 0
+          }
+        };
+
+      // Sort segments into separate video/audio arrays and
+      // keep track of their total byte lengths
+      sortedSegments = this.pendingBuffers_.reduce(function (segmentObj, segment) {
+        var
+          type = segment.type,
+          data = segment.data;
+
+        segmentObj[type].segments.push(data);
+        segmentObj[type].bytes += data.byteLength;
+
+        return segmentObj;
+      }, sortedSegments);
+
+      // Merge multiple video segments into one and append
+      this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
+
+      // Merge multiple audio segments into one and append
+      this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
+
+      // We are no longer in the internal "updating" state
+      this.bufferUpdating_ = false;
+    },
+    /**
+     * Combind all segments into a single Uint8Array and then append them
+     * to the destination buffer
+     */
+    concatAndAppendSegments_: function(segmentObj, destinationBuffer) {
+      var
+        offset = 0,
+        tempBuffer;
+
+      if (segmentObj.bytes) {
+        tempBuffer = new Uint8Array(segmentObj.bytes);
+
+        // Combine the individual segments into one large typed-array
+        segmentObj.segments.forEach(function (segment) {
+          tempBuffer.set(segment, offset);
+          offset += segment.byteLength;
+        });
+
+        // Set timestampOffset if we have been given one
+        if (this.timestampOffset !== undefined) {
+          destinationBuffer.timestampOffset = this.timestampOffset;
+        }
+
+        destinationBuffer.appendBuffer(tempBuffer);
+      }
     }
   });
 
