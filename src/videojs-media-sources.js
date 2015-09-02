@@ -102,17 +102,16 @@
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
-          var
-            buffer,
-            segment = event.data;
+          var segment = event.data;
           // Cast to type
           segment.data = new Uint8Array(segment.data);
 
           // If any sourceBuffers have not been created, do so now
           if (segment.type === 'video') {
             if (!self.videoBuffer_) {
+              // Some common mp4 codec strings. Saved for future twittling:
               // 4d400d
-              // 42c01e
+              // 42c01e & 42c01f
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=avc1.4d400d');
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
@@ -201,53 +200,64 @@
      * their respective sourceBuffers
      */
     processPendingSegments_: function() {
-      var segment, buffer, i, offset,
-        videoSegments = [],
-        audioSegments = [],
-        videoBytes = 0,
-        audioBytes = 0;
+      var sortedSegments = {
+          video: {
+            segments: [],
+            bytes: 0
+          },
+          audio: {
+            segments: [],
+            bytes: 0
+          }
+        };
 
       // Sort segments into separate video/audio arrays and
       // keep track of their total byte lengths
-      while ((segment = this.pendingBuffers_.shift())) {
-        if (segment.type === 'video') {
-          videoSegments.push(segment.data);
-          videoBytes += segment.data.byteLength;
-        } else {
-          audioSegments.push(segment.data);
-          audioBytes += segment.data.byteLength;
-        }
-      }
+      sortedSegments = this.pendingBuffers_.reduce(function (segmentObj, segment) {
+        var
+          type = segment.type,
+          data = segment.data;
+
+        segmentObj[type].segments.push(data);
+        segmentObj[type].bytes += data.byteLength;
+
+        return segmentObj;
+      }, sortedSegments);
 
       // Merge multiple video segments into one and append
-      if (videoBytes) {
-        this.concatAndAppendSegments_(videoSegments, videoBytes, this.videoBuffer_);
-      }
+      this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
 
       // Merge multiple audio segments into one and append
-      if (audioBytes) {
-        this.concatAndAppendSegments_(audioSegments,audioBytes, this.audioBuffer_);
-      }
+      this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
 
       // We are no longer in the internal "updating" state
       this.bufferUpdating_ = false;
     },
-    concatAndAppendSegments_: function(segments, totalBytes, destinationBuffer) {
-      var offset = 0;
-      var tempBuffer = new Uint8Array(totalBytes);
+    /**
+     * Combind all segments into a single Uint8Array and then append them
+     * to the destination buffer
+     */
+    concatAndAppendSegments_: function(segmentObj, destinationBuffer) {
+      var
+        offset = 0,
+        tempBuffer;
 
-      // Combine the individual segments into one large typed-array
-      segments.forEach(function (segment) {
-        tempBuffer.set(segment, offset);
-        offset += segment.byteLength;
-      });
+      if (segmentObj.bytes) {
+        tempBuffer = new Uint8Array(segmentObj.bytes);
 
-      // Set timestampOffset if we have been given one
-      if (this.timestampOffset !== undefined) {
-        destinationBuffer.timestampOffset = this.timestampOffset;
+        // Combine the individual segments into one large typed-array
+        segmentObj.segments.forEach(function (segment) {
+          tempBuffer.set(segment, offset);
+          offset += segment.byteLength;
+        });
+
+        // Set timestampOffset if we have been given one
+        if (this.timestampOffset !== undefined) {
+          destinationBuffer.timestampOffset = this.timestampOffset;
+        }
+
+        destinationBuffer.appendBuffer(tempBuffer);
       }
-
-      destinationBuffer.appendBuffer(tempBuffer);
     }
   });
 
