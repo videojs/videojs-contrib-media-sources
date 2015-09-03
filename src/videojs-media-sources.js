@@ -121,7 +121,7 @@
               self.videoBuffer_.addEventListener('updateend',
                                                  aggregateUpdateHandler(self, 'audioBuffer_', 'updateend'));
             }
-          } else {
+          } else if (segment.type === 'audio') {
             if (!self.audioBuffer_) {
               self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs=mp4a.40.2');
               // aggregate buffer events
@@ -130,6 +130,17 @@
               self.audioBuffer_.addEventListener('update',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'update'));
               self.audioBuffer_.addEventListener('updateend',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
+            }
+          } else if (segment.type === 'both') {
+            if (!self.videoBuffer_) {
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=avc1.4d400d, mp4a.40.2');
+              // aggregate buffer events
+              self.videoBuffer_.addEventListener('updatestart',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
+              self.videoBuffer_.addEventListener('update',
+                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'update'));
+              self.videoBuffer_.addEventListener('updateend',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
             }
           }
@@ -217,6 +228,11 @@
         var
           type = segment.type,
           data = segment.data;
+
+        // Consider "both" (unified video/audio) to be a video buffer
+        if (type === 'both') {
+          type = 'video';
+        }
 
         segmentObj[type].segments.push(data);
         segmentObj[type].bytes += data.byteLength;
