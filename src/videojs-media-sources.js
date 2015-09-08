@@ -132,7 +132,7 @@
               self.audioBuffer_.addEventListener('updateend',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
             }
-          } else if (segment.type === 'both') {
+          } else if (segment.type === 'combined') {
             if (!self.videoBuffer_) {
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=avc1.4d400d, mp4a.40.2');
               // aggregate buffer events
@@ -229,8 +229,8 @@
           type = segment.type,
           data = segment.data;
 
-        // Consider "both" (unified video/audio) to be a video buffer
-        if (type === 'both') {
+        // A "combined" segment type (unified video/audio) uses the videoBuffer
+        if (type === 'combined') {
           type = 'video';
         }
 
