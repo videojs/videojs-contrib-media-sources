@@ -240,11 +240,11 @@
         return segmentObj;
       }, sortedSegments);
 
-      // Merge multiple video segments into one and append
+      // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
-
-      // Merge multiple audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
+
+      this.pendingBuffers_.length = 0;
 
       // We are no longer in the internal "updating" state
       this.bufferUpdating_ = false;
