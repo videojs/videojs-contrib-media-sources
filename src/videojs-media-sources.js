@@ -280,7 +280,6 @@
       this.pendingBuffers_.length = 0;
 
       // We are no longer in the internal "updating" state
-      this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
     },
     /**
