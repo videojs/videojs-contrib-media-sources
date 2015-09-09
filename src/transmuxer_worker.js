@@ -15,6 +15,7 @@ importScripts('../node_modules/mux.js/lib/mp4-generator.js');
 importScripts('../node_modules/mux.js/lib/stream.js');
 importScripts('../node_modules/mux.js/lib/metadata-stream.js');
 importScripts('../node_modules/mux.js/lib/transmuxer.js');
+importScripts('../node_modules/mux.js/lib/caption-stream.js');
 
 var transmuxer = new muxjs.mp2t.Transmuxer();
 
@@ -30,9 +31,25 @@ onmessage = function(event) {
 };
 
 transmuxer.on('data', function (segment) {
-  postMessage({action: 'data', type: segment.type, data: segment.data.buffer}, [segment.data.buffer]);
+  // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
+  // ArrayBuffers are transferable but generic TypedArrays are not
+  // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
+  segment.data = segment.data.buffer;
+  postMessage({
+    action: 'data',
+    segment: segment
+  }, [segment.data]);
 });
 
+if (transmuxer.captionStream) {
+  transmuxer.captionStream.on('data', function(caption) {
+    postMessage({
+      action: 'caption',
+      data: caption
+    });
+  });
+}
+
 transmuxer.on('done', function (data) {
-  postMessage({action: 'done'});
+  postMessage({ action: 'done' });
 });

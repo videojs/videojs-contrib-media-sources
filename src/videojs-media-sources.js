@@ -37,6 +37,18 @@
           this.settings_.mode === 'html5') {
         self = new window.MediaSource();
         interceptBufferCreation(self);
+
+        // capture the associated player when the MediaSource is
+        // successfully attached
+        self.addEventListener('sourceopen', function() {
+          var video = document.querySelector('[src="' + self.url_ + '"]');
+
+          if (!video && video.parentNode) {
+            return;
+          }
+
+          self.player_ = videojs(video.parentNode);
+        });
         return self;
       }
 
@@ -92,17 +104,14 @@
       this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
 
-      // the MPEG2-TS presentation timestamp corresponding to zero in
-      // the media timeline
-      this.basePts_ = undefined;
-
       // append muxed segments to their respective native buffers as
       // soon as they are available
       this.transmuxer_ = new Worker(videojs.MediaSource.webWorkerURI || '/src/transmuxer_worker.js');
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
-          var segment = event.data;
+          var segment = event.data.segment;
+
           // Cast to type
           segment.data = new Uint8Array(segment.data);
 
@@ -145,12 +154,24 @@
             }
           }
 
+          // create an in-band caption track if one is present in the segment
+          if (segment.captions &&
+              segment.captions.length &&
+              !self.inbandTextTrack_) {
+            self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+          }
+
           // Add the segments to the pendingBuffers array
           self.pendingBuffers_.push(segment);
-        } else if (event.data.action === 'done') {
+          return;
+        }
+
+        if (event.data.action === 'done') {
           // All buffers should have been flushed from the muxer
           // start processing anything we have received
           self.processPendingSegments_();
+
+          return;
         }
       };
 
@@ -214,10 +235,12 @@
       var sortedSegments = {
           video: {
             segments: [],
+            captions: [],
             bytes: 0
           },
           audio: {
             segments: [],
+            captions: [],
             bytes: 0
           }
         };
@@ -237,8 +260,18 @@
         segmentObj[type].segments.push(data);
         segmentObj[type].bytes += data.byteLength;
 
+        // append any captions in this segment
+        if (segment.captions) {
+          segmentObj[type].captions = segmentObj[type].captions.concat(segment.captions);
+        }
+
         return segmentObj;
       }, sortedSegments);
+
+      // add cues for any video captions encountered
+      sortedSegments.video.captions.forEach(function(cue) {
+        this.inbandTextTrack_.addCue(new VTTCue(cue.startTime, cue.endTime, cue.text));
+      }.bind(this));
 
       // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
@@ -584,7 +617,9 @@
       // if the object isn't an emulated MediaSource, delegate to the
       // native implementation
       if (!(object instanceof videojs.FlashMediaSource)) {
-        return window.URL.createObjectURL(object);
+        url = window.URL.createObjectURL(object);
+        object.url_ = url;
+        return url;
       }
 
       // build a URL that can be used to map back to the emulated

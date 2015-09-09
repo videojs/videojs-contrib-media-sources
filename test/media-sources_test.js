@@ -35,7 +35,7 @@
     ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
        'forced Flash');
     // mock native MediaSources
-    window.MediaSource = function() {};
+    window.MediaSource = videojs.extends(videojs.EventTarget, {});
     ok(new videojs.MediaSource({ mode: 'html5' }) instanceof window.MediaSource,
        'forced HTML5');
 
@@ -51,19 +51,21 @@
   module('HTML MediaSource', {
     setup: function(){
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
-      window.MediaSource = function(){
-        var sourceBuffers = [];
-        this.sourceBuffers = sourceBuffers;
-        this.isNative = true;
-        this.addSourceBuffer = function(type) {
-          var buffer = new (videojs.extends(videojs.EventTarget, {
-            type: type,
-            appendBuffer: function() {}
-          }))();
-          sourceBuffers.push(buffer);
-          return buffer;
-        };
-      };
+      window.MediaSource = videojs.extends(videojs.EventTarget, {
+        constructor: function(){
+          var sourceBuffers = [];
+          this.sourceBuffers = sourceBuffers;
+          this.isNative = true;
+          this.addSourceBuffer = function(type) {
+            var buffer = new (videojs.extends(videojs.EventTarget, {
+              type: type,
+              appendBuffer: function() {}
+            }))();
+            sourceBuffers.push(buffer);
+            return buffer;
+          };
+        }
+      });
       window.WebKitMediaSource = window.MediaSource;
     },
     teardown: function(){
@@ -84,15 +86,19 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'audio',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
 
@@ -131,8 +137,10 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
 
@@ -145,8 +153,10 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
 
@@ -172,15 +182,19 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'audio',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
 
@@ -204,15 +218,19 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'audio',
-        data: new Uint8Array(1).buffer
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1).buffer
+        }
       }
     });
 
@@ -232,15 +250,19 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'audio',
-        data: new Uint8Array(1)
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1)
+        }
       }
     });
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1)
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1)
+        }
       }
     });
     sourceBuffer.transmuxer_.onmessage({
@@ -263,15 +285,19 @@
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'audio',
-        data: new Uint8Array(1)
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1)
+        }
       }
     });
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
-        type: 'video',
-        data: new Uint8Array(1)
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1)
+        }
       }
     });
 
@@ -321,6 +347,51 @@
     sourceBuffer.videoBuffer_.updating = false;
     sourceBuffer.videoBuffer_.trigger('updateend');
     equal(updateends, 1, 'aggregated updateend');
+  });
+
+  test('translates caption events into WebVTT cues', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        types = [],
+        cues = [];
+
+    mediaSource.player_ = {
+      addTextTrack: function(type) {
+        types.push(type);
+        return {
+          addCue: function(cue) {
+            cues.push(cue);
+          }
+        };
+      }
+    };
+    sourceBuffer.baseMediaDecodeTime_ = 10 * 90e3;
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1),
+          captions: [{
+            startTime: 1,
+            endTime: 3,
+            text: 'This is an in-band caption'
+          }]
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'done'
+      }
+    });
+
+    equal(types.length, 1, 'created one text track');
+    equal(types[0], 'captions', 'the type was captions');
+    equal(cues.length, 1, 'created one cue');
+    equal(cues[0].text, 'This is an in-band caption', 'included the text');
+    equal(cues[0].startTime, 1, 'started at one');
+    equal(cues[0].endTime, 3, 'ended at three');
   });
 
   test('does not wrap mp4 source buffers', function(){
@@ -743,6 +814,13 @@
   test('emulates a URL for the shim', function() {
     ok((/blob:vjs-media-source\//).test(videojs.URL.createObjectURL(new videojs.FlashMediaSource())),
        'created an emulated blob URL');
+  });
+
+  test('stores the associated blob URL on the media source', function() {
+    var blob = new Blob(),
+        url = videojs.URL.createObjectURL(blob);
+
+    equal(blob.url_, url, 'captured the generated URL');
   });
 
 })(window, window.videojs, window.muxjs);
