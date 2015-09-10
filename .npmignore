@@ -3,7 +3,7 @@ node_modules
 npm-debug.log
 *.orig
 *.log
-build
+tmp
 test
 
 # ignore emacs scratch files
