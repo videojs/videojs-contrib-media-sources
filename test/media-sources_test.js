@@ -174,6 +174,42 @@
     equal(mp4Segments.length, 1, 'appended the segments');
   });
 
+  test('forwards codec strings to native buffers when specified', function() {
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.64001f,mp4a.40.5"');
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'combined',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    equal(mediaSource.sourceBuffers[0].type,
+          'video/mp4; codecs="avc1.64001f,mp4a.40.5"',
+          'passed the codec along');
+  });
+
+  test('specifies reasonable codecs if none are specified', function() {
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'combined',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    equal(mediaSource.sourceBuffers[0].type,
+          'video/mp4;codecs=avc1.4d400d, mp4a.40.2',
+          'passed the codec along');
+  });
+
   test('virtual buffers are updating if either native buffer is', function(){
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
