@@ -76,12 +76,12 @@
   };
 
   addSourceBuffer = function(type) {
-    var audio, video, buffer, match;
+    var audio, video, buffer, codecs;
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if ((/^video\/mp2t/i).test(type)) {
-      match = (/codecs=['"]?([^'"]*)['"]?$/i).exec(type);
-      buffer = new VirtualSourceBuffer(this, match && match[1]);
+      codecs = type.split(';').slice(1).join(';');
+      buffer = new VirtualSourceBuffer(this, codecs);
       this.virtualBuffers.push(buffer);
       return buffer;
     }
@@ -122,7 +122,7 @@
               // Some common mp4 codec strings. Saved for future twittling:
               // 4d400d
               // 42c01e & 42c01f
-              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=' + (codecs || 'avc1.4d400d'));
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d'));
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'audioBuffer_', 'updatestart'));
@@ -133,7 +133,7 @@
             }
           } else if (segment.type === 'audio') {
             if (!self.audioBuffer_) {
-              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs=' + ( codecs || 'mp4a.40.2'));
+              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;' + (codecs || 'codecs=mp4a.40.2'));
               // aggregate buffer events
               self.audioBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
@@ -144,7 +144,7 @@
             }
           } else if (segment.type === 'combined') {
             if (!self.videoBuffer_) {
-              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs=' + (codecs || 'avc1.4d400d, mp4a.40.2'));
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d, mp4a.40.2'));
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));

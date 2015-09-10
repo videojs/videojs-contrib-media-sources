@@ -188,7 +188,7 @@
       }
     });
     equal(mediaSource.sourceBuffers[0].type,
-          'video/mp4;codecs=avc1.64001f,mp4a.40.5',
+          'video/mp4; codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
   });
 
