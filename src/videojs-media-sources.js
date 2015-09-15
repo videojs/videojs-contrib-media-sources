@@ -102,6 +102,7 @@
     constructor: function VirtualSourceBuffer(mediaSource, codecs) {
       var self = this;
 
+      this.timestampOffset_ = 0;
       this.timestampOffsetChanged_ = false;
       this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
@@ -182,11 +183,13 @@
           return this.timestampOffset_;
         },
         set: function(val) {
-          this.timestampOffsetChanged_ = true;
-          this.timestampOffset_ = val;
-          // We have to tell the transmuxer to reset the baseMediaDecodeTime to
-          // zero for the next segment
-          this.transmuxer_.postMessage({action: 'resetBaseMediaDecodeTime'});
+          if (typeof val === 'number' && val >= 0) {
+            this.timestampOffsetChanged_ = true;
+            this.timestampOffset_ = val;
+            // We have to tell the transmuxer to reset the baseMediaDecodeTime to
+            // zero for the next segment
+            this.transmuxer_.postMessage({action: 'resetBaseMediaDecodeTime'});
+          }
         }
       });
       // this buffer is "updating" if either of its native buffers are
@@ -284,7 +287,12 @@
 
       // add cues for any video captions encountered
       sortedSegments.video.captions.forEach(function(cue) {
-        this.inbandTextTrack_.addCue(new VTTCue(cue.startTime, cue.endTime, cue.text));
+        this.inbandTextTrack_.addCue(
+          new VTTCue(
+            cue.startTime + this.timestampOffset_,
+            cue.endTime + this.timestampOffset_,
+            cue.text
+          ));
       }.bind(this));
 
       // Merge multiple video and audio segments into one and append
@@ -316,7 +324,7 @@
         });
 
         // Set timestampOffset if we have been given one
-        if (this.timestampOffset_ !== undefined && this.timestampOffsetChanged_) {
+        if (this.timestampOffsetChanged_) {
           destinationBuffer.timestampOffset = this.timestampOffset_;
         }
 

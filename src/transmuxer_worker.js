@@ -67,7 +67,7 @@ var messageHandlers = {
   flush: function (data) {
     transmuxer.flush();
   }
-}
+};
 
 onmessage = function(event) {
   var action;
