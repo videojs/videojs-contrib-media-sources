@@ -17,39 +17,64 @@ importScripts('../node_modules/mux.js/lib/metadata-stream.js');
 importScripts('../node_modules/mux.js/lib/transmuxer.js');
 importScripts('../node_modules/mux.js/lib/caption-stream.js');
 
-var transmuxer = new muxjs.mp2t.Transmuxer();
+var transmuxer;// = new muxjs.mp2t.Transmuxer();
 
-onmessage = function(event) {
-  if (event.data.action === 'push') {
-    // Cast to type
-    var segment = new Uint8Array(event.data.data);
+var wireTransmuxerEvents = function (transmuxer) {
+  transmuxer.on('data', function (segment) {
+    // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
+    // ArrayBuffers are transferable but generic TypedArrays are not
+    // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
+    segment.data = segment.data.buffer;
+    postMessage({
+      action: 'data',
+      segment: segment
+    }, [segment.data]);
+  });
 
-    transmuxer.push(segment);
-  } else if (event.data.action === 'flush') {
-    transmuxer.flush();
+  if (transmuxer.captionStream) {
+    transmuxer.captionStream.on('data', function(caption) {
+      postMessage({
+        action: 'caption',
+        data: caption
+      });
+    });
   }
+
+  transmuxer.on('done', function (data) {
+    postMessage({ action: 'done' });
+  });
 };
 
-transmuxer.on('data', function (segment) {
-  // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
-  // ArrayBuffers are transferable but generic TypedArrays are not
-  // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
-  segment.data = segment.data.buffer;
-  postMessage({
-    action: 'data',
-    segment: segment
-  }, [segment.data]);
-});
+var messageHandlers = {
+  init: function (data) {
+    transmuxer = new muxjs.mp2t.Transmuxer(data.options);
+    wireTransmuxerEvents(transmuxer);
+  },
+  push: function (data) {
+    // if `init` was never called, just create the default transmuxer
+    if (!transmuxer) {
+      transmuxer = new muxjs.mp2t.Transmuxer();
+      wireTransmuxerEvents(transmuxer);
+    }
 
-if (transmuxer.captionStream) {
-  transmuxer.captionStream.on('data', function(caption) {
-    postMessage({
-      action: 'caption',
-      data: caption
-    });
-  });
+    // Cast array buffer to correct type for transmuxer
+    var segment = new Uint8Array(data.data);
+    transmuxer.push(segment);
+  },
+  resetBaseMediaDecodeTime: function (data) {
+    transmuxer.resetBaseMediaDecodeTime();
+  },
+  flush: function (data) {
+    transmuxer.flush();
+  }
 }
 
-transmuxer.on('done', function (data) {
-  postMessage({ action: 'done' });
-});
+onmessage = function(event) {
+  var action;
+  if (event.data && event.data.action) {
+    action = messageHandlers[event.data.action];
+    if (action) {
+      action(event.data);
+    }
+  }
+};
