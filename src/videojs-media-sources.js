@@ -102,6 +102,7 @@
     constructor: function VirtualSourceBuffer(mediaSource, codecs) {
       var self = this;
 
+      this.timestampOffsetChanged_ = false;
       this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
 
@@ -176,6 +177,18 @@
         }
       };
 
+      Object.defineProperty(this, 'timestampOffset', {
+        get: function() {
+          return this.timestampOffset_;
+        },
+        set: function(val) {
+          this.timestampOffsetChanged_ = true;
+          this.timestampOffset_ = val;
+          // We have to tell the transmuxer to reset the baseMediaDecodeTime to
+          // zero for the next segment
+          this.transmuxer_.postMessage({action: 'resetBaseMediaDecodeTime'});
+        }
+      });
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
         get: function() {
@@ -282,6 +295,7 @@
 
       // We are no longer in the internal "updating" state
       this.bufferUpdating_ = false;
+      this.timestampOffsetChanged_ = false;
     },
     /**
      * Combind all segments into a single Uint8Array and then append them
@@ -302,8 +316,8 @@
         });
 
         // Set timestampOffset if we have been given one
-        if (this.timestampOffset !== undefined) {
-          destinationBuffer.timestampOffset = this.timestampOffset;
+        if (this.timestampOffset_ !== undefined && this.timestampOffsetChanged_) {
+          destinationBuffer.timestampOffset = this.timestampOffset_;
         }
 
         destinationBuffer.appendBuffer(tempBuffer);
