@@ -387,7 +387,7 @@
     var sourceBuffer;
 
     // if this is an FLV type, we'll push data to flash
-    if (type === 'video/mp2t') {
+    if (type.indexOf('video/mp2t') !== -1) {
       // Flash source buffers
       sourceBuffer = new videojs.FlashSourceBuffer(this);
     } else {
@@ -397,7 +397,6 @@
     this.sourceBuffers.push(sourceBuffer);
     return sourceBuffer;
   };
-
 
   /**
    * Set or return the presentation duration.
@@ -479,11 +478,25 @@
       // is still being processed
       // see https://w3c.github.io/media-source/#widl-SourceBuffer-updating
       this.updating = false;
+      this.timestampOffset_ = 0;
 
       // TS to FLV transmuxer
       this.segmentParser_ = new muxjs.SegmentParser();
       encodedHeader = window.btoa(String.fromCharCode.apply(null, Array.prototype.slice.call(this.segmentParser_.getFlvHeader())));
       this.source.swfObj.vjs_appendBuffer(encodedHeader);
+
+      Object.defineProperty(this, 'timestampOffset', {
+        get: function() {
+          return this.timestampOffset_;
+        },
+        set: function(val) {
+          if (typeof val === 'number' && val >= 0) {
+            this.timestampOffset_ = val;
+            // We have to tell flash to expect a discontinuity
+            this.source.swfObj.vjs_discontinuity();
+          }
+        }
+      });
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
