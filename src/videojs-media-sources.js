@@ -230,8 +230,8 @@
             ends.push(this.audioBuffer_.buffered.end(lastIndex));
           }
 
-          start = Math.max.apply(Math, starts);
-          end = Math.min.apply(Math, ends);
+          start = Math.min.apply(Math, starts);
+          end = Math.max.apply(Math, ends);
           return videojs.createTimeRange(start, end);
         }
       });
