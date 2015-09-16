@@ -177,7 +177,8 @@
           return;
         }
       };
-
+      // this timestampOffset is a property with the side-effect of resetting
+      // baseMediaDecodeTime in the transmuxer on the setter
       Object.defineProperty(this, 'timestampOffset', {
         get: function() {
           return this.timestampOffset_;
@@ -323,7 +324,7 @@
           offset += segment.byteLength;
         });
 
-        // Set timestampOffset if we have been given one
+        // Set timestampOffset if it was changed before this append
         if (this.timestampOffsetChanged_) {
           destinationBuffer.timestampOffset = this.timestampOffset_;
         }

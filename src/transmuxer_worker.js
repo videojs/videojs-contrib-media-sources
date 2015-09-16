@@ -17,7 +17,7 @@ importScripts('../node_modules/mux.js/lib/metadata-stream.js');
 importScripts('../node_modules/mux.js/lib/transmuxer.js');
 importScripts('../node_modules/mux.js/lib/caption-stream.js');
 
-var transmuxer;// = new muxjs.mp2t.Transmuxer();
+var transmuxer;
 
 var wireTransmuxerEvents = function (transmuxer) {
   transmuxer.on('data', function (segment) {
