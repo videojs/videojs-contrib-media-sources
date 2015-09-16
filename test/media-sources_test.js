@@ -401,7 +401,7 @@
         };
       }
     };
-    sourceBuffer.baseMediaDecodeTime_ = 10 * 90e3;
+    sourceBuffer.timestampOffset = 10;
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
@@ -426,8 +426,8 @@
     equal(types[0], 'captions', 'the type was captions');
     equal(cues.length, 1, 'created one cue');
     equal(cues[0].text, 'This is an in-band caption', 'included the text');
-    equal(cues[0].startTime, 1, 'started at one');
-    equal(cues[0].endTime, 3, 'ended at three');
+    equal(cues[0].startTime, 11, 'started at eleven');
+    equal(cues[0].endTime, 13, 'ended at thirteen');
   });
 
   test('does not wrap mp4 source buffers', function(){
