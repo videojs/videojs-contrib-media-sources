@@ -480,8 +480,8 @@
       });
       swfObj = document.createElement('fake-object');
       swfObj.id = 'fake-swf-' + assert.test.testId;
-      player.el().replaceChild(swfObj, player.tech.el());
-      player.tech.el_ = swfObj;
+      player.el().replaceChild(swfObj, player.tech_.el());
+      player.tech_.el_ = swfObj;
       swfObj.CallFunction = function(xml) {
         swfCalls.push(xml);
       };
@@ -495,6 +495,9 @@
         swfCalls.push('load');
       };
       swfObj.vjs_setProperty = function(attr, value) {
+        swfCalls.push({ attr: attr, value: value });
+      };
+      swfObj.vjs_discontinuity = function(attr, value) {
         swfCalls.push({ attr: attr, value: value });
       };
       swfObj.vjs_appendBuffer = function(flvHeader) {
@@ -798,10 +801,10 @@
         data;
 
     // seek to 15 seconds
-    player.tech.seeking = function() {
+    player.tech_.seeking = function() {
       return true;
     };
-    player.tech.currentTime = function() {
+    player.tech_.currentTime = function() {
       return 15;
     };
     // FLV tags for this segment start at 10 seconds in the media
@@ -840,13 +843,13 @@
   test('passes endOfStream network errors to the tech', function() {
     mediaSource.endOfStream('network');
 
-    equal(player.tech.error().code, 2, 'set a network error');
+    equal(player.tech_.error().code, 2, 'set a network error');
   });
 
-  test('passes endOfStream network errors to the tech', function() {
+  test('passes endOfStream decode errors to the tech', function() {
     mediaSource.endOfStream('decode');
 
-    equal(player.tech.error().code, 3, 'set a decode error');
+    equal(player.tech_.error().code, 3, 'set a decode error');
   });
 
   module('createObjectURL');
