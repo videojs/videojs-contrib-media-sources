@@ -206,34 +206,75 @@
       Object.defineProperty(this, 'buffered', {
         get: function() {
           var
-            start,
-            end,
-            starts = [],
-            ends = [],
-            lastIndex;
+            start = null,
+            end = null,
+            arity = 0,
+            extents = [],
+            ranges = [];
 
-          // Handle the case where there is no buffer
-          if ((this.videoBuffer_ && this.videoBuffer_.buffered.length === 0) ||
-              (this.audioBuffer_ && this.audioBuffer_.buffered.length === 0)) {
+          // Handle the case where there is no buffer data
+          if ((!this.videoBuffer_ || this.videoBuffer_.buffered.length === 0) &&
+              (!this.audioBuffer_ || this.audioBuffer_.buffered.length === 0)) {
             return videojs.createTimeRange();
           }
 
-          // TODO: Calculate and return the true intersection of the buffered
-          //       property
-          if (this.videoBuffer_) {
-            lastIndex = this.videoBuffer_.buffered.length - 1;
-            starts.push(this.videoBuffer_.buffered.start(0));
-            ends.push(this.videoBuffer_.buffered.end(lastIndex));
-          }
-          if (this.audioBuffer_) {
-            lastIndex = this.audioBuffer_.buffered.length - 1;
-            starts.push(this.audioBuffer_.buffered.start(0));
-            ends.push(this.audioBuffer_.buffered.end(lastIndex));
+          // Handle the case where we only have one buffer
+          if (!this.videoBuffer_) {
+            return this.audioBuffer_.buffered;
+          } else if (!this.audioBuffer_) {
+            return this.audioBuffer_.buffered;
           }
 
-          start = Math.min.apply(Math, starts);
-          end = Math.max.apply(Math, ends);
-          return videojs.createTimeRange(start, end);
+          // Handle the case where we have both buffers and create an
+          // intersection of the two
+          var videoIndex = 0, audioIndex = 0;
+          var videoBuffered = this.videoBuffer_.buffered;
+          var audioBuffered = this.audioBuffer_.buffered;
+          var count = videoBuffered.length;
+
+          // A) Gather up all start and end times
+          while (count--) {
+            extents.push({time: videoBuffered.start(count), type: 'start'});
+            extents.push({time: videoBuffered.end(count), type: 'end'});
+          }
+          count = audioBuffered.length;
+          while (count--) {
+            extents.push({time: audioBuffered.start(count), type: 'start'});
+            extents.push({time: audioBuffered.end(count), type: 'end'});
+          }
+          // B) Sort them by time
+          extents.sort(function(a, b){return a.time - b.time;});
+
+          // C) Go along one by one incrementing arity for start and decrementing
+          //    arity for ends
+          for(count = 0; count < extents.length; count++) {
+            if (extents[count].type === 'start') {
+              arity++;
+
+              // D) If arity is ever incremented to 2 we are entering an
+              //    overlapping range
+              if (arity === 2) {
+                start = extents[count].time;
+              }
+            } else if (extents[count].type === 'end') {
+              arity--;
+
+              // E) If arity is ever decremented to 1 we leaving an
+              //    overlapping range
+              if (arity === 1) {
+                end = extents[count].time;
+              }
+            }
+
+            // F) Record overlapping ranges
+            if (start !== null && end !== null) {
+              ranges.push([start, end]);
+              start = null;
+              end = null;
+            }
+          }
+
+          return videojs.createTimeRanges(ranges);
         }
       });
     },

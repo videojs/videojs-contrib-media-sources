@@ -270,12 +270,21 @@
       }
     });
 
-    mediaSource.sourceBuffers[0].buffered = videojs.createTimeRange(0, 10);
-    mediaSource.sourceBuffers[1].buffered = videojs.createTimeRange(0, 7);
+    mediaSource.sourceBuffers[0].buffered = videojs.createTimeRanges([
+      [0, 10],
+      [20, 30]
+    ]);
+    mediaSource.sourceBuffers[1].buffered = videojs.createTimeRanges([
+      [0, 7],
+      [11, 15],
+      [16, 40]
+    ]);
 
-    equal(sourceBuffer.buffered.length, 1, 'one buffered range');
-    equal(sourceBuffer.buffered.start(0), 0, 'starts at zero');
-    equal(sourceBuffer.buffered.end(0), 7, 'ends at the latest shared time');
+    equal(sourceBuffer.buffered.length, 2, 'two buffered ranges');
+    equal(sourceBuffer.buffered.start(0), 0, 'first starts at zero');
+    equal(sourceBuffer.buffered.end(0), 7, 'first ends at seven');
+    equal(sourceBuffer.buffered.start(1), 20, 'second starts at twenty');
+    equal(sourceBuffer.buffered.end(1), 30, 'second ends at 30');
   });
 
   test('sets native timestamp offsets on appends', function(){
