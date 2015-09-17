@@ -5,7 +5,7 @@
  * All rights reserved.
  *
  * Handles communication between the browser-world and the mux.js
- * transmuxer running inside of a webworker by exposing a simple
+ * transmuxer running inside of a WebWorker by exposing a simple
  * message-based interface to a Transmuxer object.
  */
 var muxjs = {};
@@ -19,6 +19,11 @@ importScripts('../node_modules/mux.js/lib/caption-stream.js');
 
 var transmuxer;
 
+/**
+ * wireTransmuxerEvents
+ * Re-emits tranmsuxer events by converting them into messages to the
+ * world outside the worker
+ */
 var wireTransmuxerEvents = function (transmuxer) {
   transmuxer.on('data', function (segment) {
     // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
@@ -45,36 +50,67 @@ var wireTransmuxerEvents = function (transmuxer) {
   });
 };
 
+/**
+ * All incoming messages route through this hash. If not function exists
+ * to handle an incoming message, then we ignore the message.
+ */
 var messageHandlers = {
+  /**
+   * init
+   * Allows you to initialize the transmuxer and pass along options from
+   * outside the worker
+   */
   init: function (data) {
-    transmuxer = new muxjs.mp2t.Transmuxer(data.options);
+    transmuxer = new muxjs.mp2t.Transmuxer(data && data.options);
     wireTransmuxerEvents(transmuxer);
   },
-  push: function (data) {
-    // if `init` was never called, just create the default transmuxer
+  /**
+   * defaultInit
+   * Is called before every function and initializes the transmuxer with
+   * default options if `init` was never explicitly called
+   */
+  defaultInit: function () {
     if (!transmuxer) {
       transmuxer = new muxjs.mp2t.Transmuxer();
       wireTransmuxerEvents(transmuxer);
     }
+  },
+  /**
+   * push
+   * Adds data (a ts segment) to the start of the transmuxer pipeline for
+   * processing
+   */
+  push: function (data) {
+    this.defaultInit();
 
     // Cast array buffer to correct type for transmuxer
     var segment = new Uint8Array(data.data);
     transmuxer.push(segment);
   },
+  /**
+   * resetBaseMediaDecodeTime
+   * Signal to the transmuxer that the next segment added via `push` should
+   * begin at a baseMediaDecodeTime of 0
+   */
   resetBaseMediaDecodeTime: function (data) {
+    this.defaultInit();
+
     transmuxer.resetBaseMediaDecodeTime();
   },
+  /**
+   * flush
+   * Forces the pipeline to finish processing the last segment and emit it's
+   * results
+   */
   flush: function (data) {
     transmuxer.flush();
   }
 };
 
 onmessage = function(event) {
-  var action;
   if (event.data && event.data.action) {
-    action = messageHandlers[event.data.action];
-    if (action) {
-      action(event.data);
+    if (messageHandlers[event.data.action]) {
+      messageHandlers[event.data.action](event.data);
     }
   }
 };
