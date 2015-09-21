@@ -51,7 +51,7 @@ var wireTransmuxerEvents = function (transmuxer) {
 };
 
 /**
- * All incoming messages route through this hash. If not function exists
+ * All incoming messages route through this hash. If no function exists
  * to handle an incoming message, then we ignore the message.
  */
 var messageHandlers = {
@@ -70,10 +70,8 @@ var messageHandlers = {
    * default options if `init` was never explicitly called
    */
   defaultInit: function () {
-    if (!transmuxer) {
-      transmuxer = new muxjs.mp2t.Transmuxer();
-      wireTransmuxerEvents(transmuxer);
-    }
+    transmuxer = new muxjs.mp2t.Transmuxer();
+    wireTransmuxerEvents(transmuxer);
   },
   /**
    * push
@@ -81,8 +79,6 @@ var messageHandlers = {
    * processing
    */
   push: function (data) {
-    this.defaultInit();
-
     // Cast array buffer to correct type for transmuxer
     var segment = new Uint8Array(data.data);
     transmuxer.push(segment);
@@ -93,8 +89,6 @@ var messageHandlers = {
    * begin at a baseMediaDecodeTime of 0
    */
   resetBaseMediaDecodeTime: function (data) {
-    this.defaultInit();
-
     transmuxer.resetBaseMediaDecodeTime();
   },
   /**
@@ -108,6 +102,12 @@ var messageHandlers = {
 };
 
 onmessage = function(event) {
+  // Setup the default transmuxer if one doesn't exist yet and we are invoked with
+  // an action other than `init`
+  if (!transmuxer && event.data.action !== 'init') {
+    messageHandlers.defaultInit();
+  }
+
   if (event.data && event.data.action) {
     if (messageHandlers[event.data.action]) {
       messageHandlers[event.data.action](event.data);
