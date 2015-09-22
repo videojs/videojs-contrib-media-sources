@@ -324,7 +324,7 @@
       this.on(['sourceopen', 'webkitsourceopen'], function(event){
         // find the swf where we will push media data
         this.swfObj = document.getElementById(event.swfId);
-        this.tech_ = videojs(this.swfObj.parentNode).tech;
+        this.tech_ = this.swfObj.tech;
         this.readyState = 'open';
 
         this.tech_.on('seeking', function() {
