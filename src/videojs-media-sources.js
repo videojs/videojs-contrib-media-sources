@@ -428,7 +428,7 @@
     var sourceBuffer;
 
     // if this is an FLV type, we'll push data to flash
-    if (type.indexOf('video/mp2t') !== -1) {
+    if (type.indexOf('video/mp2t') === 0) {
       // Flash source buffers
       sourceBuffer = new videojs.FlashSourceBuffer(this);
     } else {
@@ -586,7 +586,7 @@
 
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
-      var chunk, i, length, payload, maxSize, b64str;
+      var chunk, i, length, payload, maxSize, binary, b64str;
 
       if (!this.buffer_.length) {
         // do nothing if the buffer is empty
@@ -624,7 +624,12 @@
       this.bufferSize_ -= payload.byteLength;
 
       // base64 encode the bytes
-      b64str = window.btoa(String.fromCharCode.apply(null, payload));
+      binary = '';
+      length = payload.byteLength;
+      for (i = 0; i < length; i++) {
+        binary += String.fromCharCode(payload[i]);
+      }
+      b64str = window.btoa(binary);
 
       // bypass normal ExternalInterface calls and pass xml directly
       // IE can be slow by default
