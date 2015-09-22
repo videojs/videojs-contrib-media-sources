@@ -452,7 +452,7 @@
 
   module('Flash MediaSource', {
     setup: function(assert) {
-      var swfObj;
+      var swfObj, tech;
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = null;
       window.WebKitMediaSource = null;
@@ -482,6 +482,7 @@
       swfObj.id = 'fake-swf-' + assert.test.testId;
       player.el().replaceChild(swfObj, player.tech_.el());
       player.tech_.el_ = swfObj;
+      swfObj.tech = player.tech_;
       swfObj.CallFunction = function(xml) {
         swfCalls.push(xml);
       };
