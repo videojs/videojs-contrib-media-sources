@@ -39,7 +39,7 @@
     "karma-firefox-launcher": "^0.1.6",
     "karma-qunit": "^0.1.5",
     "qunitjs": "^1.14.0",
-    "video.js": "^5.0.0-rc.4"
+    "video.js": "^5.0.0-rc.93"
   },
   "dependencies": {
     "mux.js": "dmlap/mux.js.git"

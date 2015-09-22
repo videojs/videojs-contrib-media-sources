@@ -35,7 +35,7 @@
     ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
        'forced Flash');
     // mock native MediaSources
-    window.MediaSource = videojs.extends(videojs.EventTarget, {});
+    window.MediaSource = videojs.extend(videojs.EventTarget, {});
     ok(new videojs.MediaSource({ mode: 'html5' }) instanceof window.MediaSource,
        'forced HTML5');
 
@@ -51,13 +51,13 @@
   module('HTML MediaSource', {
     setup: function(){
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
-      window.MediaSource = videojs.extends(videojs.EventTarget, {
+      window.MediaSource = videojs.extend(videojs.EventTarget, {
         constructor: function(){
           var sourceBuffers = [];
           this.sourceBuffers = sourceBuffers;
           this.isNative = true;
           this.addSourceBuffer = function(type) {
-            var buffer = new (videojs.extends(videojs.EventTarget, {
+            var buffer = new (videojs.extend(videojs.EventTarget, {
               type: type,
               appendBuffer: function() {}
             }))();
@@ -443,7 +443,7 @@
 
   module('Flash MediaSource', {
     setup: function(assert) {
-      var swfObj;
+      var swfObj, tech;
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = null;
       window.WebKitMediaSource = null;
@@ -471,8 +471,9 @@
       });
       swfObj = document.createElement('fake-object');
       swfObj.id = 'fake-swf-' + assert.test.testId;
-      player.el().replaceChild(swfObj, player.tech.el());
-      player.tech.el_ = swfObj;
+      player.el().replaceChild(swfObj, player.tech_.el());
+      player.tech_.el_ = swfObj;
+      swfObj.tech = player.tech_;
       swfObj.CallFunction = function(xml) {
         swfCalls.push(xml);
       };
@@ -789,10 +790,10 @@
         data;
 
     // seek to 15 seconds
-    player.tech.seeking = function() {
+    player.tech_.seeking = function() {
       return true;
     };
-    player.tech.currentTime = function() {
+    player.tech_.currentTime = function() {
       return 15;
     };
     // FLV tags for this segment start at 10 seconds in the media
@@ -831,13 +832,13 @@
   test('passes endOfStream network errors to the tech', function() {
     mediaSource.endOfStream('network');
 
-    equal(player.tech.error().code, 2, 'set a network error');
+    equal(player.tech_.error().code, 2, 'set a network error');
   });
 
   test('passes endOfStream network errors to the tech', function() {
     mediaSource.endOfStream('decode');
 
-    equal(player.tech.error().code, 3, 'set a decode error');
+    equal(player.tech_.error().code, 3, 'set a decode error');
   });
 
   module('createObjectURL');
