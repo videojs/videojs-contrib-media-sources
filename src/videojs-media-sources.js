@@ -25,7 +25,7 @@
     mode: 'auto'
   };
 
-  videojs.MediaSource = videojs.extends(EventTarget, {
+  videojs.MediaSource = videojs.extend(EventTarget, {
     constructor: function(options){
       var self;
 
@@ -98,7 +98,7 @@
     };
   };
 
-  VirtualSourceBuffer = videojs.extends(EventTarget, {
+  VirtualSourceBuffer = videojs.extend(EventTarget, {
     constructor: function VirtualSourceBuffer(mediaSource, codecs) {
       var self = this;
 
@@ -315,7 +315,7 @@
   // Flash
   // -----
 
-  videojs.FlashMediaSource = videojs.extends(EventTarget, {
+  videojs.FlashMediaSource = videojs.extend(EventTarget, {
     constructor: function(){
       var self = this;
       this.sourceBuffers = [];
@@ -439,7 +439,7 @@
   };
 
   // Source Buffer
-  videojs.FlashSourceBuffer = videojs.extends(EventTarget, {
+  videojs.FlashSourceBuffer = videojs.extend(EventTarget, {
 
     constructor: function(source){
       var encodedHeader;
