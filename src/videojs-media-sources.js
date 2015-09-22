@@ -25,7 +25,7 @@
     mode: 'auto'
   };
 
-  videojs.MediaSource = videojs.extends(EventTarget, {
+  videojs.MediaSource = videojs.extend(EventTarget, {
     constructor: function(options){
       var self;
 
@@ -98,7 +98,7 @@
     };
   };
 
-  VirtualSourceBuffer = videojs.extends(EventTarget, {
+  VirtualSourceBuffer = videojs.extend(EventTarget, {
     constructor: function VirtualSourceBuffer(mediaSource, codecs) {
       var self = this;
 
@@ -379,7 +379,7 @@
   // Flash
   // -----
 
-  videojs.FlashMediaSource = videojs.extends(EventTarget, {
+  videojs.FlashMediaSource = videojs.extend(EventTarget, {
     constructor: function(){
       var self = this;
       this.sourceBuffers = [];
@@ -388,7 +388,7 @@
       this.on(['sourceopen', 'webkitsourceopen'], function(event){
         // find the swf where we will push media data
         this.swfObj = document.getElementById(event.swfId);
-        this.tech_ = videojs(this.swfObj.parentNode).tech_;
+        this.tech_ = this.swfObj.tech;
         this.readyState = 'open';
 
         this.tech_.on('seeking', function() {
@@ -428,7 +428,7 @@
     var sourceBuffer;
 
     // if this is an FLV type, we'll push data to flash
-    if (type.indexOf('video/mp2t') !== -1) {
+    if (type.indexOf('video/mp2t') === 0) {
       // Flash source buffers
       sourceBuffer = new videojs.FlashSourceBuffer(this);
     } else {
@@ -502,7 +502,7 @@
   };
 
   // Source Buffer
-  videojs.FlashSourceBuffer = videojs.extends(EventTarget, {
+  videojs.FlashSourceBuffer = videojs.extend(EventTarget, {
 
     constructor: function(source){
       var encodedHeader;
@@ -586,7 +586,7 @@
 
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
-      var chunk, i, length, payload, maxSize, b64str;
+      var chunk, i, length, payload, maxSize, binary, b64str;
 
       if (!this.buffer_.length) {
         // do nothing if the buffer is empty
@@ -624,7 +624,12 @@
       this.bufferSize_ -= payload.byteLength;
 
       // base64 encode the bytes
-      b64str = window.btoa(String.fromCharCode.apply(null, payload));
+      binary = '';
+      length = payload.byteLength;
+      for (i = 0; i < length; i++) {
+        binary += String.fromCharCode(payload[i]);
+      }
+      b64str = window.btoa(binary);
 
       // bypass normal ExternalInterface calls and pass xml directly
       // IE can be slow by default

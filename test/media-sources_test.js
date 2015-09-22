@@ -35,7 +35,7 @@
     ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
        'forced Flash');
     // mock native MediaSources
-    window.MediaSource = videojs.extends(videojs.EventTarget, {});
+    window.MediaSource = videojs.extend(videojs.EventTarget, {});
     ok(new videojs.MediaSource({ mode: 'html5' }) instanceof window.MediaSource,
        'forced HTML5');
 
@@ -51,13 +51,13 @@
   module('HTML MediaSource', {
     setup: function(){
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
-      window.MediaSource = videojs.extends(videojs.EventTarget, {
+      window.MediaSource = videojs.extend(videojs.EventTarget, {
         constructor: function(){
           var sourceBuffers = [];
           this.sourceBuffers = sourceBuffers;
           this.isNative = true;
           this.addSourceBuffer = function(type) {
-            var buffer = new (videojs.extends(videojs.EventTarget, {
+            var buffer = new (videojs.extend(videojs.EventTarget, {
               type: type,
               appendBuffer: function() {}
             }))();
@@ -452,7 +452,7 @@
 
   module('Flash MediaSource', {
     setup: function(assert) {
-      var swfObj;
+      var swfObj, tech;
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = null;
       window.WebKitMediaSource = null;
@@ -482,6 +482,7 @@
       swfObj.id = 'fake-swf-' + assert.test.testId;
       player.el().replaceChild(swfObj, player.tech_.el());
       player.tech_.el_ = swfObj;
+      swfObj.tech = player.tech_;
       swfObj.CallFunction = function(xml) {
         swfCalls.push(xml);
       };
