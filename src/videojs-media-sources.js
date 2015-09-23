@@ -190,7 +190,7 @@
             this.timestampOffset_ = val;
             // We have to tell the transmuxer to reset the baseMediaDecodeTime to
             // zero for the next segment
-            this.transmuxer_.postMessage({action: 'resetBaseMediaDecodeTime'});
+            this.transmuxer_.postMessage({action: 'resetTransmuxer'});
           }
         }
       });

@@ -8,7 +8,10 @@
  * transmuxer running inside of a WebWorker by exposing a simple
  * message-based interface to a Transmuxer object.
  */
-var muxjs = {};
+var
+  muxjs = {},
+  transmuxer,
+  initOptions = {};
 
 importScripts('../node_modules/mux.js/lib/exp-golomb.js');
 importScripts('../node_modules/mux.js/lib/mp4-generator.js');
@@ -17,7 +20,6 @@ importScripts('../node_modules/mux.js/lib/metadata-stream.js');
 importScripts('../node_modules/mux.js/lib/transmuxer.js');
 importScripts('../node_modules/mux.js/lib/caption-stream.js');
 
-var transmuxer;
 
 /**
  * wireTransmuxerEvents
@@ -61,8 +63,8 @@ var messageHandlers = {
    * outside the worker
    */
   init: function (data) {
-    transmuxer = new muxjs.mp2t.Transmuxer(data && data.options);
-    wireTransmuxerEvents(transmuxer);
+    initOptions = (data && data.options) || {};
+    this.defaultInit();
   },
   /**
    * defaultInit
@@ -70,7 +72,7 @@ var messageHandlers = {
    * default options if `init` was never explicitly called
    */
   defaultInit: function () {
-    transmuxer = new muxjs.mp2t.Transmuxer();
+    transmuxer = new muxjs.mp2t.Transmuxer(initOptions);
     wireTransmuxerEvents(transmuxer);
   },
   /**
@@ -84,12 +86,13 @@ var messageHandlers = {
     transmuxer.push(segment);
   },
   /**
-   * resetBaseMediaDecodeTime
-   * Signal to the transmuxer that the next segment added via `push` should
-   * begin at a baseMediaDecodeTime of 0
+   * resetTransmuxer
+   * Recreate the transmuxer so that the next segment added via `push`
+   * begins at a baseMediaDecodeTime of 0
    */
-  resetBaseMediaDecodeTime: function (data) {
-    transmuxer.resetBaseMediaDecodeTime();
+  resetTransmuxer: function (data) {
+    // delete the transmuxer
+    this.defaultInit();
   },
   /**
    * flush
