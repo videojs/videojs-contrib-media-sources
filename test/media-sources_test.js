@@ -3,6 +3,7 @@
   var player, video, mediaSource, Flash,
       oldFlashSupport, oldBPS, oldMediaSourceConstructor, oldSTO, oldCanPlay,
       swfCalls,
+      appendCalls,
       timers,
       fakeSTO = function() {
         oldSTO = window.setTimeout;
@@ -10,8 +11,10 @@
         window.setTimeout = function(callback) {
           timers.push(callback);
         };
+        window.setTimeout.fake = true;
       },
       unfakeSTO = function() {
+        timers = [];
         window.setTimeout = oldSTO;
       },
       oldFlashTransmuxer,
@@ -450,6 +453,13 @@
     equal(mediaSource.sourceBuffers.length, 2, 'created native buffers');
   });
 
+  // return the sequence of calls to append to the SWF
+  appendCalls = function(calls) {
+    return calls.filter(function(call) {
+      return call.callee && call.callee === 'vjs_appendBuffer';
+    });
+  };
+
   module('Flash MediaSource', {
     setup: function(assert) {
       var swfObj, tech;
@@ -484,7 +494,19 @@
       player.tech_.el_ = swfObj;
       swfObj.tech = player.tech_;
       swfObj.CallFunction = function(xml) {
-        swfCalls.push(xml);
+        var parser = new DOMParser(), call = {}, doc;
+
+        // parse as HTML because it's more forgiving
+        doc = parser.parseFromString(xml, 'text/html');
+        call.callee = doc.querySelector('invoke').getAttribute('name');
+
+        // decode the function arguments
+        call.arguments = Array.prototype.slice.call(doc.querySelectorAll('arguments > *')).map(function(arg) {
+          return window.atob(arg.textContent).split('').map(function(c) {
+            return c.charCodeAt(0);
+          });
+        });
+        swfCalls.push(call);
       };
       swfObj.vjs_abort =  function() {
         swfCalls.push('abort');
@@ -560,22 +582,23 @@
     equal(swfCalls.length, 1, 'made one call on init');
     equal(swfCalls[0], 'load', 'called load');
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
-    strictEqual(swfCalls.length, 1, 'no additional calls were made');
+    swfCalls = appendCalls(swfCalls);
+    strictEqual(swfCalls.length, 0, 'no appends were made');
   });
 
   test('passes bytes to Flash', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
-        expected = '<invoke name="vjs_appendBuffer"' +
-                   'returntype="javascript"><arguments><string>' +
-                   window.btoa(String.fromCharCode(0, 1)) +
-                   '</string></arguments></invoke>';
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
     timers.pop()();
 
-    strictEqual(swfCalls.length, 1, 'the SWF was called');
-    strictEqual(swfCalls[0], expected, 'contains the base64 encoded data');
+    ok(swfCalls.length, 'the SWF was called');
+    swfCalls = appendCalls(swfCalls);
+    strictEqual(swfCalls[0].callee, 'vjs_appendBuffer', 'called appendBuffer');
+    deepEqual(swfCalls[0].arguments[0],
+              [0, 1],
+              'passed the base64 encoded data');
   });
 
   test('splits appends that are bigger than the maximum configured size', function() {
@@ -590,14 +613,17 @@
     sourceBuffer.appendBuffer(new Uint8Array([0]));
 
     timers.pop()();
+    swfCalls = appendCalls(swfCalls);
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(0))) > 0,
-       'contains the first byte');
+    deepEqual(swfCalls.pop().arguments[0],
+              [0],
+              'contains the first byte');
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(1))) > 0,
-       'contains the second byte');
+    deepEqual(swfCalls.pop().arguments[0],
+              [1],
+              'contains the second byte');
 
     sourceBuffer.segmentParser_.tags_.push({
       bytes: new Uint8Array([2, 3])
@@ -605,17 +631,19 @@
     sourceBuffer.appendBuffer(new Uint8Array([0]));
 
     timers.pop()();
+    swfCalls = appendCalls(swfCalls);
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(2))) > 0,
-       'contains the third byte');
+    deepEqual(swfCalls.pop().arguments[0],
+              [2],
+              'contains the third byte');
 
     timers.pop()();
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(3))) > 0,
-       'contains the fourth byte');
+    deepEqual(swfCalls.pop().arguments[0],
+              [3],
+              'contains the fourth byte');
 
     strictEqual(timers.length, 0, 'no more appends are scheduled');
-
   });
 
   test('clears the SWF on seeking', function() {
@@ -630,6 +658,85 @@
 
     mediaSource.tech_.trigger('seeking');
     strictEqual(1, aborts, 'aborted pending buffer');
+  });
+
+  test('drops tags before the target timestamp when seeking', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        i = 10,
+        currentTime;
+    mediaSource.tech_.currentTime = function() {
+      return currentTime;
+    };
+
+    // push a tag into the buffer to establish the starting PTS value
+    currentTime = 0;
+    sourceBuffer.segmentParser_.tags_ = [{ pts: 19 * 1000, bytes: new Uint8Array(1) }];
+    sourceBuffer.appendBuffer(new Uint8Array(10));
+    timers.pop()();
+
+    // mock out a new segment of FLV tags, starting 10s after the
+    // starting PTS value
+    while (i--) {
+      sourceBuffer.segmentParser_.tags_.unshift({
+        pts: (i * 1000) + (29 * 1000),
+        bytes: new Uint8Array([i])
+      });
+    }
+
+    // seek to 7 seconds into the new swegment
+    mediaSource.tech_.seeking = function() {
+      return true;
+    };
+    currentTime = 10 + 7;
+    mediaSource.tech_.trigger('seeking');
+    sourceBuffer.appendBuffer(new Uint8Array(10));
+    swfCalls.length = 0;
+    timers.pop()();
+
+    deepEqual(swfCalls[0].arguments[0], [7, 8, 9],
+              'three tags are appended');
+  });
+
+  test('seek targeting accounts for changing timestampOffsets', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        i = 10,
+        currentTime;
+    mediaSource.tech_.currentTime = function() {
+      return currentTime;
+    };
+
+    // push a tag into the buffer to establish the starting PTS value
+    currentTime = 0;
+    sourceBuffer.segmentParser_.tags_ = [{ pts: 19 * 1000, bytes: new Uint8Array(1) }];
+    sourceBuffer.appendBuffer(new Uint8Array(10));
+    timers.pop()();
+
+    // to seek across a discontinuity:
+    // 1. set the timestamp offset to the media timeline position for
+    //    the start of the segment
+    // 2. set currentTime to the desired media timeline position
+    sourceBuffer.timestampOffset = 22;
+    currentTime = sourceBuffer.timestampOffset + 3.5;
+    mediaSource.tech_.seeking = function() {
+      return true;
+    };
+    // the new segment FLV tags are at disjoint PTS positions
+    while (i--) {
+      sourceBuffer.segmentParser_.tags_.unshift({
+         // (101 * 1000) !== the old PTS offset
+        pts: (i * 1000) + (101 * 1000),
+        bytes: new Uint8Array([i + sourceBuffer.timestampOffset])
+      });
+    }
+
+    mediaSource.tech_.trigger('seeking');
+    sourceBuffer.appendBuffer(new Uint8Array(10));
+    swfCalls.length = 0;
+    timers.pop()();
+
+    deepEqual(swfCalls[0].arguments[0],
+              [26, 27, 28, 29, 30, 31],
+              'filtered the appended tags');
   });
 
   test('calls endOfStream on the swf after the last append', function() {
@@ -650,14 +757,17 @@
     sourceBuffer.source.readyState = 'ended';
 
     timers.pop()();
+    swfCalls = appendCalls(swfCalls);
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(0))) > 0,
-       'contains the first byte');
+    deepEqual(swfCalls.pop().arguments[0],
+              [0],
+              'contains the first byte');
 
     timers.pop()();
     strictEqual(swfCalls.length, 2, 'two calls should have been made');
-    ok(swfCalls.shift().indexOf(window.btoa(String.fromCharCode(1))) > 0,
-       'the first call should contain the second byte');
+    deepEqual(swfCalls.shift().arguments[0],
+              [1],
+              'the first call should contain the second byte');
     ok(swfCalls.shift().indexOf('endOfStream') === 0,
        'the second call should be for the updateend');
 
@@ -681,14 +791,17 @@
     sourceBuffer.source.readyState = 'ended';
 
     timers.pop()();
+    swfCalls = appendCalls(swfCalls);
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(0))) > 0,
-       'contains the first byte');
+    deepEqual(swfCalls.pop().arguments[0],
+              [0],
+              'contains the first byte');
 
     timers.pop()();
     strictEqual(swfCalls.length, 2, 'two calls should have been made');
-    ok(swfCalls.shift().indexOf(window.btoa(String.fromCharCode(1))) > 0,
-       'the first call should contain the second byte');
+    deepEqual(swfCalls.shift().arguments[0],
+              [1],
+              'the first call should contain the second byte');
     equal(swfCalls.shift(),
           'endOfStream',
           'the second call should be for the updateend');
@@ -699,11 +812,14 @@
     sourceBuffer.appendBuffer(new Uint8Array(1));
 
     timers.pop()();
+    swfCalls = appendCalls(swfCalls);
     strictEqual(swfCalls.length, 1, 'made one append');
-    ok(swfCalls.pop().indexOf(window.btoa(String.fromCharCode(2))) > 0,
-       'contains the third byte');
-    strictEqual(sourceBuffer.source.readyState, 'open',
-      'The streams should be open if more bytes are appended to an "ended" stream');
+    deepEqual(swfCalls.pop().arguments[0],
+              [2],
+              'contains the third byte');
+    strictEqual(sourceBuffer.source.readyState,
+                'open',
+                'The streams should be open if more bytes are appended to an "ended" stream');
     strictEqual(timers.length, 0, 'no more appends are scheduled');
   });
 
@@ -798,8 +914,7 @@
   });
 
   test('calculates the base PTS for the media', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
-        data;
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     // seek to 15 seconds
     player.tech_.seeking = function() {
@@ -827,8 +942,7 @@
     timers.pop()();
 
     equal(swfCalls.length, 1, 'made a SWF call');
-    data = /<string>(.*)<\/string>/.exec(swfCalls[0])[1];
-    equal(data, window.btoa(String.fromCharCode(15)), 'dropped the early tag');
+    deepEqual(swfCalls[0].arguments[0], [15], 'dropped the early tag');
   });
 
   test('flushes the transmuxer after each append', function() {
