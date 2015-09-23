@@ -177,6 +177,7 @@
           return;
         }
       };
+
       // this timestampOffset is a property with the side-effect of resetting
       // baseMediaDecodeTime in the transmuxer on the setter
       Object.defineProperty(this, 'timestampOffset', {
@@ -284,6 +285,15 @@
 
       this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
+    },
+    remove: function(start, end) {
+      if (this.videoBuffer_) {
+        this.videoBuffer_.remove(start, end);
+      }
+      if (this.audioBuffer_) {
+        this.audioBuffer_.remove(start, end);
+      }
+      // TODO: Remove TextTracks and Cues
     },
     /**
      * Process any segments that the muxer has output
