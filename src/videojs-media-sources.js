@@ -103,7 +103,6 @@
       var self = this;
 
       this.timestampOffset_ = 0;
-      this.timestampOffsetChanged_ = false;
       this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
 
@@ -125,6 +124,7 @@
               // 4d400d
               // 42c01e & 42c01f
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d'));
+              self.videoBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'audioBuffer_', 'updatestart'));
@@ -136,6 +136,7 @@
           } else if (segment.type === 'audio') {
             if (!self.audioBuffer_) {
               self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;' + (codecs || 'codecs=mp4a.40.2'));
+              self.audioBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.audioBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
@@ -147,6 +148,7 @@
           } else if (segment.type === 'combined') {
             if (!self.videoBuffer_) {
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d, mp4a.40.2'));
+              self.videoBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
@@ -186,8 +188,15 @@
         },
         set: function(val) {
           if (typeof val === 'number' && val >= 0) {
-            this.timestampOffsetChanged_ = true;
             this.timestampOffset_ = val;
+
+            if (this.videoBuffer_) {
+              this.videoBuffer_.timestampOffset = val;
+            }
+            if (this.audioBuffer_) {
+              this.audioBuffer_.timestampOffset = val;
+            }
+
             // We have to tell the transmuxer to reset the baseMediaDecodeTime to
             // zero for the next segment
             this.transmuxer_.postMessage({action: 'resetTransmuxer'});
@@ -341,8 +350,8 @@
       sortedSegments.video.captions.forEach(function(cue) {
         this.inbandTextTrack_.addCue(
           new VTTCue(
-            cue.startTime + this.timestampOffset_,
-            cue.endTime + this.timestampOffset_,
+            cue.startTime + this.timestampOffset,
+            cue.endTime + this.timestampOffset,
             cue.text
           ));
       }.bind(this));
@@ -355,7 +364,6 @@
 
       // We are no longer in the internal "updating" state
       this.bufferUpdating_ = false;
-      this.timestampOffsetChanged_ = false;
     },
     /**
      * Combind all segments into a single Uint8Array and then append them
@@ -374,11 +382,6 @@
           tempBuffer.set(segment, offset);
           offset += segment.byteLength;
         });
-
-        // Set timestampOffset if it was changed before this append
-        if (this.timestampOffsetChanged_) {
-          destinationBuffer.timestampOffset = this.timestampOffset_;
-        }
 
         destinationBuffer.appendBuffer(tempBuffer);
       }
