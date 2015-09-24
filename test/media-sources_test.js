@@ -955,6 +955,18 @@
     equal(flushes, 1, 'flushed the transmuxer');
   });
 
+  test('remove fires update events', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        events = [];
+    sourceBuffer.on(['update', 'updateend'], function(event) {
+      events.push(event.type);
+    });
+
+    sourceBuffer.remove(0, 1);
+    deepEqual(events, ['update', 'updateend'], 'fired update events');
+    equal(sourceBuffer.updating, false, 'finished updating');
+  });
+
   test('passes endOfStream network errors to the tech', function() {
     mediaSource.endOfStream('network');
 

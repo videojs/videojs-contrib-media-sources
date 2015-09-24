@@ -602,6 +602,14 @@
 
     },
 
+    // Flash cannot remove ranges already buffered in the NetStream
+    // but seeking clears the buffer entirely. For most purposes,
+    // having this operation act as a no-op is acceptable.
+    remove: function() {
+      this.trigger({ type: 'update' });
+      this.trigger({ type: 'updateend' });
+    },
+
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
       var chunk, i, length, payload, maxSize, binary, b64str;
