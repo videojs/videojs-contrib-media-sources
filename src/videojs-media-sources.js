@@ -405,7 +405,10 @@
         this.readyState = 'open';
 
         this.tech_.on('seeking', function() {
-          self.swfObj.vjs_abort();
+          var i = self.sourceBuffers.length;
+          while (i--) {
+            self.sourceBuffers[i].abort();
+          }
         });
 
         // trigger load events
@@ -458,19 +461,26 @@
    * @param {double} the current presentation duration
    * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
    */
-  Object.defineProperty(videojs.FlashMediaSource.prototype, 'duration', {
-    get: function(){
-      if (!this.swfObj) {
-        return NaN;
+  try {
+    Object.defineProperty(videojs.FlashMediaSource.prototype, 'duration', {
+      get: function(){
+        if (!this.swfObj) {
+          return NaN;
+        }
+        // get the current duration from the SWF
+        return this.swfObj.vjs_getProperty('duration');
+      },
+      set: function(value){
+        this.swfObj.vjs_setProperty('duration', value);
+        return value;
       }
-      // get the current duration from the SWF
-      return this.swfObj.vjs_getProperty('duration');
-    },
-    set: function(value){
-      this.swfObj.vjs_setProperty('duration', value);
-      return value;
-    }
-  });
+    });
+  } catch (e) {
+    // IE8 throws if defineProperty is called on a non-DOM node. We
+    // don't support IE8 but we shouldn't throw an error if loaded
+    // there.
+    videojs.FlashMediaSource.prototype.duration = NaN;
+  }
 
   /**
    * Signals the end of the stream.
@@ -526,6 +536,11 @@
       // the total number of queued bytes
       this.bufferSize_ =  0;
 
+      // to be able to determine the correct position to seek to, we
+      // need to retain information about the mapping between the
+      // media timeline and PTS values
+      this.basePtsOffset_ = NaN;
+
       this.source = source;
 
       // indicates whether the asynchronous continuation of an operation
@@ -548,6 +563,9 @@
             this.timestampOffset_ = val;
             // We have to tell flash to expect a discontinuity
             this.source.swfObj.vjs_discontinuity();
+            // the media <-> PTS mapping must be re-established after
+            // the discontinuity
+            this.basePtsOffset_ = NaN;
           }
         }
       });
@@ -597,6 +615,14 @@
 
     },
 
+    // Flash cannot remove ranges already buffered in the NetStream
+    // but seeking clears the buffer entirely. For most purposes,
+    // having this operation act as a no-op is acceptable.
+    remove: function() {
+      this.trigger({ type: 'update' });
+      this.trigger({ type: 'updateend' });
+    },
+
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
       var chunk, i, length, payload, maxSize, binary, b64str;
@@ -613,7 +639,7 @@
         // matter if the video janks, since the user can't see it.
         maxSize = videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL;
       } else {
-        maxSize = Math.ceil(videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL/
+        maxSize = Math.ceil(videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL /
                             videojs.FlashMediaSource.TICKS_PER_SECOND);
       }
 
@@ -668,7 +694,8 @@
     tsToFlv_: function(bytes) {
       var segmentByteLength = 0, tags = [],
           tech = this.source.tech_,
-          start, i, j, segment, targetPts;
+          start = 0,
+          i, j, segment, targetPts;
 
       // transmux the TS to FLV
       this.segmentParser_.parseSegmentBinaryData(bytes);
@@ -679,19 +706,25 @@
         tags.push(this.segmentParser_.getNextTag());
       }
 
+      // establish the media timeline to PTS translation if we don't
+      // have one already
+      if (isNaN(this.basePtsOffset_) && tags.length) {
+        this.basePtsOffset_ = tags[0].pts;
+      }
+
       // if the player is seeking, determine the PTS value for the
       // target media timeline position
       if (tech.seeking()) {
         targetPts = tech.currentTime() - this.timestampOffset;
         targetPts *= 1e3; // PTS values are represented in milliseconds
-        targetPts += tags[0].pts;
+        targetPts += this.basePtsOffset_;
+
+        // skip tags less than the seek target
+        while (start < tags.length && tags[start].pts < targetPts) {
+          start++;
+        }
       }
 
-      // skip tags less than the seek target
-      for (start = 0;
-           start < tags.length && tags[start].pts < targetPts;
-           start++) {
-      }
       // concatenate the bytes into a single segment
       for (i = start; i < tags.length; i++) {
         segmentByteLength += tags[i].bytes.byteLength;
