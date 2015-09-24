@@ -35,10 +35,10 @@ module.exports = function(grunt) {
           'node_modules/mux.js/lib/stream.js',
           'node_modules/mux.js/lib/exp-golomb.js',
           'node_modules/mux.js/legacy/flv-tag.js',
+          'node_modules/mux.js/legacy/h264-extradata.js',
           'node_modules/mux.js/legacy/aac-stream.js',
           'node_modules/mux.js/legacy/h264-stream.js',
           'node_modules/mux.js/legacy/metadata-stream.js',
-          'node_modules/mux.js/legacy/h264-extradata.js',
           'node_modules/mux.js/legacy/segment-parser.js',
           '<%= blobify.build.dest %>'
         ],

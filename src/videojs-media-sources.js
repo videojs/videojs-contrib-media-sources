@@ -102,6 +102,7 @@
     constructor: function VirtualSourceBuffer(mediaSource, codecs) {
       var self = this;
 
+      this.timestampOffset_ = 0;
       this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
 
@@ -123,6 +124,7 @@
               // 4d400d
               // 42c01e & 42c01f
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d'));
+              self.videoBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'audioBuffer_', 'updatestart'));
@@ -134,6 +136,7 @@
           } else if (segment.type === 'audio') {
             if (!self.audioBuffer_) {
               self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;' + (codecs || 'codecs=mp4a.40.2'));
+              self.audioBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.audioBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
@@ -145,6 +148,7 @@
           } else if (segment.type === 'combined') {
             if (!self.videoBuffer_) {
               self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d, mp4a.40.2'));
+              self.videoBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
@@ -176,6 +180,29 @@
         }
       };
 
+      // this timestampOffset is a property with the side-effect of resetting
+      // baseMediaDecodeTime in the transmuxer on the setter
+      Object.defineProperty(this, 'timestampOffset', {
+        get: function() {
+          return this.timestampOffset_;
+        },
+        set: function(val) {
+          if (typeof val === 'number' && val >= 0) {
+            this.timestampOffset_ = val;
+
+            if (this.videoBuffer_) {
+              this.videoBuffer_.timestampOffset = val;
+            }
+            if (this.audioBuffer_) {
+              this.audioBuffer_.timestampOffset = val;
+            }
+
+            // We have to tell the transmuxer to reset the baseMediaDecodeTime to
+            // zero for the next segment
+            this.transmuxer_.postMessage({action: 'resetTransmuxer'});
+          }
+        }
+      });
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
         get: function() {
@@ -189,34 +216,75 @@
       Object.defineProperty(this, 'buffered', {
         get: function() {
           var
-            start,
-            end,
-            starts = [],
-            ends = [],
-            lastIndex;
+            start = null,
+            end = null,
+            arity = 0,
+            extents = [],
+            ranges = [];
 
-          // Handle the case where there is no buffer
-          if ((this.videoBuffer_ && this.videoBuffer_.buffered.length === 0) ||
-              (this.audioBuffer_ && this.audioBuffer_.buffered.length === 0)) {
+          // Handle the case where there is no buffer data
+          if ((!this.videoBuffer_ || this.videoBuffer_.buffered.length === 0) &&
+              (!this.audioBuffer_ || this.audioBuffer_.buffered.length === 0)) {
             return videojs.createTimeRange();
           }
 
-          // TODO: Calculate and return the true intersection of the buffered
-          //       property
-          if (this.videoBuffer_) {
-            lastIndex = this.videoBuffer_.buffered.length - 1;
-            starts.push(this.videoBuffer_.buffered.start(0));
-            ends.push(this.videoBuffer_.buffered.end(lastIndex));
-          }
-          if (this.audioBuffer_) {
-            lastIndex = this.audioBuffer_.buffered.length - 1;
-            starts.push(this.audioBuffer_.buffered.start(0));
-            ends.push(this.audioBuffer_.buffered.end(lastIndex));
+          // Handle the case where we only have one buffer
+          if (!this.videoBuffer_) {
+            return this.audioBuffer_.buffered;
+          } else if (!this.audioBuffer_) {
+            return this.audioBuffer_.buffered;
           }
 
-          start = Math.max.apply(Math, starts);
-          end = Math.min.apply(Math, ends);
-          return videojs.createTimeRange(start, end);
+          // Handle the case where we have both buffers and create an
+          // intersection of the two
+          var videoIndex = 0, audioIndex = 0;
+          var videoBuffered = this.videoBuffer_.buffered;
+          var audioBuffered = this.audioBuffer_.buffered;
+          var count = videoBuffered.length;
+
+          // A) Gather up all start and end times
+          while (count--) {
+            extents.push({time: videoBuffered.start(count), type: 'start'});
+            extents.push({time: videoBuffered.end(count), type: 'end'});
+          }
+          count = audioBuffered.length;
+          while (count--) {
+            extents.push({time: audioBuffered.start(count), type: 'start'});
+            extents.push({time: audioBuffered.end(count), type: 'end'});
+          }
+          // B) Sort them by time
+          extents.sort(function(a, b){return a.time - b.time;});
+
+          // C) Go along one by one incrementing arity for start and decrementing
+          //    arity for ends
+          for(count = 0; count < extents.length; count++) {
+            if (extents[count].type === 'start') {
+              arity++;
+
+              // D) If arity is ever incremented to 2 we are entering an
+              //    overlapping range
+              if (arity === 2) {
+                start = extents[count].time;
+              }
+            } else if (extents[count].type === 'end') {
+              arity--;
+
+              // E) If arity is ever decremented to 1 we leaving an
+              //    overlapping range
+              if (arity === 1) {
+                end = extents[count].time;
+              }
+            }
+
+            // F) Record overlapping ranges
+            if (start !== null && end !== null) {
+              ranges.push([start, end]);
+              start = null;
+              end = null;
+            }
+          }
+
+          return videojs.createTimeRanges(ranges);
         }
       });
     },
@@ -226,6 +294,15 @@
 
       this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
+    },
+    remove: function(start, end) {
+      if (this.videoBuffer_) {
+        this.videoBuffer_.remove(start, end);
+      }
+      if (this.audioBuffer_) {
+        this.audioBuffer_.remove(start, end);
+      }
+      // TODO: Remove TextTracks and Cues
     },
     /**
      * Process any segments that the muxer has output
@@ -271,7 +348,12 @@
 
       // add cues for any video captions encountered
       sortedSegments.video.captions.forEach(function(cue) {
-        this.inbandTextTrack_.addCue(new VTTCue(cue.startTime, cue.endTime, cue.text));
+        this.inbandTextTrack_.addCue(
+          new VTTCue(
+            cue.startTime + this.timestampOffset,
+            cue.endTime + this.timestampOffset,
+            cue.text
+          ));
       }.bind(this));
 
       // Merge multiple video and audio segments into one and append
@@ -301,11 +383,6 @@
           offset += segment.byteLength;
         });
 
-        // Set timestampOffset if we have been given one
-        if (this.timestampOffset !== undefined) {
-          destinationBuffer.timestampOffset = this.timestampOffset;
-        }
-
         destinationBuffer.appendBuffer(tempBuffer);
       }
     }
@@ -328,7 +405,10 @@
         this.readyState = 'open';
 
         this.tech_.on('seeking', function() {
-          self.swfObj.vjs_abort();
+          var i = self.sourceBuffers.length;
+          while (i--) {
+            self.sourceBuffers[i].abort();
+          }
         });
 
         // trigger load events
@@ -364,7 +444,7 @@
     var sourceBuffer;
 
     // if this is an FLV type, we'll push data to flash
-    if (type === 'video/mp2t') {
+    if (type.indexOf('video/mp2t') === 0) {
       // Flash source buffers
       sourceBuffer = new videojs.FlashSourceBuffer(this);
     } else {
@@ -375,26 +455,32 @@
     return sourceBuffer;
   };
 
-
   /**
    * Set or return the presentation duration.
    * @param value {double} the duration of the media in seconds
    * @param {double} the current presentation duration
    * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
    */
-  Object.defineProperty(videojs.FlashMediaSource.prototype, 'duration', {
-    get: function(){
-      if (!this.swfObj) {
-        return NaN;
+  try {
+    Object.defineProperty(videojs.FlashMediaSource.prototype, 'duration', {
+      get: function(){
+        if (!this.swfObj) {
+          return NaN;
+        }
+        // get the current duration from the SWF
+        return this.swfObj.vjs_getProperty('duration');
+      },
+      set: function(value){
+        this.swfObj.vjs_setProperty('duration', value);
+        return value;
       }
-      // get the current duration from the SWF
-      return this.swfObj.vjs_getProperty('duration');
-    },
-    set: function(value){
-      this.swfObj.vjs_setProperty('duration', value);
-      return value;
-    }
-  });
+    });
+  } catch (e) {
+    // IE8 throws if defineProperty is called on a non-DOM node. We
+    // don't support IE8 but we shouldn't throw an error if loaded
+    // there.
+    videojs.FlashMediaSource.prototype.duration = NaN;
+  }
 
   /**
    * Signals the end of the stream.
@@ -450,17 +536,39 @@
       // the total number of queued bytes
       this.bufferSize_ =  0;
 
+      // to be able to determine the correct position to seek to, we
+      // need to retain information about the mapping between the
+      // media timeline and PTS values
+      this.basePtsOffset_ = NaN;
+
       this.source = source;
 
       // indicates whether the asynchronous continuation of an operation
       // is still being processed
       // see https://w3c.github.io/media-source/#widl-SourceBuffer-updating
       this.updating = false;
+      this.timestampOffset_ = 0;
 
       // TS to FLV transmuxer
       this.segmentParser_ = new muxjs.SegmentParser();
       encodedHeader = window.btoa(String.fromCharCode.apply(null, Array.prototype.slice.call(this.segmentParser_.getFlvHeader())));
       this.source.swfObj.vjs_appendBuffer(encodedHeader);
+
+      Object.defineProperty(this, 'timestampOffset', {
+        get: function() {
+          return this.timestampOffset_;
+        },
+        set: function(val) {
+          if (typeof val === 'number' && val >= 0) {
+            this.timestampOffset_ = val;
+            // We have to tell flash to expect a discontinuity
+            this.source.swfObj.vjs_discontinuity();
+            // the media <-> PTS mapping must be re-established after
+            // the discontinuity
+            this.basePtsOffset_ = NaN;
+          }
+        }
+      });
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
@@ -507,9 +615,17 @@
 
     },
 
+    // Flash cannot remove ranges already buffered in the NetStream
+    // but seeking clears the buffer entirely. For most purposes,
+    // having this operation act as a no-op is acceptable.
+    remove: function() {
+      this.trigger({ type: 'update' });
+      this.trigger({ type: 'updateend' });
+    },
+
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
-      var chunk, i, length, payload, maxSize, b64str;
+      var chunk, i, length, payload, maxSize, binary, b64str;
 
       if (!this.buffer_.length) {
         // do nothing if the buffer is empty
@@ -523,7 +639,7 @@
         // matter if the video janks, since the user can't see it.
         maxSize = videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL;
       } else {
-        maxSize = Math.ceil(videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL/
+        maxSize = Math.ceil(videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL /
                             videojs.FlashMediaSource.TICKS_PER_SECOND);
       }
 
@@ -547,7 +663,12 @@
       this.bufferSize_ -= payload.byteLength;
 
       // base64 encode the bytes
-      b64str = window.btoa(String.fromCharCode.apply(null, payload));
+      binary = '';
+      length = payload.byteLength;
+      for (i = 0; i < length; i++) {
+        binary += String.fromCharCode(payload[i]);
+      }
+      b64str = window.btoa(binary);
 
       // bypass normal ExternalInterface calls and pass xml directly
       // IE can be slow by default
@@ -573,7 +694,8 @@
     tsToFlv_: function(bytes) {
       var segmentByteLength = 0, tags = [],
           tech = this.source.tech_,
-          start, i, j, segment, targetPts;
+          start = 0,
+          i, j, segment, targetPts;
 
       // transmux the TS to FLV
       this.segmentParser_.parseSegmentBinaryData(bytes);
@@ -584,19 +706,25 @@
         tags.push(this.segmentParser_.getNextTag());
       }
 
+      // establish the media timeline to PTS translation if we don't
+      // have one already
+      if (isNaN(this.basePtsOffset_) && tags.length) {
+        this.basePtsOffset_ = tags[0].pts;
+      }
+
       // if the player is seeking, determine the PTS value for the
       // target media timeline position
       if (tech.seeking()) {
         targetPts = tech.currentTime() - this.timestampOffset;
         targetPts *= 1e3; // PTS values are represented in milliseconds
-        targetPts += tags[0].pts;
+        targetPts += this.basePtsOffset_;
+
+        // skip tags less than the seek target
+        while (start < tags.length && tags[start].pts < targetPts) {
+          start++;
+        }
       }
 
-      // skip tags less than the seek target
-      for (start = 0;
-           start < tags.length && tags[start].pts < targetPts;
-           start++) {
-      }
       // concatenate the bytes into a single segment
       for (i = start; i < tags.length; i++) {
         segmentByteLength += tags[i].bytes.byteLength;
