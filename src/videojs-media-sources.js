@@ -177,6 +177,12 @@
             self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
           }
 
+          if (segment.metadata &&
+              segment.metadata.length &&
+              !self.metadataTrack_) {
+            self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+          }
+
           // Add the segments to the pendingBuffers array
           self.pendingBuffers_.push(segment);
           return;
@@ -324,14 +330,14 @@
       var sortedSegments = {
           video: {
             segments: [],
-            captions: [],
             bytes: 0
           },
           audio: {
             segments: [],
-            captions: [],
             bytes: 0
-          }
+          },
+          captions: [],
+          metadata: []
         };
 
       // Sort segments into separate video/audio arrays and
@@ -349,23 +355,49 @@
         segmentObj[type].segments.push(data);
         segmentObj[type].bytes += data.byteLength;
 
-        // append any captions in this segment
+        // Gather any captions into a single array
         if (segment.captions) {
-          segmentObj[type].captions = segmentObj[type].captions.concat(segment.captions);
+          segmentObj.captions = segmentObj.captions.concat(segment.captions);
+        }
+
+        // Gather any metadata into a single array
+        if (segment.metadata) {
+          segmentObj.metadata = segmentObj.metadata.concat(segment.metadata);
         }
 
         return segmentObj;
       }, sortedSegments);
 
       // add cues for any video captions encountered
-      sortedSegments.video.captions.forEach(function(cue) {
+      sortedSegments.captions.forEach(function(cue) {
         this.inbandTextTrack_.addCue(
           new VTTCue(
             cue.startTime + this.timestampOffset,
             cue.endTime + this.timestampOffset,
             cue.text
           ));
-      }.bind(this));
+      }, this);
+
+      // add cues for any id3 tags encountered
+      sortedSegments.metadata.forEach(function(metadata) {
+        var
+          i,
+          time,
+          frame;
+
+        for (i = 0; i < metadata.frames.length; i++) {
+          frame = metadata.frames[i];
+          time = metadata.cueTime + this.timestampOffset;
+
+          this.metadataTrack_.addCue(
+            new VTTCue(
+              time,
+              time,
+              frame.value || frame.url || ''
+            ));
+        }
+      }, this);
+
 
       // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
