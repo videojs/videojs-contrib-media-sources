@@ -9,7 +9,32 @@
       interceptBufferCreation,
       addSourceBuffer,
       aggregateUpdateHandler,
-      scheduleTick;
+      scheduleTick, deprecateOldCue, Cue;
+
+Cue = window.WebKitDataCue || window.VTTCue;
+
+deprecateOldCue = function(cue) {
+  Object.defineProperties(cue.frame, {
+    'id': {
+      get: function() {
+        videojs.log.warn('cue.frame.id is deprecated. Use cue.value.key instead.');
+        return cue.value.key;
+      }
+    },
+    'value': {
+      get: function() {
+        videojs.log.warn('cue.frame.value is deprecated. Use cue.value.data instead.');
+        return cue.value.data;
+      }
+    },
+    'privateData': {
+      get: function() {
+        videojs.log.warn('cue.frame.privateData is deprecated. Use cue.value.data instead.');
+        return cue.value.data;
+      }
+    }
+  });
+};
 
   // ------------
   // Media Source
@@ -383,22 +408,24 @@
       sortedSegments.metadata.forEach(function(metadata) {
         var
           i,
+          cue,
           time,
           frame;
 
         for (i = 0; i < metadata.frames.length; i++) {
           frame = metadata.frames[i];
           time = metadata.cueTime + this.timestampOffset;
+          cue = new Cue(
+              time,
+              time,
+              frame.value || frame.url || frame.data || '');
 
-          this.metadataTrack_.addCue(
-            new VTTCue(
-              time,
-              time,
-              frame.value || frame.url || frame.data || ''
-            ));
+          cue.frame = frame;
+          cue.value = frame;
+          deprecateOldCue(cue);
+          this.metadataTrack_.addCue(cue);
         }
       }, this);
-
 
       // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
