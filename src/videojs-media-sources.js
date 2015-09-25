@@ -409,12 +409,12 @@ deprecateOldCue = function(cue) {
         var
           i,
           cue,
-          time,
+          time = metadata.cueTime + this.timestampOffset,
           frame;
 
         for (i = 0; i < metadata.frames.length; i++) {
           frame = metadata.frames[i];
-          time = metadata.cueTime + this.timestampOffset;
+
           cue = new Cue(
               time,
               time,
