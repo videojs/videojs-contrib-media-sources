@@ -181,6 +181,7 @@
               segment.metadata.length &&
               !self.metadataTrack_) {
             self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+            self.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
           }
 
           // Add the segments to the pendingBuffers array
