@@ -81,6 +81,17 @@
     // stream segments into fragmented MP4s
     if ((/^video\/mp2t/i).test(type)) {
       codecs = type.split(';').slice(1).join(';');
+
+      // Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
+      // `avc1.<hhhhhh>`
+      codecs = codecs.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
+        var
+          profileHex = ('00' + Number(profile).toString(16)).slice(-2),
+          avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
+
+        return 'avc1.' + profileHex + '00' + avcLevelHex;
+      });
+
       buffer = new VirtualSourceBuffer(this, codecs);
       this.virtualBuffers.push(buffer);
       return buffer;
