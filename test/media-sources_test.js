@@ -195,6 +195,24 @@
           'passed the codec along');
   });
 
+  test('parses old-school apple codec strings to the modern standard', function() {
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.100.31,mp4a.40.5"');
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'combined',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    equal(mediaSource.sourceBuffers[0].type,
+          'video/mp4; codecs="avc1.64001f,mp4a.40.5"',
+          'passed the codec along');
+  });
+
   test('specifies reasonable codecs if none are specified', function() {
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
