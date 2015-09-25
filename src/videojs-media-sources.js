@@ -393,7 +393,7 @@
             new VTTCue(
               time,
               time,
-              frame.value || frame.url || ''
+              frame.value || frame.url || frame.data || ''
             ));
         }
       }, this);
