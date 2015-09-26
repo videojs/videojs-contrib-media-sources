@@ -195,6 +195,24 @@
           'passed the codec along');
   });
 
+  test('parses old-school apple codec strings to the modern standard', function() {
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.100.31,mp4a.40.5"');
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'combined',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    equal(mediaSource.sourceBuffers[0].type,
+          'video/mp4; codecs="avc1.64001f,mp4a.40.5"',
+          'passed the codec along');
+  });
+
   test('specifies reasonable codecs if none are specified', function() {
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
@@ -440,6 +458,77 @@
     equal(cues[0].text, 'This is an in-band caption', 'included the text');
     equal(cues[0].startTime, 11, 'started at eleven');
     equal(cues[0].endTime, 13, 'ended at thirteen');
+  });
+
+  test('translates metadata events into WebVTT cues', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        metadata = [{
+          cueTime: 2,
+          frames: [
+            {
+              url: 'This is a url tag'
+            },{
+              value: 'This is a text tag'
+            }
+          ],
+        },
+        {
+          cueTime: 12,
+          frames: [
+            {
+              data: 'This is a priv tag'
+            }
+          ]
+        }],
+        types = [],
+        cues = [];
+
+    metadata.dispatchType = 0x10;
+
+    mediaSource.player_ = {
+      addTextTrack: function(type) {
+        types.push(type);
+        return {
+          addCue: function(cue) {
+            cues.push(cue);
+          }
+        };
+      }
+    };
+    sourceBuffer.timestampOffset = 10;
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1),
+          metadata: metadata
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'done'
+      }
+    });
+
+    equal(
+      sourceBuffer.metadataTrack_.inBandMetadataTrackDispatchType,
+      16,
+      'in-band metadata track dispatch type correctly set');
+    equal(types.length, 1, 'created one text track');
+    equal(types[0], 'metadata', 'the type was metadata');
+    equal(cues.length, 3, 'created three cues');
+    equal(cues[0].text, 'This is a url tag', 'included the text');
+    equal(cues[0].startTime, 12, 'started at twelve');
+    equal(cues[0].endTime, 12, 'ended at twelve');
+    equal(cues[1].text, 'This is a text tag', 'included the text');
+    equal(cues[1].startTime, 12, 'started at twelve');
+    equal(cues[1].endTime, 12, 'ended at twelve');
+    equal(cues[2].text, 'This is a priv tag', 'included the text');
+    equal(cues[2].startTime, 22, 'started at twenty two');
+    equal(cues[2].endTime, 22, 'ended at twenty two');
   });
 
   test('does not wrap mp4 source buffers', function(){

@@ -9,7 +9,32 @@
       interceptBufferCreation,
       addSourceBuffer,
       aggregateUpdateHandler,
-      scheduleTick;
+      scheduleTick, deprecateOldCue, Cue;
+
+Cue = window.WebKitDataCue || window.VTTCue;
+
+deprecateOldCue = function(cue) {
+  Object.defineProperties(cue.frame, {
+    'id': {
+      get: function() {
+        videojs.log.warn('cue.frame.id is deprecated. Use cue.value.key instead.');
+        return cue.value.key;
+      }
+    },
+    'value': {
+      get: function() {
+        videojs.log.warn('cue.frame.value is deprecated. Use cue.value.data instead.');
+        return cue.value.data;
+      }
+    },
+    'privateData': {
+      get: function() {
+        videojs.log.warn('cue.frame.privateData is deprecated. Use cue.value.data instead.');
+        return cue.value.data;
+      }
+    }
+  });
+};
 
   // ------------
   // Media Source
@@ -81,6 +106,17 @@
     // stream segments into fragmented MP4s
     if ((/^video\/mp2t/i).test(type)) {
       codecs = type.split(';').slice(1).join(';');
+
+      // Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
+      // `avc1.<hhhhhh>`
+      codecs = codecs.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
+        var
+          profileHex = ('00' + Number(profile).toString(16)).slice(-2),
+          avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
+
+        return 'avc1.' + profileHex + '00' + avcLevelHex;
+      });
+
       buffer = new VirtualSourceBuffer(this, codecs);
       this.virtualBuffers.push(buffer);
       return buffer;
@@ -164,6 +200,13 @@
               segment.captions.length &&
               !self.inbandTextTrack_) {
             self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+          }
+
+          if (segment.metadata &&
+              segment.metadata.length &&
+              !self.metadataTrack_) {
+            self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+            self.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
           }
 
           // Add the segments to the pendingBuffers array
@@ -313,14 +356,14 @@
       var sortedSegments = {
           video: {
             segments: [],
-            captions: [],
             bytes: 0
           },
           audio: {
             segments: [],
-            captions: [],
             bytes: 0
-          }
+          },
+          captions: [],
+          metadata: []
         };
 
       // Sort segments into separate video/audio arrays and
@@ -338,23 +381,45 @@
         segmentObj[type].segments.push(data);
         segmentObj[type].bytes += data.byteLength;
 
-        // append any captions in this segment
+        // Gather any captions into a single array
         if (segment.captions) {
-          segmentObj[type].captions = segmentObj[type].captions.concat(segment.captions);
+          segmentObj.captions = segmentObj.captions.concat(segment.captions);
+        }
+
+        // Gather any metadata into a single array
+        if (segment.metadata) {
+          segmentObj.metadata = segmentObj.metadata.concat(segment.metadata);
         }
 
         return segmentObj;
       }, sortedSegments);
 
       // add cues for any video captions encountered
-      sortedSegments.video.captions.forEach(function(cue) {
+      sortedSegments.captions.forEach(function(cue) {
         this.inbandTextTrack_.addCue(
           new VTTCue(
             cue.startTime + this.timestampOffset,
             cue.endTime + this.timestampOffset,
             cue.text
           ));
-      }.bind(this));
+      }, this);
+
+      // add cues for any id3 tags encountered
+      sortedSegments.metadata.forEach(function(metadata) {
+        var time = metadata.cueTime + this.timestampOffset;
+
+        metadata.frames.forEach(function(frame) {
+          var cue = new Cue(
+              time,
+              time,
+              frame.value || frame.url || frame.data || '');
+
+          cue.frame = frame;
+          cue.value = frame;
+          deprecateOldCue(cue);
+          this.metadataTrack_.addCue(cue);
+        }, this);
+      }, this);
 
       // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
