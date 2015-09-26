@@ -406,16 +406,10 @@ deprecateOldCue = function(cue) {
 
       // add cues for any id3 tags encountered
       sortedSegments.metadata.forEach(function(metadata) {
-        var
-          i,
-          cue,
-          time = metadata.cueTime + this.timestampOffset,
-          frame;
+        var time = metadata.cueTime + this.timestampOffset;
 
-        for (i = 0; i < metadata.frames.length; i++) {
-          frame = metadata.frames[i];
-
-          cue = new Cue(
+        metadata.frames.forEach(function(frame) {
+          var cue = new Cue(
               time,
               time,
               frame.value || frame.url || frame.data || '');
@@ -424,7 +418,7 @@ deprecateOldCue = function(cue) {
           cue.value = frame;
           deprecateOldCue(cue);
           this.metadataTrack_.addCue(cue);
-        }
+        }, this);
       }, this);
 
       // Merge multiple video and audio segments into one and append
