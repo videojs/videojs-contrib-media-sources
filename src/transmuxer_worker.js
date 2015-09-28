@@ -11,6 +11,7 @@
 var
   muxjs = {},
   transmuxer,
+  currentContext,
   initOptions = {};
 
 importScripts('../node_modules/mux.js/lib/exp-golomb.js');
@@ -27,29 +28,48 @@ importScripts('../node_modules/mux.js/lib/caption-stream.js');
  * world outside the worker
  */
 var wireTransmuxerEvents = function (transmuxer) {
-  transmuxer.on('data', function (segment) {
-    // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
-    // ArrayBuffers are transferable but generic TypedArrays are not
-    // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
-    segment.data = segment.data.buffer;
-    postMessage({
-      action: 'data',
-      segment: segment
-    }, [segment.data]);
-  });
-
-  if (transmuxer.captionStream) {
-    transmuxer.captionStream.on('data', function(caption) {
+  // context contains all the functions and information necessary to unwire
+  // events so that we can cleanly dispose of the transmuxer
+  var context = {
+    dataFn: function (segment) {
+      // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
+      // ArrayBuffers are transferable but generic TypedArrays are not
+      // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
+      segment.data = segment.data.buffer;
+      postMessage({
+        action: 'data',
+        segment: segment
+      }, [segment.data]);
+    },
+    captionDataFn: function (caption) {
       postMessage({
         action: 'caption',
         data: caption
       });
-    });
+    },
+    doneFn: function (data) {
+      postMessage({ action: 'done' });
+    },
+    dispose: function () {
+      transmuxer.off('data', this.dataFn);
+
+      if (transmuxer.captionStream) {
+        transmuxer.captionStream.off('data', this.captionDataFn);
+      }
+
+      transmuxer.off('done', this.doneFn);
+    }
+  };
+
+  transmuxer.on('data', context.dataFn);
+
+  if (transmuxer.captionStream) {
+    transmuxer.captionStream.on('data', context.captionDataFn);
   }
 
-  transmuxer.on('done', function (data) {
-    postMessage({ action: 'done' });
-  });
+  transmuxer.on('done', context.doneFn);
+
+  return context;
 };
 
 /**
@@ -72,8 +92,11 @@ var messageHandlers = {
    * default options if `init` was never explicitly called
    */
   defaultInit: function () {
+    if (currentContext) {
+      currentContext.dispose();
+    }
     transmuxer = new muxjs.mp2t.Transmuxer(initOptions);
-    wireTransmuxerEvents(transmuxer);
+    currentContext = wireTransmuxerEvents(transmuxer);
   },
   /**
    * push
