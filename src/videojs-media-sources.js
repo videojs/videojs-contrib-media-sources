@@ -483,6 +483,12 @@ deprecateOldCue = function(cue) {
         this.tech_ = this.swfObj.tech;
         this.readyState = 'open';
 
+        // We need to trigger this asynchronously to give others the chance
+        // to bind to the event when a source is set at player creation
+        setTimeout(function() {
+          this.tech_.trigger('loadstart');
+        }.bind(this), 1);
+
         this.tech_.on('seeking', function() {
           var i = self.sourceBuffers.length;
           while (i--) {
