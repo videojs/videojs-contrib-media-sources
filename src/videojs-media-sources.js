@@ -450,6 +450,20 @@ deprecateOldCue = function(cue) {
 
         destinationBuffer.appendBuffer(tempBuffer);
       }
+    },
+    // abort any sourceBuffer actions and throw out any un-appended data
+    abort: function() {
+      if (this.videoBuffer_) {
+        this.videoBuffer_.abort();
+      }
+      if (this.audioBuffer_) {
+        this.audioBuffer_.abort();
+      }
+      if (this.transmuxer_) {
+        this.transmuxer_.postMessage({action: 'resetTransmuxer'});
+      }
+      this.pendingBuffers_.length = 0;
+      this.bufferUpdating_ = false;
     }
   });
 

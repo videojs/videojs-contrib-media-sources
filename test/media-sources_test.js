@@ -119,6 +119,62 @@
     ok(sourceBuffer.transmuxer_, 'created a transmuxer');
   });
 
+  test('abort on the fake source buffer calls abort on the real ones', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        messages = [],
+        aborts = 0;
+
+    // send fake buffers through to cause the creation of the source buffers
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'done'
+      }
+    });
+
+    sourceBuffer.transmuxer_.postMessage = function (message) {
+      messages.push(message);
+    };
+
+    equal(mediaSource.sourceBuffers.length, 2, 'created two native buffers');
+
+    sourceBuffer.bufferUpdating_ = true;
+
+    mediaSource.sourceBuffers[0].abort = function () {
+      aborts++;
+    };
+    mediaSource.sourceBuffers[1].abort = function () {
+      aborts++;
+    };
+
+    sourceBuffer.abort();
+
+    equal(aborts, 2, 'called abort on both');
+    equal(sourceBuffer.bufferUpdating_,
+          false,
+          'set updating to false');
+    equal(messages.length, 1, 'has one message');
+    equal(messages[0].action, 'resetTransmuxer', 'reset called on transmuxer');
+  });
+
   test('transmuxes mp2t segments', function(){
     var mp2tSegments = [], mp4Segments = [], data = new Uint8Array(1),
         mediaSource, sourceBuffer;
