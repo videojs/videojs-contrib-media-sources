@@ -175,6 +175,70 @@
     equal(messages[0].action, 'resetTransmuxer', 'reset called on transmuxer');
   });
 
+  test('calling remove deletes cues and invokes remove on any extant source buffers', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        messages = [],
+        removedCue = [],
+        removes = 0;
+
+    // send fake buffers through to cause the creation of the source buffers
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'done'
+      }
+    });
+
+    sourceBuffer.inbandTextTrack_ = {
+      removeCue: function (cue) {
+        console.log('remove', cue);
+        removedCue.push(cue);
+        this.cues.splice(this.cues.indexOf(cue), 1);
+      },
+      cues: [
+        {startTime: 10, endTime: 20, text: 'delete me'},
+        {startTime: 0, endTime: 2, text: 'save me'}
+      ]
+    };
+
+    equal(mediaSource.sourceBuffers.length, 2, 'created two native buffers');
+
+    mediaSource.sourceBuffers[0].remove = function (start, end) {
+      if (start === 3 && end === 10) {
+        removes++;
+      }
+    };
+    mediaSource.sourceBuffers[1].remove = function (start, end) {
+      if (start === 3 && end === 10) {
+        removes++;
+      }
+    };
+
+    sourceBuffer.remove(3, 10);
+
+    equal(removes, 2, 'called remove on both sourceBuffers');
+    equal(sourceBuffer.inbandTextTrack_.cues.length, 1, 'one cue remains after remove');
+    equal(removedCue[0].text, 'delete me', 'the cue that overlapped the remove region was removed');
+  });
+
   test('transmuxes mp2t segments', function(){
     var mp2tSegments = [], mp4Segments = [], data = new Uint8Array(1),
         mediaSource, sourceBuffer;
