@@ -1,6 +1,6 @@
 {
   "name": "videojs-contrib-media-sources",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A Media Source Extensions plugin for video.js",
   "main": "videojs-media-sources.js",
   "scripts": {
