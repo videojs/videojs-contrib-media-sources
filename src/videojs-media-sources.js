@@ -338,6 +338,23 @@ deprecateOldCue = function(cue) {
       this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
     },
+    removeCuesFromTrack_: function(start, end, track) {
+      var i, cue;
+
+      if (!track) {
+        return;
+      }
+
+      i = track.cues.length
+      while(i--) {
+        cue = track.cues[i];
+
+        // Remove any overlapping cue
+        if (cue.startTime <= end && cue.endTime >= start) {
+          track.removeCue(cue);
+        }
+      }
+    },
     remove: function(start, end) {
       if (this.videoBuffer_) {
         this.videoBuffer_.remove(start, end);
@@ -345,7 +362,12 @@ deprecateOldCue = function(cue) {
       if (this.audioBuffer_) {
         this.audioBuffer_.remove(start, end);
       }
-      // TODO: Remove TextTracks and Cues
+
+      // Remove Metadata Cues (id3)
+      this.removeCuesFromTrack_(start, end, this.metadataTrack_);
+
+      // Remove Any Captions
+      this.removeCuesFromTrack_(start, end, this.inbandTextTrack_);
     },
     /**
      * Process any segments that the muxer has output
