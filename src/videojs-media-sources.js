@@ -502,6 +502,7 @@ deprecateOldCue = function(cue) {
       this.on(['sourceopen', 'webkitsourceopen'], function(event){
         // find the swf where we will push media data
         this.swfObj = document.getElementById(event.swfId);
+        this.player_ = videojs(this.swfObj.parentNode);
         this.tech_ = this.swfObj.tech;
         this.readyState = 'open';
 
@@ -628,8 +629,10 @@ deprecateOldCue = function(cue) {
   // Source Buffer
   videojs.FlashSourceBuffer = videojs.extend(EventTarget, {
 
-    constructor: function(source){
-      var encodedHeader;
+    constructor: function(mediaSource){
+      var
+        encodedHeader,
+        self = this;
 
       // byte arrays queued to be appended
       this.buffer_ = [];
@@ -642,7 +645,7 @@ deprecateOldCue = function(cue) {
       // media timeline and PTS values
       this.basePtsOffset_ = NaN;
 
-      this.source = source;
+      this.mediaSource = mediaSource;
 
       // indicates whether the asynchronous continuation of an operation
       // is still being processed
@@ -651,9 +654,56 @@ deprecateOldCue = function(cue) {
       this.timestampOffset_ = 0;
 
       // TS to FLV transmuxer
-      this.segmentParser_ = new muxjs.SegmentParser();
+      this.segmentParser_ = new muxjs.flv.Transmuxer();
       encodedHeader = window.btoa(String.fromCharCode.apply(null, Array.prototype.slice.call(this.segmentParser_.getFlvHeader())));
-      this.source.swfObj.vjs_appendBuffer(encodedHeader);
+      this.mediaSource.swfObj.vjs_appendBuffer(encodedHeader);
+
+      this.segmentParser_.on('data', function(segment) {
+        // create an in-band caption track if one is present in the segment
+        if (segment.captions &&
+            segment.captions.length &&
+            !self.inbandTextTrack_) {
+          self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+        }
+        segment.captions.forEach(function (caption) {
+          this.inbandTextTrack_.addCue(
+            new VTTCue(
+              caption.startTime + this.timestampOffset,
+              caption.endTime + this.timestampOffset,
+              caption.text
+            ));
+        }, self);
+
+        if (segment.metadata &&
+            segment.metadata.length &&
+            !self.metadataTrack_) {
+          self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+          self.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
+        }
+        segment.metadata.forEach(function(metadata) {
+          var time = metadata.cueTime + this.timestampOffset;
+
+          metadata.frames.forEach(function(frame) {
+            var cue = new Cue(
+                time,
+                time,
+                frame.value || frame.url || frame.data || '');
+
+            cue.frame = frame;
+            cue.value = frame;
+            deprecateOldCue(cue);
+            this.metadataTrack_.addCue(cue);
+          }, this);
+        }, self);
+
+        if (self.buffer_.length === 0) {
+          scheduleTick(self.processBuffer_.bind(self));
+        }
+
+        var flvBytes = self.convertTagsToData_(segment);
+        self.buffer_.push(flvBytes);
+        self.bufferSize_ += flvBytes.byteLength;
+      });
 
       Object.defineProperty(this, 'timestampOffset', {
         get: function() {
@@ -663,7 +713,7 @@ deprecateOldCue = function(cue) {
           if (typeof val === 'number' && val >= 0) {
             this.timestampOffset_ = val;
             // We have to tell flash to expect a discontinuity
-            this.source.swfObj.vjs_discontinuity();
+            this.mediaSource.swfObj.vjs_discontinuity();
             // the media <-> PTS mapping must be re-established after
             // the discontinuity
             this.basePtsOffset_ = NaN;
@@ -673,14 +723,14 @@ deprecateOldCue = function(cue) {
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
-          return videojs.createTimeRange(0, this.source.swfObj.vjs_getProperty('buffered'));
+          return videojs.createTimeRange(0, this.mediaSource.swfObj.vjs_getProperty('buffered'));
         }
       });
     },
 
     // accept video data and pass to the video (swf) object
-    appendBuffer: function(uint8Array){
-      var error, flvBytes, ptsTarget;
+    appendBuffer: function(bytes){
+      var error, self = this;
 
       if (this.updating) {
         error = new Error('SourceBuffer.append() cannot be called ' +
@@ -689,31 +739,26 @@ deprecateOldCue = function(cue) {
         error.code = 11;
         throw error;
       }
-      if (this.buffer_.length === 0) {
-        scheduleTick(this.processBuffer_.bind(this));
-      }
 
       this.updating = true;
-      this.source.readyState = 'open';
+      this.mediaSource.readyState = 'open';
       this.trigger({ type: 'update' });
 
-      flvBytes = this.tsToFlv_(uint8Array);
-      this.buffer_.push(flvBytes);
-      this.bufferSize_ += flvBytes.byteLength;
+      self.segmentParser_.push(bytes);
+      self.segmentParser_.flush();
     },
 
     // reset the parser and remove any data queued to be sent to the swf
     abort: function() {
       this.buffer_ = [];
       this.bufferSize_ = 0;
-      this.source.swfObj.vjs_abort();
+      this.mediaSource.swfObj.vjs_abort();
 
       // report any outstanding updates have ended
       if (this.updating) {
         this.updating = false;
         this.trigger({ type: 'updateend' });
       }
-
     },
 
     // Flash cannot remove ranges already buffered in the NetStream
@@ -773,7 +818,7 @@ deprecateOldCue = function(cue) {
 
       // bypass normal ExternalInterface calls and pass xml directly
       // IE can be slow by default
-      this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+      this.mediaSource.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
                                       'returntype="javascript"><arguments><string>' +
                                       b64str +
                                       '</string></arguments></invoke>');
@@ -785,27 +830,19 @@ deprecateOldCue = function(cue) {
         this.updating = false;
         this.trigger({ type: 'updateend' });
 
-        if (this.source.readyState === 'ended') {
-          this.source.swfObj.vjs_endOfStream();
+        if (this.mediaSource.readyState === 'ended') {
+          this.mediaSource.swfObj.vjs_endOfStream();
         }
       }
     },
 
-    // transmux segment data from MP2T to FLV
-    tsToFlv_: function(bytes) {
-      var segmentByteLength = 0, tags = [],
-          tech = this.source.tech_,
-          start = 0,
-          i, j, segment, targetPts;
-
-      // transmux the TS to FLV
-      this.segmentParser_.parseSegmentBinaryData(bytes);
-      this.segmentParser_.flushTags();
-
-      // assemble the FLV tags in decoder order
-      while (this.segmentParser_.tagsAvailable()) {
-        tags.push(this.segmentParser_.getNextTag());
-      }
+    convertTagsToData_: function (segmentData) {
+      var
+        segmentByteLength = 0,
+        tech = this.mediaSource.tech_,
+        start = 0,
+        i, j, segment, targetPts,
+        tags = this.getOrderedTags_(segmentData);
 
       // establish the media timeline to PTS translation if we don't
       // have one already
@@ -836,6 +873,35 @@ deprecateOldCue = function(cue) {
         j += tags[i].bytes.byteLength;
       }
       return segment;
+    },
+
+    // assemble the FLV tags in decoder order
+    getOrderedTags_: function(segmentData) {
+      var
+        videoTags = segmentData.tags.videoTags,
+        audioTags = segmentData.tags.audioTags,
+        tag,
+        tags = [];
+
+      while (videoTags.length || audioTags.length) {
+        if (!videoTags.length) {
+          // only audio tags remain
+          tag = audioTags.shift();
+        } else if (!audioTags.length) {
+          // only video tags remain
+          tag = videoTags.shift();
+        } else if (audioTags[0].dts < videoTags[0].dts) {
+          // audio should be decoded next
+          tag = audioTags.shift();
+        } else {
+          // video should be decoded next
+          tag = videoTags.shift();
+        }
+
+        tags.push(tag.finalize());
+      }
+
+      return tags;
     }
   });
 

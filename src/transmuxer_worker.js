@@ -13,13 +13,15 @@ var
   transmuxer,
   initOptions = {};
 
-importScripts('../node_modules/mux.js/lib/exp-golomb.js');
-importScripts('../node_modules/mux.js/lib/mp4-generator.js');
-importScripts('../node_modules/mux.js/lib/stream.js');
-importScripts('../node_modules/mux.js/lib/metadata-stream.js');
-importScripts('../node_modules/mux.js/lib/transmuxer.js');
-importScripts('../node_modules/mux.js/lib/caption-stream.js');
-
+importScripts('../node_modules/mux.js/lib/utils/stream.js');
+importScripts('../node_modules/mux.js/lib/utils/exp-golomb.js');
+importScripts('../node_modules/mux.js/lib/mp4/mp4-generator.js');
+importScripts('../node_modules/mux.js/lib/codecs/aac.js');
+importScripts('../node_modules/mux.js/lib/codecs/h264.js');
+importScripts('../node_modules/mux.js/lib/m2ts/m2ts.js');
+importScripts('../node_modules/mux.js/lib/m2ts/caption-stream.js');
+importScripts('../node_modules/mux.js/lib/m2ts/metadata-stream.js');
+importScripts('../node_modules/mux.js/lib/mp4/transmuxer.js');
 
 /**
  * wireTransmuxerEvents
@@ -72,7 +74,7 @@ var messageHandlers = {
    * default options if `init` was never explicitly called
    */
   defaultInit: function () {
-    transmuxer = new muxjs.mp2t.Transmuxer(initOptions);
+    transmuxer = new muxjs.mp4.Transmuxer(initOptions);
     wireTransmuxerEvents(transmuxer);
   },
   /**

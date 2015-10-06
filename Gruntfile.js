@@ -32,14 +32,15 @@ module.exports = function(grunt) {
           banner: '<%= banner %>'
         },
         src: [
-          'node_modules/mux.js/lib/stream.js',
-          'node_modules/mux.js/lib/exp-golomb.js',
-          'node_modules/mux.js/legacy/flv-tag.js',
-          'node_modules/mux.js/legacy/h264-extradata.js',
-          'node_modules/mux.js/legacy/aac-stream.js',
-          'node_modules/mux.js/legacy/h264-stream.js',
-          'node_modules/mux.js/legacy/metadata-stream.js',
-          'node_modules/mux.js/legacy/segment-parser.js',
+          'node_modules/mux.js/lib/utils/stream.js',
+          'node_modules/mux.js/lib/utils/exp-golomb.js',
+          'node_modules/mux.js/lib/codecs/aac.js',
+          'node_modules/mux.js/lib/codecs/h264.js',
+          'node_modules/mux.js/lib/m2ts/m2ts.js',
+          'node_modules/mux.js/lib/flv/flv-tag.js',
+          'node_modules/mux.js/lib/m2ts/metadata-stream.js',
+          'node_modules/mux.js/lib/m2ts/caption-stream.js',
+          'node_modules/mux.js/lib/flv/transmuxer.js',
           '<%= blobify.build.dest %>'
         ],
         dest: 'dist/videojs-media-sources.js'
