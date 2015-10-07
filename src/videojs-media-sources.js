@@ -655,55 +655,9 @@ deprecateOldCue = function(cue) {
 
       // TS to FLV transmuxer
       this.segmentParser_ = new muxjs.flv.Transmuxer();
+      this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
       encodedHeader = window.btoa(String.fromCharCode.apply(null, Array.prototype.slice.call(this.segmentParser_.getFlvHeader())));
       this.mediaSource.swfObj.vjs_appendBuffer(encodedHeader);
-
-      this.segmentParser_.on('data', function(segment) {
-        // create an in-band caption track if one is present in the segment
-        if (segment.captions &&
-            segment.captions.length &&
-            !self.inbandTextTrack_) {
-          self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
-        }
-        segment.captions.forEach(function (caption) {
-          this.inbandTextTrack_.addCue(
-            new VTTCue(
-              caption.startTime + this.timestampOffset,
-              caption.endTime + this.timestampOffset,
-              caption.text
-            ));
-        }, self);
-
-        if (segment.metadata &&
-            segment.metadata.length &&
-            !self.metadataTrack_) {
-          self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
-          self.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
-        }
-        segment.metadata.forEach(function(metadata) {
-          var time = metadata.cueTime + this.timestampOffset;
-
-          metadata.frames.forEach(function(frame) {
-            var cue = new Cue(
-                time,
-                time,
-                frame.value || frame.url || frame.data || '');
-
-            cue.frame = frame;
-            cue.value = frame;
-            deprecateOldCue(cue);
-            this.metadataTrack_.addCue(cue);
-          }, this);
-        }, self);
-
-        if (self.buffer_.length === 0) {
-          scheduleTick(self.processBuffer_.bind(self));
-        }
-
-        var flvBytes = self.convertTagsToData_(segment);
-        self.buffer_.push(flvBytes);
-        self.bufferSize_ += flvBytes.byteLength;
-      });
 
       Object.defineProperty(this, 'timestampOffset', {
         get: function() {
@@ -712,6 +666,8 @@ deprecateOldCue = function(cue) {
         set: function(val) {
           if (typeof val === 'number' && val >= 0) {
             this.timestampOffset_ = val;
+            this.segmentParser_ = new muxjs.flv.Transmuxer();
+            this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
             // We have to tell flash to expect a discontinuity
             this.mediaSource.swfObj.vjs_discontinuity();
             // the media <-> PTS mapping must be re-established after
@@ -767,6 +723,53 @@ deprecateOldCue = function(cue) {
     remove: function() {
       this.trigger({ type: 'update' });
       this.trigger({ type: 'updateend' });
+    },
+
+    receiveBuffer_: function(segment) {
+      // create an in-band caption track if one is present in the segment
+      if (segment.captions &&
+          segment.captions.length &&
+          !this.inbandTextTrack_) {
+        this.inbandTextTrack_ = this.mediaSource.player_.addTextTrack('captions');
+      }
+      segment.captions.forEach(function (caption) {
+        this.inbandTextTrack_.addCue(
+          new VTTCue(
+            caption.startTime + this.timestampOffset,
+            caption.endTime + this.timestampOffset,
+            caption.text
+          ));
+      }, this);
+
+      if (segment.metadata &&
+          segment.metadata.length &&
+          !this.metadataTrack_) {
+        this.metadataTrack_ = this.mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+        this.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
+      }
+      segment.metadata.forEach(function(metadata) {
+        var time = metadata.cueTime + this.timestampOffset;
+
+        metadata.frames.forEach(function(frame) {
+          var cue = new Cue(
+              time,
+              time,
+              frame.value || frame.url || frame.data || '');
+
+          cue.frame = frame;
+          cue.value = frame;
+          deprecateOldCue(cue);
+          this.metadataTrack_.addCue(cue);
+        }, this);
+      }, this);
+
+      if (this.buffer_.length === 0) {
+        scheduleTick(this.processBuffer_.bind(this));
+      }
+
+      var flvBytes = this.convertTagsToData_(segment);
+      this.buffer_.push(flvBytes);
+      this.bufferSize_ += flvBytes.byteLength;
     },
 
     // append a portion of the current buffer to the SWF
