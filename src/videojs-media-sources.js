@@ -9,7 +9,12 @@
       interceptBufferCreation,
       addSourceBuffer,
       aggregateUpdateHandler,
-      scheduleTick, deprecateOldCue, Cue;
+      scheduleTick,
+      Cue,
+      deprecateOldCue,
+      removeCuesFromTrack,
+      createTextTracksIfNecessary,
+      addTextTrackData;
 
 Cue = window.WebKitDataCue || window.VTTCue;
 
@@ -34,6 +39,71 @@ deprecateOldCue = function(cue) {
       }
     }
   });
+};
+
+removeCuesFromTrack = function(start, end, track) {
+  var i, cue;
+
+  if (!track) {
+    return;
+  }
+
+  i = track.cues.length
+  while(i--) {
+    cue = track.cues[i];
+
+    // Remove any overlapping cue
+    if (cue.startTime <= end && cue.endTime >= start) {
+      track.removeCue(cue);
+    }
+  }
+};
+
+createTextTracksIfNecessary = function (sourceHandler, mediaSource, segment) {
+  // create an in-band caption track if one is present in the segment
+  if (segment.captions &&
+      segment.captions.length &&
+      !sourceHandler.inbandTextTrack_) {
+    sourceHandler.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+  }
+
+  if (segment.metadata &&
+      segment.metadata.length &&
+      !sourceHandler.metadataTrack_) {
+    sourceHandler.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+    sourceHandler.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
+  }
+};
+
+addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
+  if (captionArray) {
+    captionArray.forEach(function (caption) {
+      this.inbandTextTrack_.addCue(
+        new VTTCue(
+          caption.startTime + this.timestampOffset,
+          caption.endTime + this.timestampOffset,
+          caption.text
+        ));
+    }, sourceHandler);
+  }
+
+  if (metadataArray) {
+    metadataArray.forEach(function(metadata) {
+      var time = metadata.cueTime + this.timestampOffset;
+
+      metadata.frames.forEach(function(frame) {
+        var cue = new Cue(
+            time,
+            time,
+            frame.value || frame.url || frame.data || '');
+
+        cue.frame = frame;
+        cue.value = frame;
+        deprecateOldCue(cue);
+        this.metadataTrack_.addCue(cue);
+      }, this);
+    }, sourceHandler);
+  }
 };
 
   // ------------
@@ -194,20 +264,7 @@ deprecateOldCue = function(cue) {
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
             }
           }
-
-          // create an in-band caption track if one is present in the segment
-          if (segment.captions &&
-              segment.captions.length &&
-              !self.inbandTextTrack_) {
-            self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
-          }
-
-          if (segment.metadata &&
-              segment.metadata.length &&
-              !self.metadataTrack_) {
-            self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
-            self.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
-          }
+          createTextTracksIfNecessary(self, mediaSource, segment);
 
           // Add the segments to the pendingBuffers array
           self.pendingBuffers_.push(segment);
@@ -275,7 +332,7 @@ deprecateOldCue = function(cue) {
           if (!this.videoBuffer_) {
             return this.audioBuffer_.buffered;
           } else if (!this.audioBuffer_) {
-            return this.audioBuffer_.buffered;
+            return this.videoBuffer_.buffered;
           }
 
           // Handle the case where we have both buffers and create an
@@ -338,23 +395,6 @@ deprecateOldCue = function(cue) {
       this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
     },
-    removeCuesFromTrack_: function(start, end, track) {
-      var i, cue;
-
-      if (!track) {
-        return;
-      }
-
-      i = track.cues.length
-      while(i--) {
-        cue = track.cues[i];
-
-        // Remove any overlapping cue
-        if (cue.startTime <= end && cue.endTime >= start) {
-          track.removeCue(cue);
-        }
-      }
-    },
     remove: function(start, end) {
       if (this.videoBuffer_) {
         this.videoBuffer_.remove(start, end);
@@ -364,10 +404,10 @@ deprecateOldCue = function(cue) {
       }
 
       // Remove Metadata Cues (id3)
-      this.removeCuesFromTrack_(start, end, this.metadataTrack_);
+      removeCuesFromTrack(start, end, this.metadataTrack_);
 
       // Remove Any Captions
-      this.removeCuesFromTrack_(start, end, this.inbandTextTrack_);
+      removeCuesFromTrack(start, end, this.inbandTextTrack_);
     },
     /**
      * Process any segments that the muxer has output
@@ -416,32 +456,7 @@ deprecateOldCue = function(cue) {
         return segmentObj;
       }, sortedSegments);
 
-      // add cues for any video captions encountered
-      sortedSegments.captions.forEach(function(cue) {
-        this.inbandTextTrack_.addCue(
-          new VTTCue(
-            cue.startTime + this.timestampOffset,
-            cue.endTime + this.timestampOffset,
-            cue.text
-          ));
-      }, this);
-
-      // add cues for any id3 tags encountered
-      sortedSegments.metadata.forEach(function(metadata) {
-        var time = metadata.cueTime + this.timestampOffset;
-
-        metadata.frames.forEach(function(frame) {
-          var cue = new Cue(
-              time,
-              time,
-              frame.value || frame.url || frame.data || '');
-
-          cue.frame = frame;
-          cue.value = frame;
-          deprecateOldCue(cue);
-          this.metadataTrack_.addCue(cue);
-        }, this);
-      }, this);
+      addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
 
       // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
@@ -679,9 +694,15 @@ deprecateOldCue = function(cue) {
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
-          return videojs.createTimeRange(0, this.mediaSource.swfObj.vjs_getProperty('buffered'));
+          return videojs.createTimeRanges(this.mediaSource.swfObj.vjs_getProperty('buffered'));
         }
       });
+
+      this.mediaSource.player_.on('seeked', function() {
+        console.log('seeked');
+        removeCuesFromTrack(0, Infinity, self.metadataTrack_);
+        removeCuesFromTrack(0, Infinity, self.inbandTextTrack_);
+      })
     },
 
     // accept video data and pass to the video (swf) object
@@ -721,51 +742,18 @@ deprecateOldCue = function(cue) {
     // but seeking clears the buffer entirely. For most purposes,
     // having this operation act as a no-op is acceptable.
     remove: function() {
+      removeCuesFromTrack(0, Infinity, this.metadataTrack_);
+      removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
       this.trigger({ type: 'update' });
       this.trigger({ type: 'updateend' });
     },
 
     receiveBuffer_: function(segment) {
+      var self = this;
+
       // create an in-band caption track if one is present in the segment
-      if (segment.captions &&
-          segment.captions.length &&
-          !this.inbandTextTrack_) {
-        this.inbandTextTrack_ = this.mediaSource.player_.addTextTrack('captions');
-      }
-      segment.captions.forEach(function (caption) {
-        this.inbandTextTrack_.addCue(
-          new VTTCue(
-            caption.startTime + this.timestampOffset,
-            caption.endTime + this.timestampOffset,
-            caption.text
-          ));
-      }, this);
-
-      if (segment.metadata &&
-          segment.metadata.length &&
-          !this.metadataTrack_) {
-        this.metadataTrack_ = this.mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
-        this.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
-      }
-      segment.metadata.forEach(function(metadata) {
-        var time = metadata.cueTime + this.timestampOffset;
-
-        metadata.frames.forEach(function(frame) {
-          var cue = new Cue(
-              time,
-              time,
-              frame.value || frame.url || frame.data || '');
-
-          cue.frame = frame;
-          cue.value = frame;
-          deprecateOldCue(cue);
-          this.metadataTrack_.addCue(cue);
-        }, this);
-      }, this);
-
-      if (this.buffer_.length === 0) {
-        scheduleTick(this.processBuffer_.bind(this));
-      }
+      createTextTracksIfNecessary(this, this.mediaSource, segment);
+      addTextTrackData(this, segment.captions, segment.metadata);
 
       var flvBytes = this.convertTagsToData_(segment);
       this.buffer_.push(flvBytes);
