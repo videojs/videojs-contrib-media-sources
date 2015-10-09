@@ -543,18 +543,27 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
    * systems. There are two factors to consider:
    * - Each interaction with the SWF must be quick or you risk dropping
    * video frames. To maintain 60fps for the rest of the page, each append
-   * cannot take longer than 16ms. Given the likelihood that the page will
-   * be executing more javascript than just playback, you probably want to
-   * aim for ~8ms.
+   * must not  take longer than 16ms. Given the likelihood that the page
+   * will be executing more javascript than just playback, you probably
+   * want to aim for less than 8ms. We aim for just 4ms.
    * - Bigger appends significantly increase throughput. The total number of
    * bytes over time delivered to the SWF must exceed the video bitrate or
    * playback will stall.
    *
-   * The default is set so that a 4MB/s stream should playback
-   * without stuttering.
+   * We adaptively tune the size of appends to give the best throughput
+   * possible given the performance of the system. To do that we try to append
+   * as much as possible in TIME_PER_TICK and while tuning the size of appends
+   * dynamically so that we only append about 4-times in that 4ms span.
+   *
+   * The reason we try to keep the number of appends around four is due to
+   * externalities such as Flash load and garbage collection that are highly
+   * variable and having 4 iterations allows us to exit the loop early if
+   * an iteration takes longer than expected.
    */
-  videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 4 * 1024 * 1024;
-  videojs.FlashMediaSource.TICKS_PER_SECOND = 60;
+
+  videojs.FlashMediaSource.TIME_BETWEEN_TICKS = Math.floor(1000 / 480);
+  videojs.FlashMediaSource.TIME_PER_TICK = Math.floor(1000 / 240);
+  videojs.FlashMediaSource.BYTES_PER_CHUNK = 1 * 1024; // 1kb
 
   // create a new source buffer to receive a type of media data
   videojs.FlashMediaSource.prototype.addSourceBuffer = function(type){
@@ -637,8 +646,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   scheduleTick = function(func) {
     // Chrome doesn't invoke requestAnimationFrame callbacks
     // in background tabs, so use setTimeout.
-    window.setTimeout(func,
-                      Math.ceil(1000 / videojs.FlashMediaSource.TICKS_PER_SECOND));
+    window.setTimeout(func, videojs.FlashMediaSource.TIME_BETWEEN_TICKS);
   };
 
   // Source Buffer
@@ -648,6 +656,10 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       var
         encodedHeader,
         self = this;
+
+      // Start off using the globally defined value but refine
+      // as we append data into flash
+      this.chunkSize_ = videojs.FlashMediaSource.BYTES_PER_CHUNK;
 
       // byte arrays queued to be appended
       this.buffer_ = [];
@@ -721,8 +733,17 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       this.mediaSource.readyState = 'open';
       this.trigger({ type: 'update' });
 
-      self.segmentParser_.push(bytes);
-      self.segmentParser_.flush();
+      var chunk = 512 * 1024;
+      var i = 0;
+      (function chunkInData() {
+        self.segmentParser_.push(bytes.subarray(i, i + chunk));
+        i += chunk;
+        if (i < bytes.byteLength) {
+          scheduleTick(chunkInData);
+        } else {
+          scheduleTick(self.segmentParser_.flush.bind(self.segmentParser_));
+        }
+      })();
     },
 
     // reset the parser and remove any data queued to be sent to the swf
@@ -755,64 +776,87 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       createTextTracksIfNecessary(this, this.mediaSource, segment);
       addTextTrackData(this, segment.captions, segment.metadata);
 
-      var flvBytes = this.convertTagsToData_(segment);
-      this.buffer_.push(flvBytes);
-      this.bufferSize_ += flvBytes.byteLength;
+      // Do this asynchronously since convertTagsToData_ can be time consuming
+      scheduleTick(function() {
+        if (self.buffer_.length === 0) {
+          scheduleTick(self.processBuffer_.bind(self));
+        }
+        var flvBytes = self.convertTagsToData_(segment);
+        if (flvBytes) {
+          self.buffer_.push(flvBytes);
+          self.bufferSize_ += flvBytes.byteLength;
+        }
+      });
     },
 
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
-      var chunk, i, length, payload, maxSize, binary, b64str;
+      var
+        chunk,
+        i,
+        length,
+        binary,
+        b64str,
+        startByte = 0,
+        appendIterations = 0,
+        startTime = +(new Date()),
+        appendTime;
 
       if (!this.buffer_.length) {
+        if (this.updating !== false) {
+          this.updating = false;
+          this.trigger({ type: 'updateend' });
+        }
         // do nothing if the buffer is empty
         return;
       }
 
-      if (document.hidden) {
-        // When the document is hidden, the browser will likely
-        // invoke callbacks less frequently than we want. Just
-        // append a whole second's worth of data. It doesn't
-        // matter if the video janks, since the user can't see it.
-        maxSize = videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL;
-      } else {
-        maxSize = Math.ceil(videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL /
-                            videojs.FlashMediaSource.TICKS_PER_SECOND);
-      }
-
-      // concatenate appends up to the max append size
-      payload = new Uint8Array(Math.min(maxSize, this.bufferSize_));
-      i = payload.byteLength;
-      while (i) {
-        chunk = this.buffer_[0].subarray(0, i);
-
-        payload.set(chunk, payload.byteLength - i);
+      do {
+        appendIterations++;
+        // concatenate appends up to the max append size
+        chunk = this.buffer_[0].subarray(startByte, startByte + this.chunkSize_);
 
         // requeue any bytes that won't make it this round
-        if (chunk.byteLength < this.buffer_[0].byteLength) {
-          this.buffer_[0] = this.buffer_[0].subarray(i);
-        } else {
+        if (chunk.byteLength < this.chunkSize_ ||
+            this.buffer_[0].byteLength === this.chunkSize_) {
+          startByte = 0;
           this.buffer_.shift();
+        } else {
+          startByte += this.chunkSize_;
         }
 
-        i -= chunk.byteLength;
-      }
-      this.bufferSize_ -= payload.byteLength;
+        this.bufferSize_ -= chunk.byteLength;
 
-      // base64 encode the bytes
-      binary = '';
-      length = payload.byteLength;
-      for (i = 0; i < length; i++) {
-        binary += String.fromCharCode(payload[i]);
-      }
-      b64str = window.btoa(binary);
+        // base64 encode the bytes
+        binary = '';
+        length = chunk.byteLength;
+        for (i = 0; i < length; i++) {
+          binary += String.fromCharCode(chunk[i]);
+        }
+        b64str = window.btoa(binary);
 
-      // bypass normal ExternalInterface calls and pass xml directly
-      // IE can be slow by default
-      this.mediaSource.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                      'returntype="javascript"><arguments><string>' +
-                                      b64str +
-                                      '</string></arguments></invoke>');
+        // bypass normal ExternalInterface calls and pass xml directly
+        // IE can be slow by default
+        this.mediaSource.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                             'returntype="javascript"><arguments><string>' +
+                                             b64str +
+                                             '</string></arguments></invoke>');
+        appendTime = (new Date()) - startTime;
+      } while (this.buffer_.length &&
+          appendTime < videojs.FlashMediaSource.TIME_PER_TICK);
+
+      if (this.buffer_.length && startByte) {
+        this.buffer_[0] = this.buffer_[0].subarray(startByte);
+      }
+
+      // We want to target 4 iterations per time-slot so that gives us
+      // room to adjust to changes in Flash load and other externalities
+      // such as garbage collection while still maximizing throughput
+      this.chunkSize_ = Math.floor(this.chunkSize_ * (appendIterations / 4));
+
+      // We also make sure that the chunk-size doesn't drop below 1KB or
+      // go above 1MB as a sanity check
+      this.chunkSize_ = Math.max(1024, Math.min(this.chunkSize_, 1024 * 1024));
 
       // schedule another append if necessary
       if (this.bufferSize_ !== 0) {
@@ -852,6 +896,10 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         while (start < tags.length && tags[start].pts < targetPts) {
           start++;
         }
+      }
+
+      if (start >= tags.length) {
+        return;
       }
 
       // concatenate the bytes into a single segment
