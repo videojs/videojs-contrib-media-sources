@@ -8,6 +8,24 @@
       fakeSTO = function() {
         oldSTO = window.setTimeout;
         timers = [];
+
+        timers.run = function (num) {
+          var timer;
+
+          while(num--) {
+            timer = this.pop();
+            if (timer) {
+              timer();
+            }
+          }
+        };
+
+        timers.runAll = function (){
+          while(this.length) {
+            this.pop()();
+          }
+        };
+
         window.setTimeout = function(callback) {
           timers.push(callback);
         };
@@ -16,6 +34,13 @@
       unfakeSTO = function() {
         timers = [];
         window.setTimeout = oldSTO;
+      },
+      makeFlvTag = function (pts, data) {
+        return {
+          pts: pts,
+          bytes: data,
+          finalize: function(){return this;}
+        };
       },
       oldFlashTransmuxer,
       MockSegmentParser;
@@ -684,8 +709,8 @@
       };
 
       oldBPS = videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL;
-      oldFlashTransmuxer = muxjs.SegmentParser;
-      muxjs.SegmentParser = MockSegmentParser;
+      oldFlashTransmuxer = muxjs.flv.Transmuxer;
+      muxjs.flv.Transmuxer = MockSegmentParser;
 
       video = document.createElement('video');
       document.getElementById('qunit-fixture').appendChild(video);
@@ -748,25 +773,46 @@
       Flash.isSupported = oldFlashSupport;
       Flash.canPlaySource = oldCanPlay;
       videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = oldBPS;
-      muxjs.SegmentParser = oldFlashTransmuxer;
+      muxjs.flv.Transmuxer = oldFlashTransmuxer;
       unfakeSTO();
     }
   });
 
   MockSegmentParser = function() {
-    this.tags_ = [{
-      bytes: new Uint8Array([0, 1])
-    }];
+    var ons = {};
+    this.on = function (type, fn) {
+      if (!ons[type]) {
+        ons[type] = [fn];
+      } else {
+        ons[type].push(fn);
+      }
+    };
+    this.trigger = function (type, data) {
+      if (ons[type]) {
+        ons[type].forEach(function (fn) {
+          fn(data);
+        });
+      }
+    };
     this.getFlvHeader = function() {
       return new Uint8Array([1, 2, 3]);
     };
-    this.parseSegmentBinaryData = function(data) {};
-    this.flushTags = function() {};
-    this.tagsAvailable = function() {
-      return this.tags_.length !== 0;
+    var datas = [];
+    this.push = function(data) {
+      datas.push(data);
     };
-    this.getNextTag = function() {
-      return this.tags_.shift();
+    this.flush = function() {
+      var tags = datas.reduce(function(output, data, i) {
+        output.push(makeFlvTag(i, data));
+        return output;
+      }, []);
+      datas.length = 0;
+      this.trigger('data', {
+        tags: {
+          videoTags: tags,
+          audioTags: []
+        }
+      });
     };
   };
 
@@ -800,7 +846,7 @@
 
     swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
-    timers.pop()();
+    timers.runAll();
 
     ok(swfCalls.length, 'the SWF was called');
     swfCalls = appendCalls(swfCalls);
@@ -810,49 +856,78 @@
               'passed the base64 encoded data');
   });
 
-  test('splits appends that are bigger than the maximum configured size', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
-    videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
+  test('size of the append window changes based on timing information', function() {
+    var
+      sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+      time = 0,
+      oldDate = Date,
+      swfObj = mediaSource.swfObj,
+      callFunction = swfObj.CallFunction;
+
+    // Set some easy-to-test values
+    var BYTES_PER_CHUNK = videojs.FlashMediaSource.BYTES_PER_CHUNK;
+    var MIN_CHUNK = videojs.FlashMediaSource.MIN_CHUNK;
+    var MAX_CHUNK = videojs.FlashMediaSource.MAX_CHUNK;
+
+    videojs.FlashMediaSource.BYTES_PER_CHUNK = 2;
+    videojs.FlashMediaSource.MIN_CHUNK = 1;
+    videojs.FlashMediaSource.MAX_CHUNK = 10;
+
+    sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+    time =  0;
+    oldDate = Date;
+    Date = function () {
+      return {
+        getTime: function () {
+          return oldDate.now();
+        },
+        valueOf: function () {
+          return time;
+        }
+      };
+    };
+
+    // Replace the CallFunction so that we can increment "time" in response
+    // to appends
+    swfObj.CallFunction = function(xml) {
+      time += 0.5; // Take just half a millisecond per append
+      return callFunction(xml);
+    };
+
+    sourceBuffer.appendBuffer(new Uint8Array(16));
+    timers.runAll();
+
+    equal(swfCalls.shift().indexOf('load'), 0, 'swf load called');
+    equal(swfCalls.length, 8, 'called swf once per two-bytes');
+    equal(sourceBuffer.chunkSize_, 4, 'sourceBuffer.chunkSize_ doubled');
 
     swfCalls.length = 0;
-    sourceBuffer.segmentParser_.tags_.length = 0;
-    sourceBuffer.segmentParser_.tags_.push({
-      bytes: new Uint8Array([0, 1])
-    });
-    sourceBuffer.appendBuffer(new Uint8Array([0]));
 
-    timers.pop()();
-    swfCalls = appendCalls(swfCalls);
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
-              [0],
-              'contains the first byte');
+    // Replace the CallFunction so that we can increment "time" in response
+    // to appends
+    swfObj.CallFunction = function(xml) {
+      time += 2; // Take 2 millisecond per append
+      return callFunction(xml);
+    };
 
-    timers.pop()();
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
-              [1],
-              'contains the second byte');
+    sourceBuffer.appendBuffer(new Uint8Array(16));
+    timers.runAll();
 
-    sourceBuffer.segmentParser_.tags_.push({
-      bytes: new Uint8Array([2, 3])
-    });
-    sourceBuffer.appendBuffer(new Uint8Array([0]));
+    equal(swfCalls.length, 8, 'called swf once per byte');
+    equal(swfCalls[0].arguments[0].length, 4, 'swf called with 4 bytes');
+    equal(swfCalls[1].arguments[0].length, 4, 'swf called with 4 bytes twice');
+    equal(swfCalls[2].arguments[0].length, 2, 'swf called with 2 bytes');
+    equal(swfCalls[3].arguments[0].length, 2, 'swf called with 2 bytes twice');
+    equal(swfCalls[4].arguments[0].length, 1, 'swf called with 1 bytes');
+    equal(swfCalls[5].arguments[0].length, 1, 'swf called with 1 bytes twice');
+    equal(swfCalls[6].arguments[0].length, 1, 'swf called with 1 bytes thrice');
+    equal(swfCalls[7].arguments[0].length, 1, 'swf called with 1 bytes four times');
+    equal(sourceBuffer.chunkSize_, 1, 'sourceBuffer.chunkSize_ reduced to 1');
 
-    timers.pop()();
-    swfCalls = appendCalls(swfCalls);
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
-              [2],
-              'contains the third byte');
-
-    timers.pop()();
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
-              [3],
-              'contains the fourth byte');
-
-    strictEqual(timers.length, 0, 'no more appends are scheduled');
+    videojs.FlashMediaSource.BYTES_PER_CHUNK = BYTES_PER_CHUNK;
+    videojs.FlashMediaSource.MIN_CHUNK = MIN_CHUNK;
+    videojs.FlashMediaSource.MAX_CHUNK = MAX_CHUNK;
+    Date = oldDate;
   });
 
   test('clears the SWF on seeking', function() {
@@ -872,25 +947,38 @@
   test('drops tags before the target timestamp when seeking', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
         i = 10,
-        currentTime;
+        currentTime,
+        tags_ = [];
     mediaSource.tech_.currentTime = function() {
       return currentTime;
     };
 
     // push a tag into the buffer to establish the starting PTS value
     currentTime = 0;
-    sourceBuffer.segmentParser_.tags_ = [{ pts: 19 * 1000, bytes: new Uint8Array(1) }];
+    sourceBuffer.segmentParser_.trigger('data', {
+       tags: {
+        videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
+        audioTags: []
+      }
+    });
+    timers.runAll();
+
     sourceBuffer.appendBuffer(new Uint8Array(10));
-    timers.pop()();
+    timers.runAll();
 
     // mock out a new segment of FLV tags, starting 10s after the
     // starting PTS value
     while (i--) {
-      sourceBuffer.segmentParser_.tags_.unshift({
-        pts: (i * 1000) + (29 * 1000),
-        bytes: new Uint8Array([i])
-      });
+      tags_.unshift(
+        makeFlvTag((i * 1000) + (29 * 1000),
+          new Uint8Array([i])));
     }
+    sourceBuffer.segmentParser_.trigger('data', {
+      tags: {
+        videoTags: tags_,
+        audioTags: []
+      }
+    });
 
     // seek to 7 seconds into the new swegment
     mediaSource.tech_.seeking = function() {
@@ -900,7 +988,7 @@
     mediaSource.tech_.trigger('seeking');
     sourceBuffer.appendBuffer(new Uint8Array(10));
     swfCalls.length = 0;
-    timers.pop()();
+    timers.runAll();
 
     deepEqual(swfCalls[0].arguments[0], [7, 8, 9],
               'three tags are appended');
@@ -909,6 +997,7 @@
   test('seek targeting accounts for changing timestampOffsets', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
         i = 10,
+        tags_ = [],
         currentTime;
     mediaSource.tech_.currentTime = function() {
       return currentTime;
@@ -916,9 +1005,13 @@
 
     // push a tag into the buffer to establish the starting PTS value
     currentTime = 0;
-    sourceBuffer.segmentParser_.tags_ = [{ pts: 19 * 1000, bytes: new Uint8Array(1) }];
-    sourceBuffer.appendBuffer(new Uint8Array(10));
-    timers.pop()();
+    sourceBuffer.segmentParser_.trigger('data', {
+       tags: {
+        videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
+        audioTags: []
+      }
+    });
+    timers.runAll();
 
     // to seek across a discontinuity:
     // 1. set the timestamp offset to the media timeline position for
@@ -929,19 +1022,24 @@
     mediaSource.tech_.seeking = function() {
       return true;
     };
+
     // the new segment FLV tags are at disjoint PTS positions
     while (i--) {
-      sourceBuffer.segmentParser_.tags_.unshift({
+      tags_.unshift(
          // (101 * 1000) !== the old PTS offset
-        pts: (i * 1000) + (101 * 1000),
-        bytes: new Uint8Array([i + sourceBuffer.timestampOffset])
-      });
+        makeFlvTag((i * 1000) + (101 * 1000),
+          new Uint8Array([i + sourceBuffer.timestampOffset])));
     }
+    sourceBuffer.segmentParser_.trigger('data', {
+      tags: {
+        videoTags: tags_,
+        audioTags: []
+      }
+    });
 
     mediaSource.tech_.trigger('seeking');
-    sourceBuffer.appendBuffer(new Uint8Array(10));
     swfCalls.length = 0;
-    timers.pop()();
+    timers.runAll();
 
     deepEqual(swfCalls[0].arguments[0],
               [26, 27, 28, 29, 30, 31],
@@ -952,8 +1050,6 @@
     var
       sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-    videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
-
     mediaSource.swfObj.vjs_endOfStream = function() {
       swfCalls.push('endOfStream');
     };
@@ -963,20 +1059,14 @@
 
     //ready state is ended when the last segment has been appended
     //to the mediaSource
-    sourceBuffer.source.readyState = 'ended';
+    sourceBuffer.mediaSource.readyState = 'ended';
+    timers.runAll();
 
-    timers.pop()();
-    swfCalls = appendCalls(swfCalls);
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
-              [0],
-              'contains the first byte');
-
-    timers.pop()();
-    strictEqual(swfCalls.length, 2, 'two calls should have been made');
+    strictEqual(swfCalls.length, 2, 'made two calls to swf');
     deepEqual(swfCalls.shift().arguments[0],
-              [1],
-              'the first call should contain the second byte');
+              [0, 1],
+              'contains the data');
+
     ok(swfCalls.shift().indexOf('endOfStream') === 0,
        'the second call should be for the updateend');
 
@@ -986,8 +1076,6 @@
   test('opens the stream on sourceBuffer.appendBuffer after endOfStream', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-    videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 60;
-
     mediaSource.swfObj.vjs_endOfStream = function() {
       swfCalls.push('endOfStream');
     };
@@ -997,36 +1085,33 @@
 
     //ready state is ended when the last segment has been appended
     //to the mediaSource
-    sourceBuffer.source.readyState = 'ended';
+    sourceBuffer.mediaSource.readyState = 'ended';
 
-    timers.pop()();
-    swfCalls = appendCalls(swfCalls);
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
-              [0],
-              'contains the first byte');
+    timers.runAll();
 
-    timers.pop()();
-    strictEqual(swfCalls.length, 2, 'two calls should have been made');
+    strictEqual(swfCalls.length, 2, 'made two calls to swf');
     deepEqual(swfCalls.shift().arguments[0],
-              [1],
-              'the first call should contain the second byte');
+              [0, 1],
+              'contains the data');
+
     equal(swfCalls.shift(),
           'endOfStream',
           'the second call should be for the updateend');
 
-    sourceBuffer.segmentParser_.tags_.push({
-      bytes: new Uint8Array([2])
-    });
-    sourceBuffer.appendBuffer(new Uint8Array(1));
+    sourceBuffer.appendBuffer(new Uint8Array([2]));
+    timers.run(2);
 
-    timers.pop()();
-    swfCalls = appendCalls(swfCalls);
-    strictEqual(swfCalls.length, 1, 'made one append');
-    deepEqual(swfCalls.pop().arguments[0],
+    sourceBuffer.buffer_.push(new Uint8Array([3]));
+    timers.runAll();
+
+    strictEqual(swfCalls.length, 2, 'made two appends');
+    deepEqual(swfCalls.shift().arguments[0],
               [2],
               'contains the third byte');
-    strictEqual(sourceBuffer.source.readyState,
+    deepEqual(swfCalls.shift().arguments[0],
+              [3],
+              'contains the fourth byte');
+    strictEqual(sourceBuffer.mediaSource.readyState,
                 'open',
                 'The streams should be open if more bytes are appended to an "ended" stream');
     strictEqual(timers.length, 0, 'no more appends are scheduled');
@@ -1123,7 +1208,9 @@
   });
 
   test('calculates the base PTS for the media', function() {
-    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+    var
+      sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+      tags_ = [];
 
     // seek to 15 seconds
     player.tech_.seeking = function() {
@@ -1134,21 +1221,24 @@
     };
     // FLV tags for this segment start at 10 seconds in the media
     // timeline
-    sourceBuffer.segmentParser_.tags_.length = 0;
-    sourceBuffer.segmentParser_.tags_.push({
+    tags_.push(
       // zero in the media timeline is PTS 3
-      pts: (10 + 3) * 90000,
-      bytes: new Uint8Array([10])
-    }, {
-      pts: (15 + 3) * 90000,
-      bytes: new Uint8Array([15])
+      makeFlvTag((10 + 3) * 90000, new Uint8Array([10])),
+      makeFlvTag((15 + 3) * 90000, new Uint8Array([15]))
+    );
+
+    sourceBuffer.segmentParser_.trigger('data', {
+      tags: {
+        videoTags: tags_,
+        audioTags: []
+      }
     });
+
     // let the source buffer know the segment start time
     sourceBuffer.timestampOffset = 10;
 
     swfCalls.length = 0;
-    sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
-    timers.pop()();
+    timers.runAll();
 
     equal(swfCalls.length, 1, 'made a SWF call');
     deepEqual(swfCalls[0].arguments[0], [15], 'dropped the early tag');
@@ -1156,11 +1246,11 @@
 
   test('flushes the transmuxer after each append', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'), flushes = 0;
-    sourceBuffer.segmentParser_.flushTags = function() {
+    sourceBuffer.segmentParser_.flush = function() {
       flushes++;
     };
-
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
+    timers.pop()();
     equal(flushes, 1, 'flushed the transmuxer');
   });
 

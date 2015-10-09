@@ -564,6 +564,8 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   videojs.FlashMediaSource.TIME_BETWEEN_TICKS = Math.floor(1000 / 480);
   videojs.FlashMediaSource.TIME_PER_TICK = Math.floor(1000 / 240);
   videojs.FlashMediaSource.BYTES_PER_CHUNK = 1 * 1024; // 1kb
+  videojs.FlashMediaSource.MIN_CHUNK = 1024;
+  videojs.FlashMediaSource.MAX_CHUNK = 1024 * 1024;
 
   // create a new source buffer to receive a type of media data
   videojs.FlashMediaSource.prototype.addSourceBuffer = function(type){
@@ -819,7 +821,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
 
         // requeue any bytes that won't make it this round
         if (chunk.byteLength < this.chunkSize_ ||
-            this.buffer_[0].byteLength === this.chunkSize_) {
+            this.buffer_[0].byteLength === startByte + this.chunkSize_) {
           startByte = 0;
           this.buffer_.shift();
         } else {
@@ -850,14 +852,18 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         this.buffer_[0] = this.buffer_[0].subarray(startByte);
       }
 
-      // We want to target 4 iterations per time-slot so that gives us
-      // room to adjust to changes in Flash load and other externalities
-      // such as garbage collection while still maximizing throughput
-      this.chunkSize_ = Math.floor(this.chunkSize_ * (appendIterations / 4));
+      if (appendTime >= videojs.FlashMediaSource.TIME_PER_TICK) {
+        // We want to target 4 iterations per time-slot so that gives us
+        // room to adjust to changes in Flash load and other externalities
+        // such as garbage collection while still maximizing throughput
+        this.chunkSize_ = Math.floor(this.chunkSize_ * (appendIterations / 4));
+      }
 
       // We also make sure that the chunk-size doesn't drop below 1KB or
       // go above 1MB as a sanity check
-      this.chunkSize_ = Math.max(1024, Math.min(this.chunkSize_, 1024 * 1024));
+      this.chunkSize_ = Math.max(
+        videojs.FlashMediaSource.MIN_CHUNK,
+        Math.min(this.chunkSize_, videojs.FlashMediaSource.MAX_CHUNK));
 
       // schedule another append if necessary
       if (this.bufferSize_ !== 0) {
