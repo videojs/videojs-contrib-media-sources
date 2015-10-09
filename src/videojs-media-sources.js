@@ -710,8 +710,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         }
       });
 
+      // On a seek we remove all text track data since flash has no concept
+      // of a buffered-range and everything else is reset on seek
       this.mediaSource.player_.on('seeked', function() {
-        console.log('seeked');
         removeCuesFromTrack(0, Infinity, self.metadataTrack_);
         removeCuesFromTrack(0, Infinity, self.inbandTextTrack_);
       })
@@ -871,6 +872,10 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       }
     },
 
+    // Turns an array of flv tags into a Uint8Array representing the
+    // flv data. Also removes any tags that are before the current
+    // time so that playback begins at or slightly after the right
+    // place on a seek
     convertTagsToData_: function (segmentData) {
       var
         segmentByteLength = 0,
