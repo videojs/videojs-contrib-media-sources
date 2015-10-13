@@ -48,7 +48,8 @@ removeCuesFromTrack = function(start, end, track) {
     return;
   }
 
-  i = track.cues.length
+  i = track.cues.length;
+
   while(i--) {
     cue = track.cues[i];
 
@@ -717,7 +718,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       this.mediaSource.player_.on('seeked', function() {
         removeCuesFromTrack(0, Infinity, self.metadataTrack_);
         removeCuesFromTrack(0, Infinity, self.inbandTextTrack_);
-      })
+      });
     },
 
     // accept video data and pass to the video (swf) object

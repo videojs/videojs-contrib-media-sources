@@ -180,5 +180,5 @@ module.exports = function(grunt) {
   grunt.registerTask('default', ['test', 'build']);
   grunt.registerTask('test', ['jshint', 'karma']);
   grunt.registerTask('build', ['clean', 'importscripts', 'uglify:webworker', 'blobify', 'concat', 'uglify:mediasource']);
-  grunt.registerTask('dev', ['build', 'watch']);
+  grunt.registerTask('dev', ['jshint', 'build', 'watch']);
 };

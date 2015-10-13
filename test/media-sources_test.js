@@ -857,6 +857,7 @@
   });
 
   test('size of the append window changes based on timing information', function() {
+    /* jshint -W020 */
     var
       sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
       time = 0,
@@ -928,6 +929,7 @@
     videojs.FlashMediaSource.MIN_CHUNK = MIN_CHUNK;
     videojs.FlashMediaSource.MAX_CHUNK = MAX_CHUNK;
     Date = oldDate;
+    /* jshint +W020 */
   });
 
   test('clears the SWF on seeking', function() {
