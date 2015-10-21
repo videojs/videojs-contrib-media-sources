@@ -9,7 +9,12 @@
       interceptBufferCreation,
       addSourceBuffer,
       aggregateUpdateHandler,
-      scheduleTick, deprecateOldCue, Cue;
+      scheduleTick,
+      Cue,
+      deprecateOldCue,
+      removeCuesFromTrack,
+      createTextTracksIfNecessary,
+      addTextTrackData;
 
 Cue = window.WebKitDataCue || window.VTTCue;
 
@@ -34,6 +39,72 @@ deprecateOldCue = function(cue) {
       }
     }
   });
+};
+
+removeCuesFromTrack = function(start, end, track) {
+  var i, cue;
+
+  if (!track) {
+    return;
+  }
+
+  i = track.cues.length;
+
+  while(i--) {
+    cue = track.cues[i];
+
+    // Remove any overlapping cue
+    if (cue.startTime <= end && cue.endTime >= start) {
+      track.removeCue(cue);
+    }
+  }
+};
+
+createTextTracksIfNecessary = function (sourceHandler, mediaSource, segment) {
+  // create an in-band caption track if one is present in the segment
+  if (segment.captions &&
+      segment.captions.length &&
+      !sourceHandler.inbandTextTrack_) {
+    sourceHandler.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+  }
+
+  if (segment.metadata &&
+      segment.metadata.length &&
+      !sourceHandler.metadataTrack_) {
+    sourceHandler.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+    sourceHandler.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
+  }
+};
+
+addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
+  if (captionArray) {
+    captionArray.forEach(function (caption) {
+      this.inbandTextTrack_.addCue(
+        new VTTCue(
+          caption.startTime + this.timestampOffset,
+          caption.endTime + this.timestampOffset,
+          caption.text
+        ));
+    }, sourceHandler);
+  }
+
+  if (metadataArray) {
+    metadataArray.forEach(function(metadata) {
+      var time = metadata.cueTime + this.timestampOffset;
+
+      metadata.frames.forEach(function(frame) {
+        var cue = new Cue(
+            time,
+            time,
+            frame.value || frame.url || frame.data || '');
+
+        cue.frame = frame;
+        cue.value = frame;
+        deprecateOldCue(cue);
+        this.metadataTrack_.addCue(cue);
+      }, this);
+    }, sourceHandler);
+  }
 };
 
   // ------------
@@ -194,20 +265,7 @@ deprecateOldCue = function(cue) {
                                                  aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
             }
           }
-
-          // create an in-band caption track if one is present in the segment
-          if (segment.captions &&
-              segment.captions.length &&
-              !self.inbandTextTrack_) {
-            self.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
-          }
-
-          if (segment.metadata &&
-              segment.metadata.length &&
-              !self.metadataTrack_) {
-            self.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
-            self.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
-          }
+          createTextTracksIfNecessary(self, mediaSource, segment);
 
           // Add the segments to the pendingBuffers array
           self.pendingBuffers_.push(segment);
@@ -275,7 +333,7 @@ deprecateOldCue = function(cue) {
           if (!this.videoBuffer_) {
             return this.audioBuffer_.buffered;
           } else if (!this.audioBuffer_) {
-            return this.audioBuffer_.buffered;
+            return this.videoBuffer_.buffered;
           }
 
           // Handle the case where we have both buffers and create an
@@ -338,23 +396,6 @@ deprecateOldCue = function(cue) {
       this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
     },
-    removeCuesFromTrack_: function(start, end, track) {
-      var i, cue;
-
-      if (!track) {
-        return;
-      }
-
-      i = track.cues.length
-      while(i--) {
-        cue = track.cues[i];
-
-        // Remove any overlapping cue
-        if (cue.startTime <= end && cue.endTime >= start) {
-          track.removeCue(cue);
-        }
-      }
-    },
     remove: function(start, end) {
       if (this.videoBuffer_) {
         this.videoBuffer_.remove(start, end);
@@ -364,10 +405,10 @@ deprecateOldCue = function(cue) {
       }
 
       // Remove Metadata Cues (id3)
-      this.removeCuesFromTrack_(start, end, this.metadataTrack_);
+      removeCuesFromTrack(start, end, this.metadataTrack_);
 
       // Remove Any Captions
-      this.removeCuesFromTrack_(start, end, this.inbandTextTrack_);
+      removeCuesFromTrack(start, end, this.inbandTextTrack_);
     },
     /**
      * Process any segments that the muxer has output
@@ -416,32 +457,7 @@ deprecateOldCue = function(cue) {
         return segmentObj;
       }, sortedSegments);
 
-      // add cues for any video captions encountered
-      sortedSegments.captions.forEach(function(cue) {
-        this.inbandTextTrack_.addCue(
-          new VTTCue(
-            cue.startTime + this.timestampOffset,
-            cue.endTime + this.timestampOffset,
-            cue.text
-          ));
-      }, this);
-
-      // add cues for any id3 tags encountered
-      sortedSegments.metadata.forEach(function(metadata) {
-        var time = metadata.cueTime + this.timestampOffset;
-
-        metadata.frames.forEach(function(frame) {
-          var cue = new Cue(
-              time,
-              time,
-              frame.value || frame.url || frame.data || '');
-
-          cue.frame = frame;
-          cue.value = frame;
-          deprecateOldCue(cue);
-          this.metadataTrack_.addCue(cue);
-        }, this);
-      }, this);
+      addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
 
       // Merge multiple video and audio segments into one and append
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
@@ -502,6 +518,7 @@ deprecateOldCue = function(cue) {
       this.on(['sourceopen', 'webkitsourceopen'], function(event){
         // find the swf where we will push media data
         this.swfObj = document.getElementById(event.swfId);
+        this.player_ = videojs(this.swfObj.parentNode);
         this.tech_ = this.swfObj.tech;
         this.readyState = 'open';
 
@@ -527,18 +544,29 @@ deprecateOldCue = function(cue) {
    * systems. There are two factors to consider:
    * - Each interaction with the SWF must be quick or you risk dropping
    * video frames. To maintain 60fps for the rest of the page, each append
-   * cannot take longer than 16ms. Given the likelihood that the page will
-   * be executing more javascript than just playback, you probably want to
-   * aim for ~8ms.
+   * must not  take longer than 16ms. Given the likelihood that the page
+   * will be executing more javascript than just playback, you probably
+   * want to aim for less than 8ms. We aim for just 4ms.
    * - Bigger appends significantly increase throughput. The total number of
    * bytes over time delivered to the SWF must exceed the video bitrate or
    * playback will stall.
    *
-   * The default is set so that a 4MB/s stream should playback
-   * without stuttering.
+   * We adaptively tune the size of appends to give the best throughput
+   * possible given the performance of the system. To do that we try to append
+   * as much as possible in TIME_PER_TICK and while tuning the size of appends
+   * dynamically so that we only append about 4-times in that 4ms span.
+   *
+   * The reason we try to keep the number of appends around four is due to
+   * externalities such as Flash load and garbage collection that are highly
+   * variable and having 4 iterations allows us to exit the loop early if
+   * an iteration takes longer than expected.
    */
-  videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL = 4 * 1024 * 1024;
-  videojs.FlashMediaSource.TICKS_PER_SECOND = 60;
+
+  videojs.FlashMediaSource.TIME_BETWEEN_TICKS = Math.floor(1000 / 480);
+  videojs.FlashMediaSource.TIME_PER_TICK = Math.floor(1000 / 240);
+  videojs.FlashMediaSource.BYTES_PER_CHUNK = 1 * 1024; // 1kb
+  videojs.FlashMediaSource.MIN_CHUNK = 1024;
+  videojs.FlashMediaSource.MAX_CHUNK = 1024 * 1024;
 
   // create a new source buffer to receive a type of media data
   videojs.FlashMediaSource.prototype.addSourceBuffer = function(type){
@@ -621,15 +649,20 @@ deprecateOldCue = function(cue) {
   scheduleTick = function(func) {
     // Chrome doesn't invoke requestAnimationFrame callbacks
     // in background tabs, so use setTimeout.
-    window.setTimeout(func,
-                      Math.ceil(1000 / videojs.FlashMediaSource.TICKS_PER_SECOND));
+    window.setTimeout(func, videojs.FlashMediaSource.TIME_BETWEEN_TICKS);
   };
 
   // Source Buffer
   videojs.FlashSourceBuffer = videojs.extend(EventTarget, {
 
-    constructor: function(source){
-      var encodedHeader;
+    constructor: function(mediaSource){
+      var
+        encodedHeader,
+        self = this;
+
+      // Start off using the globally defined value but refine
+      // as we append data into flash
+      this.chunkSize_ = videojs.FlashMediaSource.BYTES_PER_CHUNK;
 
       // byte arrays queued to be appended
       this.buffer_ = [];
@@ -642,7 +675,7 @@ deprecateOldCue = function(cue) {
       // media timeline and PTS values
       this.basePtsOffset_ = NaN;
 
-      this.source = source;
+      this.mediaSource = mediaSource;
 
       // indicates whether the asynchronous continuation of an operation
       // is still being processed
@@ -651,9 +684,10 @@ deprecateOldCue = function(cue) {
       this.timestampOffset_ = 0;
 
       // TS to FLV transmuxer
-      this.segmentParser_ = new muxjs.SegmentParser();
+      this.segmentParser_ = new muxjs.flv.Transmuxer();
+      this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
       encodedHeader = window.btoa(String.fromCharCode.apply(null, Array.prototype.slice.call(this.segmentParser_.getFlvHeader())));
-      this.source.swfObj.vjs_appendBuffer(encodedHeader);
+      this.mediaSource.swfObj.vjs_appendBuffer(encodedHeader);
 
       Object.defineProperty(this, 'timestampOffset', {
         get: function() {
@@ -662,8 +696,10 @@ deprecateOldCue = function(cue) {
         set: function(val) {
           if (typeof val === 'number' && val >= 0) {
             this.timestampOffset_ = val;
+            this.segmentParser_ = new muxjs.flv.Transmuxer();
+            this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
             // We have to tell flash to expect a discontinuity
-            this.source.swfObj.vjs_discontinuity();
+            this.mediaSource.swfObj.vjs_discontinuity();
             // the media <-> PTS mapping must be re-established after
             // the discontinuity
             this.basePtsOffset_ = NaN;
@@ -673,14 +709,21 @@ deprecateOldCue = function(cue) {
 
       Object.defineProperty(this, 'buffered', {
         get: function() {
-          return videojs.createTimeRange(0, this.source.swfObj.vjs_getProperty('buffered'));
+          return videojs.createTimeRanges(this.mediaSource.swfObj.vjs_getProperty('buffered'));
         }
+      });
+
+      // On a seek we remove all text track data since flash has no concept
+      // of a buffered-range and everything else is reset on seek
+      this.mediaSource.player_.on('seeked', function() {
+        removeCuesFromTrack(0, Infinity, self.metadataTrack_);
+        removeCuesFromTrack(0, Infinity, self.inbandTextTrack_);
       });
     },
 
     // accept video data and pass to the video (swf) object
-    appendBuffer: function(uint8Array){
-      var error, flvBytes, ptsTarget;
+    appendBuffer: function(bytes){
+      var error, self = this;
 
       if (this.updating) {
         error = new Error('SourceBuffer.append() cannot be called ' +
@@ -689,94 +732,139 @@ deprecateOldCue = function(cue) {
         error.code = 11;
         throw error;
       }
-      if (this.buffer_.length === 0) {
-        scheduleTick(this.processBuffer_.bind(this));
-      }
 
       this.updating = true;
-      this.source.readyState = 'open';
+      this.mediaSource.readyState = 'open';
       this.trigger({ type: 'update' });
 
-      flvBytes = this.tsToFlv_(uint8Array);
-      this.buffer_.push(flvBytes);
-      this.bufferSize_ += flvBytes.byteLength;
+      var chunk = 512 * 1024;
+      var i = 0;
+      (function chunkInData() {
+        self.segmentParser_.push(bytes.subarray(i, i + chunk));
+        i += chunk;
+        if (i < bytes.byteLength) {
+          scheduleTick(chunkInData);
+        } else {
+          scheduleTick(self.segmentParser_.flush.bind(self.segmentParser_));
+        }
+      })();
     },
 
     // reset the parser and remove any data queued to be sent to the swf
     abort: function() {
       this.buffer_ = [];
       this.bufferSize_ = 0;
-      this.source.swfObj.vjs_abort();
+      this.mediaSource.swfObj.vjs_abort();
 
       // report any outstanding updates have ended
       if (this.updating) {
         this.updating = false;
         this.trigger({ type: 'updateend' });
       }
-
     },
 
     // Flash cannot remove ranges already buffered in the NetStream
     // but seeking clears the buffer entirely. For most purposes,
     // having this operation act as a no-op is acceptable.
     remove: function() {
+      removeCuesFromTrack(0, Infinity, this.metadataTrack_);
+      removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
       this.trigger({ type: 'update' });
       this.trigger({ type: 'updateend' });
     },
 
+    receiveBuffer_: function(segment) {
+      var self = this;
+
+      // create an in-band caption track if one is present in the segment
+      createTextTracksIfNecessary(this, this.mediaSource, segment);
+      addTextTrackData(this, segment.captions, segment.metadata);
+
+      // Do this asynchronously since convertTagsToData_ can be time consuming
+      scheduleTick(function() {
+        if (self.buffer_.length === 0) {
+          scheduleTick(self.processBuffer_.bind(self));
+        }
+        var flvBytes = self.convertTagsToData_(segment);
+        if (flvBytes) {
+          self.buffer_.push(flvBytes);
+          self.bufferSize_ += flvBytes.byteLength;
+        }
+      });
+    },
+
     // append a portion of the current buffer to the SWF
     processBuffer_: function() {
-      var chunk, i, length, payload, maxSize, binary, b64str;
+      var
+        chunk,
+        i,
+        length,
+        binary,
+        b64str,
+        startByte = 0,
+        appendIterations = 0,
+        startTime = +(new Date()),
+        appendTime;
 
       if (!this.buffer_.length) {
+        if (this.updating !== false) {
+          this.updating = false;
+          this.trigger({ type: 'updateend' });
+        }
         // do nothing if the buffer is empty
         return;
       }
 
-      if (document.hidden) {
-        // When the document is hidden, the browser will likely
-        // invoke callbacks less frequently than we want. Just
-        // append a whole second's worth of data. It doesn't
-        // matter if the video janks, since the user can't see it.
-        maxSize = videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL;
-      } else {
-        maxSize = Math.ceil(videojs.FlashMediaSource.BYTES_PER_SECOND_GOAL /
-                            videojs.FlashMediaSource.TICKS_PER_SECOND);
-      }
-
-      // concatenate appends up to the max append size
-      payload = new Uint8Array(Math.min(maxSize, this.bufferSize_));
-      i = payload.byteLength;
-      while (i) {
-        chunk = this.buffer_[0].subarray(0, i);
-
-        payload.set(chunk, payload.byteLength - i);
+      do {
+        appendIterations++;
+        // concatenate appends up to the max append size
+        chunk = this.buffer_[0].subarray(startByte, startByte + this.chunkSize_);
 
         // requeue any bytes that won't make it this round
-        if (chunk.byteLength < this.buffer_[0].byteLength) {
-          this.buffer_[0] = this.buffer_[0].subarray(i);
-        } else {
+        if (chunk.byteLength < this.chunkSize_ ||
+            this.buffer_[0].byteLength === startByte + this.chunkSize_) {
+          startByte = 0;
           this.buffer_.shift();
+        } else {
+          startByte += this.chunkSize_;
         }
 
-        i -= chunk.byteLength;
-      }
-      this.bufferSize_ -= payload.byteLength;
+        this.bufferSize_ -= chunk.byteLength;
 
-      // base64 encode the bytes
-      binary = '';
-      length = payload.byteLength;
-      for (i = 0; i < length; i++) {
-        binary += String.fromCharCode(payload[i]);
-      }
-      b64str = window.btoa(binary);
+        // base64 encode the bytes
+        binary = '';
+        length = chunk.byteLength;
+        for (i = 0; i < length; i++) {
+          binary += String.fromCharCode(chunk[i]);
+        }
+        b64str = window.btoa(binary);
 
-      // bypass normal ExternalInterface calls and pass xml directly
-      // IE can be slow by default
-      this.source.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                      'returntype="javascript"><arguments><string>' +
-                                      b64str +
-                                      '</string></arguments></invoke>');
+        // bypass normal ExternalInterface calls and pass xml directly
+        // IE can be slow by default
+        this.mediaSource.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
+                                             'returntype="javascript"><arguments><string>' +
+                                             b64str +
+                                             '</string></arguments></invoke>');
+        appendTime = (new Date()) - startTime;
+      } while (this.buffer_.length &&
+          appendTime < videojs.FlashMediaSource.TIME_PER_TICK);
+
+      if (this.buffer_.length && startByte) {
+        this.buffer_[0] = this.buffer_[0].subarray(startByte);
+      }
+
+      if (appendTime >= videojs.FlashMediaSource.TIME_PER_TICK) {
+        // We want to target 4 iterations per time-slot so that gives us
+        // room to adjust to changes in Flash load and other externalities
+        // such as garbage collection while still maximizing throughput
+        this.chunkSize_ = Math.floor(this.chunkSize_ * (appendIterations / 4));
+      }
+
+      // We also make sure that the chunk-size doesn't drop below 1KB or
+      // go above 1MB as a sanity check
+      this.chunkSize_ = Math.max(
+        videojs.FlashMediaSource.MIN_CHUNK,
+        Math.min(this.chunkSize_, videojs.FlashMediaSource.MAX_CHUNK));
 
       // schedule another append if necessary
       if (this.bufferSize_ !== 0) {
@@ -785,27 +873,23 @@ deprecateOldCue = function(cue) {
         this.updating = false;
         this.trigger({ type: 'updateend' });
 
-        if (this.source.readyState === 'ended') {
-          this.source.swfObj.vjs_endOfStream();
+        if (this.mediaSource.readyState === 'ended') {
+          this.mediaSource.swfObj.vjs_endOfStream();
         }
       }
     },
 
-    // transmux segment data from MP2T to FLV
-    tsToFlv_: function(bytes) {
-      var segmentByteLength = 0, tags = [],
-          tech = this.source.tech_,
-          start = 0,
-          i, j, segment, targetPts;
-
-      // transmux the TS to FLV
-      this.segmentParser_.parseSegmentBinaryData(bytes);
-      this.segmentParser_.flushTags();
-
-      // assemble the FLV tags in decoder order
-      while (this.segmentParser_.tagsAvailable()) {
-        tags.push(this.segmentParser_.getNextTag());
-      }
+    // Turns an array of flv tags into a Uint8Array representing the
+    // flv data. Also removes any tags that are before the current
+    // time so that playback begins at or slightly after the right
+    // place on a seek
+    convertTagsToData_: function (segmentData) {
+      var
+        segmentByteLength = 0,
+        tech = this.mediaSource.tech_,
+        start = 0,
+        i, j, segment, targetPts,
+        tags = this.getOrderedTags_(segmentData);
 
       // establish the media timeline to PTS translation if we don't
       // have one already
@@ -826,6 +910,10 @@ deprecateOldCue = function(cue) {
         }
       }
 
+      if (start >= tags.length) {
+        return;
+      }
+
       // concatenate the bytes into a single segment
       for (i = start; i < tags.length; i++) {
         segmentByteLength += tags[i].bytes.byteLength;
@@ -836,6 +924,35 @@ deprecateOldCue = function(cue) {
         j += tags[i].bytes.byteLength;
       }
       return segment;
+    },
+
+    // assemble the FLV tags in decoder order
+    getOrderedTags_: function(segmentData) {
+      var
+        videoTags = segmentData.tags.videoTags,
+        audioTags = segmentData.tags.audioTags,
+        tag,
+        tags = [];
+
+      while (videoTags.length || audioTags.length) {
+        if (!videoTags.length) {
+          // only audio tags remain
+          tag = audioTags.shift();
+        } else if (!audioTags.length) {
+          // only video tags remain
+          tag = videoTags.shift();
+        } else if (audioTags[0].dts < videoTags[0].dts) {
+          // audio should be decoded next
+          tag = audioTags.shift();
+        } else {
+          // video should be decoded next
+          tag = videoTags.shift();
+        }
+
+        tags.push(tag.finalize());
+      }
+
+      return tags;
     }
   });
 
