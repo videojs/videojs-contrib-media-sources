@@ -304,6 +304,20 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
           }
         }
       });
+      // setting the append window affects both source buffers
+      Object.defineProperty(this, 'appendWindowStart', {
+        get: function() {
+          return (this.videoBuffer_ || this.audioBuffer_).appendWindowStart;
+        },
+        set: function(start) {
+          if (this.videoBuffer_) {
+            this.videoBuffer_.appendWindowStart = start;
+          }
+          if (this.audioBuffer_) {
+            this.audioBuffer_.appendWindowStart = start;
+          }
+        }
+      });
       // this buffer is "updating" if either of its native buffers are
       Object.defineProperty(this, 'updating', {
         get: function() {
