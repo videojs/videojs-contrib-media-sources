@@ -42,6 +42,6 @@
     "video.js": "^5.0.0-rc.93"
   },
   "dependencies": {
-    "mux.js": "videojs/mux.js.git"
+    "mux.js": "^1.0.0"
   }
 }
