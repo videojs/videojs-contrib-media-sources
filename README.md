@@ -1,13 +1,12 @@
 # videojs-media-sources
 
-A [Media Source Extensions](https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html) plugin for video.js.
+A [Media Source Extensions](https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html) sham for video.js.
 
 Media Source Extensions (MSE) is a W3C draft specification that makes it possible to feed data directly to a video element.
 MSE allows video developers to build functionality like adaptive streaming directly in javascript.
 
 ## Getting Started
 
-The plugin exposes a MediaSource shim that can be used to feed dynamic content to a video element.
 On browsers that natively support Media Source Extensions, the HTML implementation will be used.
 If you're running in an environment without MSE, a Flash-backed polyfill will be used.
 Currently, the Flash polyfill only supports video content encoded in the FLV file format.
@@ -24,6 +23,25 @@ videojs.MediaSource.BYTES_PER_SECOND_GOAL = 8 * 1024 * 1024;
 Setting the `BYTES_PER_SECOND_GOAL` too high may lead to dropped frames during playback on slower computers.
 
 Check out an example of the plugin in use in [example.html](example.html).
+
+## Options
+You can configure some aspects of the MediaSource polyfill by
+specifying a hash of options when you construct it:
+
+```js
+var mediaSource = new videojs.MediaSource({ mode: 'html5' });
+```
+
+### mode
+Type: `string`
+Values: `'auto'`, `'html5'`, `'flash'`
+Default Value: `'auto'`
+
+How to determine the MediaSources implementation to use. With the
+default value of `auto`, the presence of native MediaSources is
+detected at construction time and they're used if available. Choosing
+`html5` or `flash` will force the use of that respective MediaSource
+implementation, even if it does not appear the browser supports it.
 
 ## Release History
 

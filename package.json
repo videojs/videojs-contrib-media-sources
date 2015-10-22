@@ -1,14 +1,14 @@
 {
   "name": "videojs-contrib-media-sources",
-  "version": "1.0.0",
+  "version": "2.0.1",
   "description": "A Media Source Extensions plugin for video.js",
   "main": "videojs-media-sources.js",
   "scripts": {
-    "test": "grunt"
+    "test": "karma start test/karma.conf.js"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/videojs/video-js-media-sources.git"
+    "url": "https://github.com/videojs/videojs-contrib-media-sources"
   },
   "keywords": [
     "video.js",
@@ -25,11 +25,23 @@
   "license": "Apache 2",
   "gitHead": "3374dc863816b74f90a62275c42ff3f1aca0a523",
   "devDependencies": {
+    "falafel": "^1.2.0",
     "grunt": "^0.4.1",
+    "grunt-contrib-clean": "^0.6.0",
+    "grunt-contrib-concat": "^0.5.1",
     "grunt-contrib-connect": "^0.7.1",
-    "grunt-contrib-jshint": "^0.10.0",
-    "grunt-contrib-qunit": "^0.4.0",
+    "grunt-contrib-jshint": "^0.11.3",
+    "grunt-contrib-uglify": "^0.9.1",
+    "grunt-contrib-watch": "^0.6.1",
+    "grunt-karma": "^0.12.0",
+    "karma": "^0.13.9",
+    "karma-chrome-launcher": "^0.2.0",
+    "karma-firefox-launcher": "^0.1.6",
+    "karma-qunit": "^0.1.5",
     "qunitjs": "^1.14.0",
-    "video.js": "^4.7.3"
+    "video.js": "^5.0.0-rc.93"
+  },
+  "dependencies": {
+    "mux.js": "^1.0.0"
   }
 }
