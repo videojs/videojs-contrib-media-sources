@@ -139,7 +139,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         self.addEventListener('sourceopen', function() {
           var video = document.querySelector('[src="' + self.url_ + '"]');
 
-          if (!video && video.parentNode) {
+          if (!video) {
             return;
           }
 
