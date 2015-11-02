@@ -746,6 +746,11 @@
         swfCalls.push('abort');
       };
       swfObj.vjs_getProperty = function(attr) {
+        if (attr === 'buffered') {
+          return [];
+        } else if (attr === 'currentTime') {
+          return 0;
+        }
         swfCalls.push({ attr: attr });
       };
       swfObj.vjs_load = function() {
@@ -946,7 +951,7 @@
     strictEqual(1, aborts, 'aborted pending buffer');
   });
 
-  test('drops tags before the target timestamp when seeking', function() {
+  test('drops tags before currentTime when seeking', function() {
     var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
         i = 10,
         currentTime,
@@ -987,6 +992,52 @@
       return true;
     };
     currentTime = 10 + 7;
+    mediaSource.tech_.trigger('seeking');
+    sourceBuffer.appendBuffer(new Uint8Array(10));
+    swfCalls.length = 0;
+    timers.runAll();
+
+    deepEqual(swfCalls[0].arguments[0], [7, 8, 9],
+              'three tags are appended');
+  });
+
+  test('drops tags before the buffered end always', function() {
+    var sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        i = 10,
+        endTime,
+        tags_ = [];
+    mediaSource.tech_.buffered = function() {
+      return videojs.createTimeRange([[0, endTime]]);
+    };
+
+    // push a tag into the buffer to establish the starting PTS value
+    endTime = 0;
+    sourceBuffer.segmentParser_.trigger('data', {
+       tags: {
+        videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
+        audioTags: []
+      }
+    });
+    timers.runAll();
+
+    sourceBuffer.appendBuffer(new Uint8Array(10));
+    timers.runAll();
+
+    // mock out a new segment of FLV tags, starting 10s after the
+    // starting PTS value
+    while (i--) {
+      tags_.unshift(
+        makeFlvTag((i * 1000) + (29 * 1000),
+          new Uint8Array([i])));
+    }
+    sourceBuffer.segmentParser_.trigger('data', {
+      tags: {
+        videoTags: tags_,
+        audioTags: []
+      }
+    });
+
+    endTime = 10 + 7;
     mediaSource.tech_.trigger('seeking');
     sourceBuffer.appendBuffer(new Uint8Array(10));
     swfCalls.length = 0;
