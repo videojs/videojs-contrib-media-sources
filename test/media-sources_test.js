@@ -746,6 +746,11 @@
         swfCalls.push('abort');
       };
       swfObj.vjs_getProperty = function(attr) {
+        if (attr === 'buffered') {
+          return [];
+        } else if (attr === 'currentTime') {
+          return 0;
+        }
         swfCalls.push({ attr: attr });
       };
       swfObj.vjs_load = function() {

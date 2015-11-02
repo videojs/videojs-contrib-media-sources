@@ -902,26 +902,30 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         segmentByteLength = 0,
         tech = this.mediaSource.tech_,
         start = 0,
-        i, j, segment, targetPts,
+        targetPts = 0,
+        i, j, segment,
         tags = this.getOrderedTags_(segmentData);
 
-      // establish the media timeline to PTS translation if we don't
+      // Establish the media timeline to PTS translation if we don't
       // have one already
       if (isNaN(this.basePtsOffset_) && tags.length) {
         this.basePtsOffset_ = tags[0].pts;
       }
 
-      // if the player is seeking, determine the PTS value for the
-      // target media timeline position
-      if (tech.seeking()) {
-        targetPts = tech.currentTime() - this.timestampOffset;
-        targetPts *= 1e3; // PTS values are represented in milliseconds
-        targetPts += this.basePtsOffset_;
+      // Trim any tags that are before the end of the end of
+      // the current buffer
+      if (tech.buffered().length) {
+        targetPts = tech.buffered().end(0) - this.timestampOffset;
+      }
+      // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
+      targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
 
-        // skip tags less than the seek target
-        while (start < tags.length && tags[start].pts < targetPts) {
-          start++;
-        }
+      targetPts *= 1e3; // PTS values are represented in milliseconds
+      targetPts += this.basePtsOffset_;
+
+      // skip tags less than the seek target
+      while (start < tags.length && tags[start].pts < targetPts) {
+        start++;
       }
 
       if (start >= tags.length) {
