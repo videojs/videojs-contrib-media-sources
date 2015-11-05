@@ -614,7 +614,20 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         return this.swfObj.vjs_getProperty('duration');
       },
       set: function(value){
+        var
+          i,
+          oldDuration = this.swfObj.vjs_getProperty('duration');
+
         this.swfObj.vjs_setProperty('duration', value);
+
+        if (value <= oldDuration) {
+          // In MSE, this triggers the range removal algorithm which causes
+          // an update to occur
+          for (i = 0; i < this.sourceBuffers.length; i++) {
+            this.sourceBuffers[i].remove(value, oldDuration);
+          }
+        }
+
         return value;
       }
     });
@@ -780,9 +793,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     // Flash cannot remove ranges already buffered in the NetStream
     // but seeking clears the buffer entirely. For most purposes,
     // having this operation act as a no-op is acceptable.
-    remove: function() {
-      removeCuesFromTrack(0, Infinity, this.metadataTrack_);
-      removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
+    remove: function(start, end) {
+      removeCuesFromTrack(start, end, this.metadataTrack_);
+      removeCuesFromTrack(start, end, this.inbandTextTrack_);
       this.trigger({ type: 'update' });
       this.trigger({ type: 'updateend' });
     },
