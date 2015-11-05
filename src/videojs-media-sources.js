@@ -653,7 +653,10 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       // MEDIA_ERR_DECODE
       this.tech_.error(3);
     }
-    this.readyState = 'ended';
+    if (this.readyState !== 'ended') {
+      this.readyState = 'ended';
+      this.swfObj.vjs_endOfStream();
+    }
   };
 
   // store references to the media sources so they can be connected
@@ -900,9 +903,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         this.updating = false;
         this.trigger({ type: 'updateend' });
 
-        if (this.mediaSource.readyState === 'ended') {
-          this.mediaSource.swfObj.vjs_endOfStream();
-        }
       }
     },
 
