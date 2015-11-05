@@ -914,9 +914,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       var
         segmentByteLength = 0,
         tech = this.mediaSource.tech_,
-        start = 0,
         targetPts = 0,
         i, j, segment,
+        filteredTags = [],
         tags = this.getOrderedTags_(segmentData);
 
       // Establish the media timeline to PTS translation if we don't
@@ -936,24 +936,27 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       targetPts *= 1e3; // PTS values are represented in milliseconds
       targetPts += this.basePtsOffset_;
 
-      // skip tags less than the seek target
-      while (start < tags.length && tags[start].pts < targetPts) {
-        start++;
+      // skip tags with a presentation time less than the seek target
+      for (i = 0; i < tags.length; i++) {
+        if (tags[i].pts >= targetPts) {
+          filteredTags.push(tags[i]);
+        }
       }
 
-      if (start >= tags.length) {
+      if (filteredTags.length === 0) {
         return;
       }
 
       // concatenate the bytes into a single segment
-      for (i = start; i < tags.length; i++) {
-        segmentByteLength += tags[i].bytes.byteLength;
+      for (i = 0; i < filteredTags.length; i++) {
+        segmentByteLength += filteredTags[i].bytes.byteLength;
       }
       segment = new Uint8Array(segmentByteLength);
-      for (i = start, j = 0; i < tags.length; i++) {
-        segment.set(tags[i].bytes, j);
-        j += tags[i].bytes.byteLength;
+      for (i = 0, j = 0; i < filteredTags.length; i++) {
+        segment.set(filteredTags[i].bytes, j);
+        j += filteredTags[i].bytes.byteLength;
       }
+
       return segment;
     },
 
