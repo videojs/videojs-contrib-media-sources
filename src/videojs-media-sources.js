@@ -614,7 +614,20 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         return this.swfObj.vjs_getProperty('duration');
       },
       set: function(value){
+        var
+          i,
+          oldDuration = this.swfObj.vjs_getProperty('duration');
+
         this.swfObj.vjs_setProperty('duration', value);
+
+        if (value < oldDuration) {
+          // In MSE, this triggers the range removal algorithm which causes
+          // an update to occur
+          for (i = 0; i < this.sourceBuffers.length; i++) {
+            this.sourceBuffers[i].remove(value, oldDuration);
+          }
+        }
+
         return value;
       }
     });
@@ -640,7 +653,10 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       // MEDIA_ERR_DECODE
       this.tech_.error(3);
     }
-    this.readyState = 'ended';
+    if (this.readyState !== 'ended') {
+      this.readyState = 'ended';
+      this.swfObj.vjs_endOfStream();
+    }
   };
 
   // store references to the media sources so they can be connected
@@ -780,9 +796,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     // Flash cannot remove ranges already buffered in the NetStream
     // but seeking clears the buffer entirely. For most purposes,
     // having this operation act as a no-op is acceptable.
-    remove: function() {
-      removeCuesFromTrack(0, Infinity, this.metadataTrack_);
-      removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
+    remove: function(start, end) {
+      removeCuesFromTrack(start, end, this.metadataTrack_);
+      removeCuesFromTrack(start, end, this.inbandTextTrack_);
       this.trigger({ type: 'update' });
       this.trigger({ type: 'updateend' });
     },
@@ -887,9 +903,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         this.updating = false;
         this.trigger({ type: 'updateend' });
 
-        if (this.mediaSource.readyState === 'ended') {
-          this.mediaSource.swfObj.vjs_endOfStream();
-        }
       }
     },
 
@@ -901,9 +914,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       var
         segmentByteLength = 0,
         tech = this.mediaSource.tech_,
-        start = 0,
         targetPts = 0,
         i, j, segment,
+        filteredTags = [],
         tags = this.getOrderedTags_(segmentData);
 
       // Establish the media timeline to PTS translation if we don't
@@ -923,24 +936,27 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       targetPts *= 1e3; // PTS values are represented in milliseconds
       targetPts += this.basePtsOffset_;
 
-      // skip tags less than the seek target
-      while (start < tags.length && tags[start].pts < targetPts) {
-        start++;
+      // skip tags with a presentation time less than the seek target
+      for (i = 0; i < tags.length; i++) {
+        if (tags[i].pts >= targetPts) {
+          filteredTags.push(tags[i]);
+        }
       }
 
-      if (start >= tags.length) {
+      if (filteredTags.length === 0) {
         return;
       }
 
       // concatenate the bytes into a single segment
-      for (i = start; i < tags.length; i++) {
-        segmentByteLength += tags[i].bytes.byteLength;
+      for (i = 0; i < filteredTags.length; i++) {
+        segmentByteLength += filteredTags[i].bytes.byteLength;
       }
       segment = new Uint8Array(segmentByteLength);
-      for (i = start, j = 0; i < tags.length; i++) {
-        segment.set(tags[i].bytes, j);
-        j += tags[i].bytes.byteLength;
+      for (i = 0, j = 0; i < filteredTags.length; i++) {
+        segment.set(filteredTags[i].bytes, j);
+        j += filteredTags[i].bytes.byteLength;
       }
+
       return segment;
     },
 

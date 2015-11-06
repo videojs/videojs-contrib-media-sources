@@ -1099,22 +1099,25 @@
               'filtered the appended tags');
   });
 
-  test('calls endOfStream on the swf after the last append', function() {
+  test('calling endOfStream sets mediaSource readyState to ended', function() {
     var
       sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     mediaSource.swfObj.vjs_endOfStream = function() {
       swfCalls.push('endOfStream');
     };
+    sourceBuffer.addEventListener('updateend', function() {
+      mediaSource.endOfStream();
+    });
 
     swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
 
-    //ready state is ended when the last segment has been appended
-    //to the mediaSource
-    sourceBuffer.mediaSource.readyState = 'ended';
     timers.runAll();
 
+    strictEqual(sourceBuffer.mediaSource.readyState,
+      'ended',
+      'readyState is \'ended\'');
     strictEqual(swfCalls.length, 2, 'made two calls to swf');
     deepEqual(swfCalls.shift().arguments[0],
               [0, 1],
@@ -1132,13 +1135,13 @@
     mediaSource.swfObj.vjs_endOfStream = function() {
       swfCalls.push('endOfStream');
     };
+    sourceBuffer.addEventListener('updateend', function foo() {
+      mediaSource.endOfStream();
+      sourceBuffer.removeEventListener('updateend', foo);
+    });
 
     swfCalls.length = 0;
     sourceBuffer.appendBuffer(new Uint8Array([0,1]));
-
-    //ready state is ended when the last segment has been appended
-    //to the mediaSource
-    sourceBuffer.mediaSource.readyState = 'ended';
 
     timers.runAll();
 
@@ -1248,7 +1251,10 @@
     }, 'requests duration from the SWF');
 
     mediaSource.duration = 101.3;
-    deepEqual(swfCalls[2], {
+    // Setting a duration results in two calls to the swf
+    // Ignore the first call (swfCalls[2]) as it was just to get the
+    // current duration
+    deepEqual(swfCalls[3], {
       attr: 'duration', value: 101.3
     }, 'set the duration override');
 
@@ -1320,12 +1326,13 @@
   });
 
   test('passes endOfStream network errors to the tech', function() {
+    mediaSource.readyState = 'ended';
     mediaSource.endOfStream('network');
-
     equal(player.tech_.error().code, 2, 'set a network error');
   });
 
   test('passes endOfStream decode errors to the tech', function() {
+    mediaSource.readyState = 'ended';
     mediaSource.endOfStream('decode');
 
     equal(player.tech_.error().code, 3, 'set a decode error');
