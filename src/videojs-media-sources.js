@@ -620,7 +620,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
 
         this.swfObj.vjs_setProperty('duration', value);
 
-        if (value <= oldDuration) {
+        if (value < oldDuration) {
           // In MSE, this triggers the range removal algorithm which causes
           // an update to occur
           for (i = 0; i < this.sourceBuffers.length; i++) {
