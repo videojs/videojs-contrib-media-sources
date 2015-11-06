@@ -132,10 +132,10 @@
 
     equal(mediaSource.sourceBuffers.length, 2, 'created two native buffers');
     equal(mediaSource.sourceBuffers[0].type,
-          'audio/mp4;codecs=mp4a.40.2',
+          'audio/mp4;codecs="mp4a.40.2"',
           'created an mp4a buffer');
     equal(mediaSource.sourceBuffers[1].type,
-          'video/mp4;codecs=avc1.4d400d',
+          'video/mp4;codecs="avc1.4d400d"',
           'created an avc1 buffer');
     equal(mediaSource.virtualBuffers.length, 1, 'created one virtual buffer');
     equal(mediaSource.virtualBuffers[0],
@@ -322,6 +322,36 @@
     equal(mp4Segments.length, 1, 'appended the segments');
   });
 
+  test('handles codec strings in reverse order', function() {
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="mp4a.40.5,avc1.64001f"');
+
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'video',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'data',
+        segment: {
+          type: 'audio',
+          data: new Uint8Array(1).buffer
+        }
+      }
+    });
+    equal(mediaSource.sourceBuffers[0].type,
+          'video/mp4;codecs="avc1.64001f"',
+          'passed the video codec along');
+    equal(mediaSource.sourceBuffers[1].type,
+          'audio/mp4;codecs="mp4a.40.5"',
+          'passed the audio codec along');
+  });
+
   test('forwards codec strings to native buffers when specified', function() {
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.64001f,mp4a.40.5"');
@@ -336,7 +366,7 @@
       }
     });
     equal(mediaSource.sourceBuffers[0].type,
-          'video/mp4; codecs="avc1.64001f,mp4a.40.5"',
+          'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
   });
 
@@ -354,7 +384,7 @@
       }
     });
     equal(mediaSource.sourceBuffers[0].type,
-          'video/mp4; codecs="avc1.64001f,mp4a.40.5"',
+          'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
   });
 
@@ -372,7 +402,7 @@
       }
     });
     equal(mediaSource.sourceBuffers[0].type,
-          'video/mp4;codecs=avc1.4d400d, mp4a.40.2',
+          'video/mp4;codecs="avc1.4d400d,mp4a.40.2"',
           'passed the codec along');
   });
 

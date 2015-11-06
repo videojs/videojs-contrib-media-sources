@@ -172,13 +172,18 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   };
 
   addSourceBuffer = function(type) {
-    var audio, video, buffer, codecs;
+    var
+      buffer,
+      codecs,
+      avcCodec,
+      mp4aCodec,
+      avcRegEx = /avc1\.[\da-f]+/i,
+      mp4aRegEx = /mp4a\.\d+.\d+/i;
+
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if ((/^video\/mp2t/i).test(type)) {
       codecs = type.split(';').slice(1).join(';');
-
-      codecs = codecs.replace(/\s*codecs=/, '').replace(/"/g, '');
 
       // Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
       // `avc1.<hhhhhh>`
@@ -189,18 +194,20 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
 
         return 'avc1.' + profileHex + '00' + avcLevelHex;
       });
-      codecs = [].concat(codecs.split(','));
+
+      // Pull out each individual codec string if it exists
+      avcCodec = (codecs.match(avcRegEx) || [])[0];
+      mp4aCodec = (codecs.match(mp4aRegEx) || [])[0];
 
       // If a codec is unspecified, use the defaults
-      if (!codecs[0] || !codecs[0].length) {
-        codecs[0] = 'avc1.4d400d';
+      if (!avcCodec || !avcCodec.length) {
+        avcCodec = 'avc1.4d400d';
+      }
+      if (!mp4aCodec || !mp4aCodec.length) {
+        mp4aCodec = 'mp4a.40.2';
       }
 
-      if (!codecs[1] || !codecs[1].length) {
-        codecs[1] = 'mp4a.40.2';
-      }
-
-      buffer = new VirtualSourceBuffer(this, codecs);
+      buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
       this.virtualBuffers.push(buffer);
       return buffer;
     }
