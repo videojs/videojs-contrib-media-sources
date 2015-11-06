@@ -172,7 +172,14 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   };
 
   addSourceBuffer = function(type) {
-    var audio, video, buffer, codecs;
+    var
+      buffer,
+      codecs,
+      avcCodec,
+      mp4aCodec,
+      avcRegEx = /avc1\.[\da-f]+/i,
+      mp4aRegEx = /mp4a\.\d+.\d+/i;
+
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if ((/^video\/mp2t/i).test(type)) {
@@ -188,10 +195,23 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         return 'avc1.' + profileHex + '00' + avcLevelHex;
       });
 
-      buffer = new VirtualSourceBuffer(this, codecs);
+      // Pull out each individual codec string if it exists
+      avcCodec = (codecs.match(avcRegEx) || [])[0];
+      mp4aCodec = (codecs.match(mp4aRegEx) || [])[0];
+
+      // If a codec is unspecified, use the defaults
+      if (!avcCodec || !avcCodec.length) {
+        avcCodec = 'avc1.4d400d';
+      }
+      if (!mp4aCodec || !mp4aCodec.length) {
+        mp4aCodec = 'mp4a.40.2';
+      }
+
+      buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
       this.virtualBuffers.push(buffer);
       return buffer;
     }
+
 
     // delegate to the native implementation
     return this.addSourceBuffer_(type);
@@ -216,10 +236,12 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       // append muxed segments to their respective native buffers as
       // soon as they are available
       this.transmuxer_ = new Worker(videojs.MediaSource.webWorkerURI || '/src/transmuxer_worker.js');
+      this.transmuxer_.postMessage({action:'init', options: {remux: false}});
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
-          var segment = event.data.segment;
+          var
+            segment = event.data.segment;
 
           // Cast to type
           segment.data = new Uint8Array(segment.data);
@@ -230,7 +252,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
               // Some common mp4 codec strings. Saved for future twittling:
               // 4d400d
               // 42c01e & 42c01f
-              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d'));
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs="' + codecs[0] + '"');
               self.videoBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
@@ -242,7 +264,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
             }
           } else if (segment.type === 'audio') {
             if (!self.audioBuffer_) {
-              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;' + (codecs || 'codecs=mp4a.40.2'));
+              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs="' + codecs[1] + '"');
               self.audioBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.audioBuffer_.addEventListener('updatestart',
@@ -254,7 +276,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
             }
           } else if (segment.type === 'combined') {
             if (!self.videoBuffer_) {
-              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;' + (codecs || 'codecs=avc1.4d400d, mp4a.40.2'));
+              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs="' + codecs.join(',') + '"');
               self.videoBuffer_.timestampOffset = self.timestampOffset_;
               // aggregate buffer events
               self.videoBuffer_.addEventListener('updatestart',
@@ -276,7 +298,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
           // All buffers should have been flushed from the muxer
           // start processing anything we have received
           self.processPendingSegments_();
-
           return;
         }
       };
