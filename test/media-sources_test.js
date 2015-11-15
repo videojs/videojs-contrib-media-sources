@@ -42,6 +42,7 @@
           finalize: function(){return this;}
         };
       },
+      initializeNativeSourceBuffers,
       oldFlashTransmuxer,
       MockSegmentParser;
 
@@ -63,12 +64,16 @@
     ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
        'forced Flash');
     // mock native MediaSources
-    window.MediaSource = videojs.extend(videojs.EventTarget, {});
-    ok(new videojs.MediaSource({ mode: 'html5' }) instanceof window.MediaSource,
+    window.MediaSource = videojs.extend(videojs.EventTarget, {
+      addSourceBuffer: function() {
+        throw new Error('Testing Mock');
+      }
+    });
+    ok(new videojs.MediaSource({ mode: 'html5' }) instanceof videojs.HtmlMediaSource,
        'forced HTML5');
 
     // 'auto' should use native MediaSources when they're available
-    ok(new videojs.MediaSource() instanceof window.MediaSource,
+    ok(new videojs.MediaSource() instanceof videojs.HtmlMediaSource,
        'used HTML5');
     window.MediaSource = null;
     // 'auto' should use Flash when native MediaSources are not available
@@ -81,17 +86,17 @@
       oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
       window.MediaSource = videojs.extend(videojs.EventTarget, {
         constructor: function(){
-          var sourceBuffers = [];
-          this.sourceBuffers = sourceBuffers;
           this.isNative = true;
-          this.addSourceBuffer = function(type) {
-            var buffer = new (videojs.extend(videojs.EventTarget, {
-              type: type,
-              appendBuffer: function() {}
-            }))();
-            sourceBuffers.push(buffer);
-            return buffer;
-          };
+          this.sourceBuffers = [];
+          this.duration = NaN;
+        },
+        addSourceBuffer: function(type) {
+          var buffer = new (videojs.extend(videojs.EventTarget, {
+            type: type,
+            appendBuffer: function() {}
+          }))();
+          this.sourceBuffers.push(buffer);
+          return buffer;
         }
       });
       window.WebKitMediaSource = window.MediaSource;
@@ -103,14 +108,13 @@
   });
 
   test('constructs a native MediaSource', function(){
-    ok(new videojs.MediaSource().isNative, 'constructed a MediaSource');
+    ok(new videojs.MediaSource().mediaSource_.isNative, 'constructed a MediaSource');
   });
 
-  test('creates mp4 source buffers for mp2t segments', function(){
-    var mediaSource = new videojs.MediaSource(),
-        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
-
-    // send fake buffers through to cause the creation of the source buffers
+  // send fake data to the transmuxer to trigger the creation of the
+  // native source buffers
+  initializeNativeSourceBuffers = function(sourceBuffer) {
+    // initialize an audio source buffer
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
@@ -120,6 +124,7 @@
         }
       }
     });
+    // initialize a video source buffer
     sourceBuffer.transmuxer_.onmessage({
       data: {
         action: 'data',
@@ -129,16 +134,30 @@
         }
       }
     });
+    // instruct the transmuxer to flush the "data" it has buffered so
+    // far
+    sourceBuffer.transmuxer_.onmessage({
+      data: {
+        action: 'done'
+      }
+    });
+  };
 
-    equal(mediaSource.sourceBuffers.length, 2, 'created two native buffers');
-    equal(mediaSource.sourceBuffers[0].type,
+  test('creates mp4 source buffers for mp2t segments', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+    initializeNativeSourceBuffers(sourceBuffer);
+
+    equal(mediaSource.mediaSource_.sourceBuffers.length, 2, 'created two native buffers');
+    equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'audio/mp4;codecs="mp4a.40.2"',
           'created an mp4a buffer');
-    equal(mediaSource.sourceBuffers[1].type,
+    equal(mediaSource.mediaSource_.sourceBuffers[1].type,
           'video/mp4;codecs="avc1.4d400d"',
           'created an avc1 buffer');
-    equal(mediaSource.virtualBuffers.length, 1, 'created one virtual buffer');
-    equal(mediaSource.virtualBuffers[0],
+    equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
+    equal(mediaSource.sourceBuffers[0],
           sourceBuffer,
           'returned the virtual buffer');
     ok(sourceBuffer.transmuxer_, 'created a transmuxer');
@@ -150,43 +169,15 @@
         messages = [],
         aborts = 0;
 
-    // send fake buffers through to cause the creation of the source buffers
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
-
+    initializeNativeSourceBuffers(sourceBuffer);
     sourceBuffer.transmuxer_.postMessage = function (message) {
       messages.push(message);
     };
-
-    equal(mediaSource.sourceBuffers.length, 2, 'created two native buffers');
-
     sourceBuffer.bufferUpdating_ = true;
-
-    mediaSource.sourceBuffers[0].abort = function () {
+    mediaSource.mediaSource_.sourceBuffers[0].abort = function () {
       aborts++;
     };
-    mediaSource.sourceBuffers[1].abort = function () {
+    mediaSource.mediaSource_.sourceBuffers[1].abort = function () {
       aborts++;
     };
 
@@ -207,34 +198,9 @@
         removedCue = [],
         removes = 0;
 
-    // send fake buffers through to cause the creation of the source buffers
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
-
+    initializeNativeSourceBuffers(sourceBuffer);
     sourceBuffer.inbandTextTrack_ = {
       removeCue: function (cue) {
-        console.log('remove', cue);
         removedCue.push(cue);
         this.cues.splice(this.cues.indexOf(cue), 1);
       },
@@ -243,15 +209,12 @@
         {startTime: 0, endTime: 2, text: 'save me'}
       ]
     };
-
-    equal(mediaSource.sourceBuffers.length, 2, 'created two native buffers');
-
-    mediaSource.sourceBuffers[0].remove = function (start, end) {
+    mediaSource.mediaSource_.sourceBuffers[0].remove = function (start, end) {
       if (start === 3 && end === 10) {
         removes++;
       }
     };
-    mediaSource.sourceBuffers[1].remove = function (start, end) {
+    mediaSource.mediaSource_.sourceBuffers[1].remove = function (start, end) {
       if (start === 3 && end === 10) {
         removes++;
       }
@@ -262,6 +225,41 @@
     equal(removes, 2, 'called remove on both sourceBuffers');
     equal(sourceBuffer.inbandTextTrack_.cues.length, 1, 'one cue remains after remove');
     equal(removedCue[0].text, 'delete me', 'the cue that overlapped the remove region was removed');
+  });
+
+  test('readyState delegates to the native implementation', function() {
+    var mediaSource = new videojs.HtmlMediaSource();
+
+    equal(mediaSource.readyState,
+          mediaSource.mediaSource_.readyState,
+          'readyStates are equal');
+
+    mediaSource.mediaSource_.readyState = 'nonsense stuff';
+    equal(mediaSource.readyState,
+          mediaSource.mediaSource_.readyState,
+          'readyStates are equal');
+  });
+
+  test('addSeekableRange_ throws an error for media with known duration', function() {
+    var mediaSource = new videojs.MediaSource();
+    mediaSource.duration = 100;
+
+    throws(function() {
+      mediaSource.addSeekableRange_(0, 100);
+    }, 'cannot add seekable range');
+  });
+
+  test('addSeekableRange_ adds to the native MediaSource duration', function() {
+    var mediaSource = new videojs.MediaSource();
+    mediaSource.duration = Infinity;
+
+    mediaSource.addSeekableRange_(120, 240);
+    equal(mediaSource.mediaSource_.duration, 240, 'set native duration');
+    equal(mediaSource.duration, Infinity, 'emulated duration');
+
+    mediaSource.addSeekableRange_(120, 220);
+    equal(mediaSource.mediaSource_.duration, 240, 'ignored the smaller range');
+    equal(mediaSource.duration, Infinity, 'emulated duration');
   });
 
   test('transmuxes mp2t segments', function(){
@@ -293,7 +291,7 @@
     });
 
     // Source buffer is not created until after the muxer starts emitting data
-    mediaSource.sourceBuffers[0].appendBuffer = function(segment) {
+    mediaSource.mediaSource_.sourceBuffers[0].appendBuffer = function(segment) {
       mp4Segments.push(segment);
     };
 
@@ -326,30 +324,13 @@
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="mp4a.40.5,avc1.64001f"');
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    equal(mediaSource.sourceBuffers[0].type,
-          'video/mp4;codecs="avc1.64001f"',
-          'passed the video codec along');
-    equal(mediaSource.sourceBuffers[1].type,
+    initializeNativeSourceBuffers(sourceBuffer);
+    equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'audio/mp4;codecs="mp4a.40.5"',
           'passed the audio codec along');
+    equal(mediaSource.mediaSource_.sourceBuffers[1].type,
+          'video/mp4;codecs="avc1.64001f"',
+          'passed the video codec along');
   });
 
   test('forwards codec strings to native buffers when specified', function() {
@@ -365,7 +346,7 @@
         }
       }
     });
-    equal(mediaSource.sourceBuffers[0].type,
+    equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
   });
@@ -383,7 +364,7 @@
         }
       }
     });
-    equal(mediaSource.sourceBuffers[0].type,
+    equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
   });
@@ -401,7 +382,7 @@
         }
       }
     });
-    equal(mediaSource.sourceBuffers[0].type,
+    equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'video/mp4;codecs="avc1.4d400d,mp4a.40.2"',
           'passed the codec along');
   });
@@ -410,35 +391,17 @@
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-    // send fake buffers through to cause the creation of the source buffers
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    initializeNativeSourceBuffers(sourceBuffer);
 
-    mediaSource.sourceBuffers[0].updating = true;
-    mediaSource.sourceBuffers[1].updating = false;
+    mediaSource.mediaSource_.sourceBuffers[0].updating = true;
+    mediaSource.mediaSource_.sourceBuffers[1].updating = false;
 
     equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-    mediaSource.sourceBuffers[1].updating = true;
+    mediaSource.mediaSource_.sourceBuffers[1].updating = true;
     equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-    mediaSource.sourceBuffers[0].updating = false;
+    mediaSource.mediaSource_.sourceBuffers[0].updating = false;
     equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-    mediaSource.sourceBuffers[1].updating = false;
+    mediaSource.mediaSource_.sourceBuffers[1].updating = false;
     equal(sourceBuffer.updating, false, 'virtual buffer is not updating');
   });
 
@@ -447,30 +410,13 @@
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
     // send fake buffers through to cause the creation of the source buffers
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    initializeNativeSourceBuffers(sourceBuffer);
 
-    mediaSource.sourceBuffers[0].buffered = videojs.createTimeRanges([
+    mediaSource.mediaSource_.sourceBuffers[0].buffered = videojs.createTimeRanges([
       [0, 10],
       [20, 30]
     ]);
-    mediaSource.sourceBuffers[1].buffered = videojs.createTimeRanges([
+    mediaSource.mediaSource_.sourceBuffers[1].buffered = videojs.createTimeRanges([
       [0, 7],
       [11, 15],
       [16, 40]
@@ -488,32 +434,14 @@
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
     sourceBuffer.timestampOffset = 42;
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1)
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1)
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
+    initializeNativeSourceBuffers(sourceBuffer);
 
-    equal(mediaSource.sourceBuffers[0].timestampOffset, 42, 'set the first offset');
-    equal(mediaSource.sourceBuffers[1].timestampOffset, 42, 'set the second offset');
+    equal(mediaSource.mediaSource_.sourceBuffers[0].timestampOffset,
+          42,
+          'set the first offset');
+    equal(mediaSource.mediaSource_.sourceBuffers[1].timestampOffset,
+          42,
+          'set the second offset');
   });
 
   test('aggregates source buffer update events', function() {
@@ -523,24 +451,7 @@
         updateends = 0,
         updatestarts = 0;
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1)
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1)
-        }
-      }
-    });
+    initializeNativeSourceBuffers(sourceBuffer);
 
     sourceBuffer.addEventListener('updatestart', function() {
       updatestarts++;
@@ -711,8 +622,8 @@
         video = mediaSource.addSourceBuffer('video/mp4;codecs=avc1.4d400d'),
         audio = mediaSource.addSourceBuffer('audio/mp4;codecs=mp4a.40.2');
 
-    equal(mediaSource.virtualBuffers.length,
-          0,
+    equal(mediaSource.sourceBuffers.length,
+          mediaSource.mediaSource_.sourceBuffers.length,
           'did not need virtual buffers');
     equal(mediaSource.sourceBuffers.length, 2, 'created native buffers');
   });
@@ -1368,10 +1279,36 @@
     equal(player.tech_.error().code, 3, 'set a decode error');
   });
 
-  module('createObjectURL');
+  test('has addSeekableRange()', function() {
+    ok(mediaSource.addSeekableRange_, 'has addSeekableRange_');
+  });
+
+  module('createObjectURL', {
+    setup: function() {
+      oldMediaSourceConstructor = window.MediaSource || window.WebKitMediaSource;
+
+      // force MediaSource support
+      if (!window.MediaSource) {
+         window.MediaSource = function() {
+           var result = new Blob();
+           result.addEventListener = function() {};
+           result.addSourceBuffer = function() {};
+           return result;
+         };
+      }
+    },
+    teardown: function() {
+      window.MediaSource = window.WebKitMediaSource = oldMediaSourceConstructor;
+    }
+  });
 
   test('delegates to the native implementation', function() {
     ok(!(/blob:vjs-media-source\//).test(videojs.URL.createObjectURL(new Blob())),
+       'created a native blob URL');
+  });
+
+  test('uses the native MediaSource when available', function() {
+    ok(!(/blob:vjs-media-source\//).test(videojs.URL.createObjectURL(new videojs.HtmlMediaSource())),
        'created a native blob URL');
   });
 
