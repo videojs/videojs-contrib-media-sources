@@ -7,7 +7,6 @@
       flvCodec = /video\/flv(;\s*codecs=["']vp6,aac["'])?$/,
       objectUrlPrefix = 'blob:vjs-media-source/',
       interceptBufferCreation,
-      addSourceBuffer,
       aggregateUpdateHandler,
       scheduleTick,
       Cue,
@@ -60,19 +59,19 @@ removeCuesFromTrack = function(start, end, track) {
   }
 };
 
-createTextTracksIfNecessary = function (sourceHandler, mediaSource, segment) {
+createTextTracksIfNecessary = function (sourceBuffer, mediaSource, segment) {
   // create an in-band caption track if one is present in the segment
   if (segment.captions &&
       segment.captions.length &&
-      !sourceHandler.inbandTextTrack_) {
-    sourceHandler.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+      !sourceBuffer.inbandTextTrack_) {
+    sourceBuffer.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
   }
 
   if (segment.metadata &&
       segment.metadata.length &&
-      !sourceHandler.metadataTrack_) {
-    sourceHandler.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
-    sourceHandler.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
+      !sourceBuffer.metadataTrack_) {
+    sourceBuffer.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+    sourceBuffer.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
   }
 };
 
@@ -121,37 +120,20 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     mode: 'auto'
   };
 
-  videojs.MediaSource = videojs.extend(EventTarget, {
-    constructor: function(options){
-      var self;
+  videojs.MediaSource = function(options) {
+    var settings = videojs.mergeOptions(defaults, options);
 
-      this.settings_ = videojs.mergeOptions(defaults, options);
-
-      // determine whether native MediaSources should be used
-      if ((this.settings_.mode === 'auto' &&
-           videojs.MediaSource.supportsNativeMediaSources()) ||
-          this.settings_.mode === 'html5') {
-        self = new window.MediaSource();
-        interceptBufferCreation(self);
-
-        // capture the associated player when the MediaSource is
-        // successfully attached
-        self.addEventListener('sourceopen', function() {
-          var video = document.querySelector('[src="' + self.url_ + '"]');
-
-          if (!video) {
-            return;
-          }
-
-          self.player_ = videojs(video.parentNode);
-        });
-        return self;
-      }
-
-      // otherwise, emulate them through the SWF
-      return new videojs.FlashMediaSource();
+    // determine whether HTML MediaSources should be used
+    if (settings.mode === 'html5' ||
+        (settings.mode === 'auto' &&
+         videojs.MediaSource.supportsNativeMediaSources())) {
+      return new videojs.HtmlMediaSource();
     }
-  });
+
+    // otherwise, emulate them through the SWF
+    return new videojs.FlashMediaSource();
+  };
+
   videojs.MediaSource.supportsNativeMediaSources = function() {
     return !!window.MediaSource;
   };
@@ -160,61 +142,137 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   // HTML
   // ----
 
-  interceptBufferCreation = function(mediaSource) {
-    // virtual source buffers will be created as needed to transmux
-    // MPEG-2 TS into supported ones
-    mediaSource.virtualBuffers = [];
+  videojs.HtmlMediaSource = videojs.extend(EventTarget, {
+    constructor: function() {
+      var self = this, property;
 
-    // intercept calls to addSourceBuffer so video/mp2t can be
-    // transmuxed to mp4s
-    mediaSource.addSourceBuffer_ = mediaSource.addSourceBuffer;
-    mediaSource.addSourceBuffer = addSourceBuffer;
-  };
+      this.mediaSource_ = new window.MediaSource();
+      // delegate to the native MediaSource's methods by default
+      for (property in this.mediaSource_) {
+        if (!(property in videojs.HtmlMediaSource.prototype) &&
+            typeof this.mediaSource_[property] === 'function') {
+          this[property] = this.mediaSource_[property].bind(this.mediaSource_);
+        }
+      }
 
-  addSourceBuffer = function(type) {
-    var
-      buffer,
-      codecs,
-      avcCodec,
-      mp4aCodec,
-      avcRegEx = /avc1\.[\da-f]+/i,
-      mp4aRegEx = /mp4a\.\d+.\d+/i;
+      // emulate `duration` and `seekable` until seeking can be
+      // handled uniformly for live streams
+      // see https://github.com/w3c/media-source/issues/5
+      this.duration_ = NaN;
+      Object.defineProperty(this, 'duration', {
+        get: function() {
+          return self.duration_;
+        },
+        set: function(duration) {
+          var currentDuration;
 
-    // create a virtual source buffer to transmux MPEG-2 transport
-    // stream segments into fragmented MP4s
-    if ((/^video\/mp2t/i).test(type)) {
-      codecs = type.split(';').slice(1).join(';');
-
-      // Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
-      // `avc1.<hhhhhh>`
-      codecs = codecs.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
-        var
-          profileHex = ('00' + Number(profile).toString(16)).slice(-2),
-          avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
-
-        return 'avc1.' + profileHex + '00' + avcLevelHex;
+          self.duration_ = duration;
+          if (duration !== Infinity) {
+            self.mediaSource_.duration = duration;
+            return;
+          }
+        }
+      });
+      Object.defineProperty(this, 'seekable', {
+        get: function() {
+          if (this.duration_ === Infinity) {
+            return videojs.createTimeRanges([[0, self.mediaSource_.duration]]);
+          }
+          return self.mediaSource_.seekable;
+        }
       });
 
-      // Pull out each individual codec string if it exists
-      avcCodec = (codecs.match(avcRegEx) || [])[0];
-      mp4aCodec = (codecs.match(mp4aRegEx) || [])[0];
+      Object.defineProperty(this, 'readyState', {
+        get: function() {
+          return self.mediaSource_.readyState;
+        }
+      });
 
-      // If a codec is unspecified, use the defaults
-      if (!avcCodec || !avcCodec.length) {
-        avcCodec = 'avc1.4d400d';
-      }
-      if (!mp4aCodec || !mp4aCodec.length) {
-        mp4aCodec = 'mp4a.40.2';
+      // the list of virtual and native SourceBuffers created by this
+      // MediaSource
+      this.sourceBuffers = [];
+
+      // capture the associated player when the MediaSource is
+      // successfully attached
+      this.mediaSource_.addEventListener('sourceopen', function(event) {
+        var video = document.querySelector('[src="' + self.url_ + '"]');
+
+        if (!video) {
+          return;
+        }
+
+        self.player_ = videojs(video.parentNode);
+        self.trigger(event);
+      });
+    },
+
+    addSeekableRange_: function(start, end) {
+      var error;
+
+      if (this.duration !== Infinity) {
+        error = new Error('MediaSource.addSeekableRange() can only be invoked ' +
+                          'when the duration is Infinity');
+        error.name = 'InvalidStateError';
+        error.code = 11;
+        throw error;
       }
 
-      buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
-      this.virtualBuffers.push(buffer);
+      if (end > this.mediaSource_.duration ||
+          isNaN(this.mediaSource_.duration)) {
+        this.mediaSource_.duration = end;
+      }
+    },
+
+    addSourceBuffer: function(type) {
+      var
+        buffer,
+        codecs,
+        avcCodec,
+        mp4aCodec,
+        avcRegEx = /avc1\.[\da-f]+/i,
+        mp4aRegEx = /mp4a\.\d+.\d+/i;
+
+      // create a virtual source buffer to transmux MPEG-2 transport
+      // stream segments into fragmented MP4s
+      if ((/^video\/mp2t/i).test(type)) {
+        codecs = type.split(';').slice(1).join(';');
+        codecs = translateLegacyCodecs(codecs);
+
+        // Pull out each individual codec string if it exists
+        avcCodec = (codecs.match(avcRegEx) || [])[0];
+        mp4aCodec = (codecs.match(mp4aRegEx) || [])[0];
+
+        // If a codec is unspecified, use the defaults
+        if (!avcCodec || !avcCodec.length) {
+          avcCodec = 'avc1.4d400d';
+        }
+        if (!mp4aCodec || !mp4aCodec.length) {
+          mp4aCodec = 'mp4a.40.2';
+        }
+
+        buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
+        this.sourceBuffers.push(buffer);
+        return buffer;
+      }
+
+
+      // delegate to the native implementation
+      buffer = this.mediaSource_.addSourceBuffer(type);
+      this.sourceBuffers.push(buffer);
       return buffer;
     }
+  });
 
+  // Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
+  // `avc1.<hhhhhh>`
+  var translateLegacyCodecs = function(codecs) {
+    return codecs.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
+      var
+      profileHex = ('00' + Number(profile).toString(16)).slice(-2),
+      avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
 
-    // delegate to the native implementation
-    return this.addSourceBuffer_(type);
+      return 'avc1.' + profileHex + '00' + avcLevelHex;
+    });
   };
 
   aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
@@ -232,6 +290,8 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       this.timestampOffset_ = 0;
       this.pendingBuffers_ = [];
       this.bufferUpdating_ = false;
+      this.mediaSource_ = mediaSource;
+      this.codecs_ = codecs;
 
       // append muxed segments to their respective native buffers as
       // soon as they are available
@@ -240,65 +300,11 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
 
       this.transmuxer_.onmessage = function (event) {
         if (event.data.action === 'data') {
-          var
-            segment = event.data.segment;
-
-          // Cast to type
-          segment.data = new Uint8Array(segment.data);
-
-          // If any sourceBuffers have not been created, do so now
-          if (segment.type === 'video') {
-            if (!self.videoBuffer_) {
-              // Some common mp4 codec strings. Saved for future twittling:
-              // 4d400d
-              // 42c01e & 42c01f
-              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs="' + codecs[0] + '"');
-              self.videoBuffer_.timestampOffset = self.timestampOffset_;
-              // aggregate buffer events
-              self.videoBuffer_.addEventListener('updatestart',
-                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'updatestart'));
-              self.videoBuffer_.addEventListener('update',
-                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'update'));
-              self.videoBuffer_.addEventListener('updateend',
-                                                 aggregateUpdateHandler(self, 'audioBuffer_', 'updateend'));
-            }
-          } else if (segment.type === 'audio') {
-            if (!self.audioBuffer_) {
-              self.audioBuffer_ = mediaSource.addSourceBuffer_('audio/mp4;codecs="' + codecs[1] + '"');
-              self.audioBuffer_.timestampOffset = self.timestampOffset_;
-              // aggregate buffer events
-              self.audioBuffer_.addEventListener('updatestart',
-                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
-              self.audioBuffer_.addEventListener('update',
-                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'update'));
-              self.audioBuffer_.addEventListener('updateend',
-                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
-            }
-          } else if (segment.type === 'combined') {
-            if (!self.videoBuffer_) {
-              self.videoBuffer_ = mediaSource.addSourceBuffer_('video/mp4;codecs="' + codecs.join(',') + '"');
-              self.videoBuffer_.timestampOffset = self.timestampOffset_;
-              // aggregate buffer events
-              self.videoBuffer_.addEventListener('updatestart',
-                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updatestart'));
-              self.videoBuffer_.addEventListener('update',
-                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'update'));
-              self.videoBuffer_.addEventListener('updateend',
-                                                 aggregateUpdateHandler(self, 'videoBuffer_', 'updateend'));
-            }
-          }
-          createTextTracksIfNecessary(self, mediaSource, segment);
-
-          // Add the segments to the pendingBuffers array
-          self.pendingBuffers_.push(segment);
-          return;
+          return self.data_(event);
         }
 
         if (event.data.action === 'done') {
-          // All buffers should have been flushed from the muxer
-          // start processing anything we have received
-          self.processPendingSegments_();
-          return;
+          return self.done_(event);
         }
       };
 
@@ -424,6 +430,70 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         }
       });
     },
+
+    // Transmuxer message handlers
+
+    data_: function(event) {
+      var
+        segment = event.data.segment,
+        nativeMediaSource = this.mediaSource_.mediaSource_;
+
+      // Cast to type
+      segment.data = new Uint8Array(segment.data);
+
+      // If any sourceBuffers have not been created, do so now
+      if (segment.type === 'video') {
+        if (!this.videoBuffer_) {
+          this.videoBuffer_ = nativeMediaSource.addSourceBuffer('video/mp4;codecs="' + this.codecs_[0] + '"');
+          this.videoBuffer_.timestampOffset = this.timestampOffset_;
+          // aggregate buffer events
+          this.videoBuffer_.addEventListener('updatestart',
+                                             aggregateUpdateHandler(this, 'audioBuffer_', 'updatestart'));
+          this.videoBuffer_.addEventListener('update',
+                                             aggregateUpdateHandler(this, 'audioBuffer_', 'update'));
+          this.videoBuffer_.addEventListener('updateend',
+                                             aggregateUpdateHandler(this, 'audioBuffer_', 'updateend'));
+        }
+      } else if (segment.type === 'audio') {
+        if (!this.audioBuffer_) {
+          this.audioBuffer_ = nativeMediaSource.addSourceBuffer('audio/mp4;codecs="' + this.codecs_[1] + '"');
+          this.audioBuffer_.timestampOffset = this.timestampOffset_;
+          // aggregate buffer events
+          this.audioBuffer_.addEventListener('updatestart',
+                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
+          this.audioBuffer_.addEventListener('update',
+                                             aggregateUpdateHandler(this, 'videoBuffer_', 'update'));
+          this.audioBuffer_.addEventListener('updateend',
+                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updateend'));
+        }
+      } else if (segment.type === 'combined') {
+        if (!this.videoBuffer_) {
+          this.videoBuffer_ = nativeMediaSource.addSourceBuffer('video/mp4;codecs="' + this.codecs_.join(',') + '"');
+          this.videoBuffer_.timestampOffset = this.timestampOffset_;
+          // aggregate buffer events
+          this.videoBuffer_.addEventListener('updatestart',
+                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
+          this.videoBuffer_.addEventListener('update',
+                                             aggregateUpdateHandler(this, 'videoBuffer_', 'update'));
+          this.videoBuffer_.addEventListener('updateend',
+                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updateend'));
+        }
+      }
+      createTextTracksIfNecessary(this, this.mediaSource_, segment);
+
+      // Add the segments to the pendingBuffers array
+      this.pendingBuffers_.push(segment);
+      return;
+    },
+    done_: function() {
+      // All buffers should have been flushed from the muxer
+      // start processing anything we have received
+      this.processPendingSegments_();
+      return;
+    },
+
+    // SourceBuffer Implementation
+
     appendBuffer: function(segment) {
       // Start the internal "updating" state
       this.bufferUpdating_ = true;
@@ -445,6 +515,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       // Remove Any Captions
       removeCuesFromTrack(start, end, this.inbandTextTrack_);
     },
+
     /**
      * Process any segments that the muxer has output
      * Concatenate segments together based on type and append them into
@@ -569,6 +640,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
           this.swfObj.vjs_load();
         }
       });
+    },
+    addSeekableRange_: function() {
+      // intentional no-op
     }
   });
 
@@ -1015,6 +1089,13 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   videojs.URL = {
     createObjectURL: function(object){
       var url;
+
+      // use the native MediaSource to generate an object URL
+      if (object instanceof videojs.HtmlMediaSource) {
+        url = window.URL.createObjectURL(object.mediaSource_);
+        object.url_ = url;
+        return url;
+      }
 
       // if the object isn't an emulated MediaSource, delegate to the
       // native implementation
