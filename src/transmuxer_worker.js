@@ -88,13 +88,30 @@ var messageHandlers = {
     transmuxer.push(segment);
   },
   /**
-   * resetTransmuxer
+   * reset
    * Recreate the transmuxer so that the next segment added via `push`
    * begins at a baseMediaDecodeTime of 0
    */
-  resetTransmuxer: function (data) {
-    // delete the transmuxer
-    this.defaultInit();
+  reset: function (data) {
+    if (data && data.options) {
+      var newOptions = {}, key;
+
+      for (key in initOptions) {
+        if (initOptions.hasOwnProperty(key)) {
+          newOptions[key] = initOptions[key];
+        }
+      }
+
+      for (key in data.options) {
+        if (data.options.hasOwnProperty(key)) {
+          newOptions[key] = data.options[key];
+        }
+      }
+      // recreate the transmuxer
+      this.init({options: newOptions});
+    } else {
+      this.defaultInit();
+    }
   },
   /**
    * flush

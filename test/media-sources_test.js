@@ -188,7 +188,7 @@
           false,
           'set updating to false');
     equal(messages.length, 1, 'has one message');
-    equal(messages[0].action, 'resetTransmuxer', 'reset called on transmuxer');
+    equal(messages[0].action, 'reset', 'reset called on transmuxer');
   });
 
   test('calling remove deletes cues and invokes remove on any extant source buffers', function(){
@@ -431,17 +431,26 @@
 
   test('sets native timestamp offsets on appends', function(){
     var mediaSource = new videojs.MediaSource(),
-        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        resets = [];
+
+    sourceBuffer.transmuxer_.postMessage = function(message) {
+      if (message.action === 'reset') {
+        resets.push(message.options);
+      }
+    };
+
     sourceBuffer.timestampOffset = 42;
 
     initializeNativeSourceBuffers(sourceBuffer);
 
-    equal(mediaSource.mediaSource_.sourceBuffers[0].timestampOffset,
-          42,
-          'set the first offset');
-    equal(mediaSource.mediaSource_.sourceBuffers[1].timestampOffset,
-          42,
-          'set the second offset');
+
+    equal(resets.length,
+          1,
+          'reset called');
+    equal(resets[0].baseDts,
+          42 * 90000,
+          'set the baseMediaDecodeTime based on timestampOffset');
   });
 
   test('aggregates source buffer update events', function() {
