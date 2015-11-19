@@ -90,28 +90,20 @@ var messageHandlers = {
   /**
    * reset
    * Recreate the transmuxer so that the next segment added via `push`
-   * begins at a baseMediaDecodeTime of 0
+   * start with a fresh transmuxer
    */
-  reset: function (data) {
-    if (data && data.options) {
-      var newOptions = {}, key;
-
-      for (key in initOptions) {
-        if (initOptions.hasOwnProperty(key)) {
-          newOptions[key] = initOptions[key];
-        }
-      }
-
-      for (key in data.options) {
-        if (data.options.hasOwnProperty(key)) {
-          newOptions[key] = data.options[key];
-        }
-      }
-      // recreate the transmuxer
-      this.init({options: newOptions});
-    } else {
-      this.defaultInit();
-    }
+  reset: function () {
+    this.defaultInit();
+  },
+  /**
+   * setTimestampOffset
+   * Set the value that will be used as the `baseMediaDecodeTime` time for the
+   * next segment pushed in. Subsequent segments will have their `baseMediaDecodeTime`
+   * set relative to the first based on the PTS values.
+   */
+  setTimestampOffset: function (data) {
+    var timestampOffset = data.timestampOffset || 0;
+    transmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
   },
   /**
    * flush

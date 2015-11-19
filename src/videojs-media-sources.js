@@ -318,13 +318,11 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
           if (typeof val === 'number' && val >= 0) {
             this.timestampOffset_ = val;
 
-            // We have to tell the transmuxer to reset the baseMediaDecodeTime to
-            // zero for the next segment
+            // We have to tell the transmuxer to set the baseMediaDecodeTime to
+            // the desired timestampOffset for the next segment
             this.transmuxer_.postMessage({
-              action: 'reset',
-              options: {
-                baseDts: Math.round(val * 90000)
-              }
+              action: 'setTimestampOffset',
+              timestampOffset: val
             });
           }
         }

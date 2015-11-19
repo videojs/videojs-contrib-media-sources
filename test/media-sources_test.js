@@ -429,14 +429,14 @@
     equal(sourceBuffer.buffered.end(1), 30, 'second ends at 30');
   });
 
-  test('sets native timestamp offsets on appends', function(){
+  test('sets transmuxer baseMediaDecodeTime on appends', function(){
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
         resets = [];
 
     sourceBuffer.transmuxer_.postMessage = function(message) {
-      if (message.action === 'reset') {
-        resets.push(message.options);
+      if (message.action === 'setTimestampOffset') {
+        resets.push(message.timestampOffset);
       }
     };
 
@@ -448,8 +448,8 @@
     equal(resets.length,
           1,
           'reset called');
-    equal(resets[0].baseDts,
-          42 * 90000,
+    equal(resets[0],
+          42,
           'set the baseMediaDecodeTime based on timestampOffset');
   });
 
