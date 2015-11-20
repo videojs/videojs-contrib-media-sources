@@ -15,8 +15,6 @@
       createTextTracksIfNecessary,
       addTextTrackData;
 
-Cue = window.WebKitDataCue || window.VTTCue;
-
 deprecateOldCue = function(cue) {
   Object.defineProperties(cue.frame, {
     'id': {
@@ -76,10 +74,11 @@ createTextTracksIfNecessary = function (sourceBuffer, mediaSource, segment) {
 };
 
 addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
+  Cue = window.WebKitDataCue || window.VTTCue;
   if (captionArray) {
     captionArray.forEach(function (caption) {
       this.inbandTextTrack_.addCue(
-        new VTTCue(
+        new Cue(
           caption.startTime + this.timestampOffset,
           caption.endTime + this.timestampOffset,
           caption.text
