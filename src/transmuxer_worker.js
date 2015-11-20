@@ -88,13 +88,22 @@ var messageHandlers = {
     transmuxer.push(segment);
   },
   /**
-   * resetTransmuxer
+   * reset
    * Recreate the transmuxer so that the next segment added via `push`
-   * begins at a baseMediaDecodeTime of 0
+   * start with a fresh transmuxer
    */
-  resetTransmuxer: function (data) {
-    // delete the transmuxer
+  reset: function () {
     this.defaultInit();
+  },
+  /**
+   * setTimestampOffset
+   * Set the value that will be used as the `baseMediaDecodeTime` time for the
+   * next segment pushed in. Subsequent segments will have their `baseMediaDecodeTime`
+   * set relative to the first based on the PTS values.
+   */
+  setTimestampOffset: function (data) {
+    var timestampOffset = data.timestampOffset || 0;
+    transmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
   },
   /**
    * flush

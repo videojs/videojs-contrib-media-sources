@@ -317,16 +317,12 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
           if (typeof val === 'number' && val >= 0) {
             this.timestampOffset_ = val;
 
-            if (this.videoBuffer_) {
-              this.videoBuffer_.timestampOffset = val;
-            }
-            if (this.audioBuffer_) {
-              this.audioBuffer_.timestampOffset = val;
-            }
-
-            // We have to tell the transmuxer to reset the baseMediaDecodeTime to
-            // zero for the next segment
-            this.transmuxer_.postMessage({action: 'resetTransmuxer'});
+            // We have to tell the transmuxer to set the baseMediaDecodeTime to
+            // the desired timestampOffset for the next segment
+            this.transmuxer_.postMessage({
+              action: 'setTimestampOffset',
+              timestampOffset: val
+            });
           }
         }
       });
@@ -444,7 +440,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       if (segment.type === 'video') {
         if (!this.videoBuffer_) {
           this.videoBuffer_ = nativeMediaSource.addSourceBuffer('video/mp4;codecs="' + this.codecs_[0] + '"');
-          this.videoBuffer_.timestampOffset = this.timestampOffset_;
           // aggregate buffer events
           this.videoBuffer_.addEventListener('updatestart',
                                              aggregateUpdateHandler(this, 'audioBuffer_', 'updatestart'));
@@ -456,7 +451,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       } else if (segment.type === 'audio') {
         if (!this.audioBuffer_) {
           this.audioBuffer_ = nativeMediaSource.addSourceBuffer('audio/mp4;codecs="' + this.codecs_[1] + '"');
-          this.audioBuffer_.timestampOffset = this.timestampOffset_;
           // aggregate buffer events
           this.audioBuffer_.addEventListener('updatestart',
                                              aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
@@ -468,7 +462,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       } else if (segment.type === 'combined') {
         if (!this.videoBuffer_) {
           this.videoBuffer_ = nativeMediaSource.addSourceBuffer('video/mp4;codecs="' + this.codecs_.join(',') + '"');
-          this.videoBuffer_.timestampOffset = this.timestampOffset_;
           // aggregate buffer events
           this.videoBuffer_.addEventListener('updatestart',
                                              aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
@@ -603,7 +596,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         this.audioBuffer_.abort();
       }
       if (this.transmuxer_) {
-        this.transmuxer_.postMessage({action: 'resetTransmuxer'});
+        this.transmuxer_.postMessage({action: 'reset'});
       }
       this.pendingBuffers_.length = 0;
       this.bufferUpdating_ = false;
