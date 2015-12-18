@@ -22,7 +22,7 @@ videojs.MediaSource.BYTES_PER_SECOND_GOAL = 8 * 1024 * 1024;
 ```
 Setting the `BYTES_PER_SECOND_GOAL` too high may lead to dropped frames during playback on slower computers.
 
-Check out an example of the plugin in use in [example.html](example.html).
+Check out an example of the plugin in use in [example](example).
 
 ## Options
 You can configure some aspects of the MediaSource polyfill by
