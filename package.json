@@ -2,7 +2,8 @@
   "name": "videojs-contrib-media-sources",
   "version": "2.4.3",
   "description": "A Media Source Extensions plugin for video.js",
-  "main": "videojs-media-sources.js",
+  "main": "src/videojs-media-sources.js",
+  "browser": "src/videojs-media-sources.js",
   "scripts": {
     "test": "karma start test/karma.conf.js"
   },
@@ -39,7 +40,9 @@
     "karma-firefox-launcher": "^0.1.6",
     "karma-qunit": "^0.1.5",
     "qunitjs": "^1.14.0",
-    "video.js": "^5.1.0"
+    "video.js": "^5.1.0",
+    "grunt-browserify": "^4.0.1",
+    "karma-browserify": "^4.4.2"
   },
   "dependencies": {
     "mux.js": "^1.0.0"
