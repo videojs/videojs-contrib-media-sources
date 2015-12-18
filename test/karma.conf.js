@@ -10,24 +10,12 @@ module.exports = function(config) {
 
     // frameworks to use
     // available frameworks: https://npmjs.org/browse/keyword/karma-adapter
-    frameworks: ['qunit'],
+    frameworks: ['browserify', 'qunit'],
 
 
     // list of files / patterns to load in the browser
     files: [
-      'node_modules/video.js/dist/video.js',
-      'node_modules/video.js/dist/video.js',
-      'node_modules/mux.js/lib/utils/stream.js',
-      'node_modules/mux.js/lib/utils/exp-golomb.js',
-      'node_modules/mux.js/lib/m2ts/m2ts.js',
-      'node_modules/mux.js/lib/m2ts/metadata-stream.js',
-      'node_modules/mux.js/lib/m2ts/caption-stream.js',
-      'node_modules/mux.js/lib/codecs/h264.js',
-      'node_modules/mux.js/lib/codecs/aac.js',
-      'node_modules/mux.js/lib/flv/flv-tag.js',
-      'node_modules/mux.js/lib/flv/transmuxer.js',
       {pattern: 'src/transmuxer_worker.js', included: false},
-      'src/videojs-media-sources.js',
       'test/*.js'
     ],
 
@@ -39,8 +27,13 @@ module.exports = function(config) {
     // preprocess matching files before serving them to the browser
     // available preprocessors: https://npmjs.org/browse/keyword/karma-preprocessor
     preprocessors: {
+      'src/*.js': ['browserify'],
+      'test/*.js': ['browserify'],
     },
-
+    browserify: {
+      debug: true,
+      transform: []
+    },
 
     // test results reporter to use
     // possible values: 'dots', 'progress'

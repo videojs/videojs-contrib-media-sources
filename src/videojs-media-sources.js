@@ -1,6 +1,7 @@
-(function(window, muxjs, undefined){
+var videojsMediaSources = function(videojs) {
   'use strict';
   var urlCount = 0,
+      muxjs = require('mux.js'),
       EventTarget = videojs.EventTarget,
       defaults,
       VirtualSourceBuffer,
@@ -15,95 +16,95 @@
       createTextTracksIfNecessary,
       addTextTrackData;
 
-deprecateOldCue = function(cue) {
-  Object.defineProperties(cue.frame, {
-    'id': {
-      get: function() {
-        videojs.log.warn('cue.frame.id is deprecated. Use cue.value.key instead.');
-        return cue.value.key;
+  deprecateOldCue = function(cue) {
+    Object.defineProperties(cue.frame, {
+      'id': {
+        get: function() {
+          videojs.log.warn('cue.frame.id is deprecated. Use cue.value.key instead.');
+          return cue.value.key;
+        }
+      },
+      'value': {
+        get: function() {
+          videojs.log.warn('cue.frame.value is deprecated. Use cue.value.data instead.');
+          return cue.value.data;
+        }
+      },
+      'privateData': {
+        get: function() {
+          videojs.log.warn('cue.frame.privateData is deprecated. Use cue.value.data instead.');
+          return cue.value.data;
+        }
       }
-    },
-    'value': {
-      get: function() {
-        videojs.log.warn('cue.frame.value is deprecated. Use cue.value.data instead.');
-        return cue.value.data;
-      }
-    },
-    'privateData': {
-      get: function() {
-        videojs.log.warn('cue.frame.privateData is deprecated. Use cue.value.data instead.');
-        return cue.value.data;
+    });
+  };
+
+  removeCuesFromTrack = function(start, end, track) {
+    var i, cue;
+
+    if (!track) {
+      return;
+    }
+
+    i = track.cues.length;
+
+    while(i--) {
+      cue = track.cues[i];
+
+      // Remove any overlapping cue
+      if (cue.startTime <= end && cue.endTime >= start) {
+        track.removeCue(cue);
       }
     }
-  });
-};
+  };
 
-removeCuesFromTrack = function(start, end, track) {
-  var i, cue;
-
-  if (!track) {
-    return;
-  }
-
-  i = track.cues.length;
-
-  while(i--) {
-    cue = track.cues[i];
-
-    // Remove any overlapping cue
-    if (cue.startTime <= end && cue.endTime >= start) {
-      track.removeCue(cue);
+  createTextTracksIfNecessary = function (sourceBuffer, mediaSource, segment) {
+    // create an in-band caption track if one is present in the segment
+    if (segment.captions &&
+        segment.captions.length &&
+        !sourceBuffer.inbandTextTrack_) {
+      sourceBuffer.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
     }
-  }
-};
 
-createTextTracksIfNecessary = function (sourceBuffer, mediaSource, segment) {
-  // create an in-band caption track if one is present in the segment
-  if (segment.captions &&
-      segment.captions.length &&
-      !sourceBuffer.inbandTextTrack_) {
-    sourceBuffer.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
-  }
+    if (segment.metadata &&
+        segment.metadata.length &&
+        !sourceBuffer.metadataTrack_) {
+      sourceBuffer.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+      sourceBuffer.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
+    }
+  };
 
-  if (segment.metadata &&
-      segment.metadata.length &&
-      !sourceBuffer.metadataTrack_) {
-    sourceBuffer.metadataTrack_ = mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
-    sourceBuffer.metadataTrack_.inBandMetadataTrackDispatchType = segment.metadata.dispatchType;
-  }
-};
+  addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
+    Cue = window.WebKitDataCue || window.VTTCue;
+    if (captionArray) {
+      captionArray.forEach(function (caption) {
+        this.inbandTextTrack_.addCue(
+          new Cue(
+            caption.startTime + this.timestampOffset,
+            caption.endTime + this.timestampOffset,
+            caption.text
+          ));
+      }, sourceHandler);
+    }
 
-addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
-  Cue = window.WebKitDataCue || window.VTTCue;
-  if (captionArray) {
-    captionArray.forEach(function (caption) {
-      this.inbandTextTrack_.addCue(
-        new Cue(
-          caption.startTime + this.timestampOffset,
-          caption.endTime + this.timestampOffset,
-          caption.text
-        ));
-    }, sourceHandler);
-  }
+    if (metadataArray) {
+      metadataArray.forEach(function(metadata) {
+        var time = metadata.cueTime + this.timestampOffset;
 
-  if (metadataArray) {
-    metadataArray.forEach(function(metadata) {
-      var time = metadata.cueTime + this.timestampOffset;
+        metadata.frames.forEach(function(frame) {
+          var cue = new Cue(
+              time,
+              time,
+              frame.value || frame.url || frame.data || '');
 
-      metadata.frames.forEach(function(frame) {
-        var cue = new Cue(
-            time,
-            time,
-            frame.value || frame.url || frame.data || '');
-
-        cue.frame = frame;
-        cue.value = frame;
-        deprecateOldCue(cue);
-        this.metadataTrack_.addCue(cue);
-      }, this);
-    }, sourceHandler);
-  }
-};
+          cue.frame = frame;
+          cue.value = frame;
+          deprecateOldCue(cue);
+          this.metadataTrack_.addCue(cue);
+        }, this);
+      }, sourceHandler);
+    }
+  };
 
   // ------------
   // Media Source
@@ -125,7 +126,7 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     // determine whether HTML MediaSources should be used
     if (settings.mode === 'html5' ||
         (settings.mode === 'auto' &&
-         videojs.MediaSource.supportsNativeMediaSources())) {
+          videojs.MediaSource.supportsNativeMediaSources())) {
       return new videojs.HtmlMediaSource();
     }
 
@@ -442,33 +443,33 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
           this.videoBuffer_ = nativeMediaSource.addSourceBuffer('video/mp4;codecs="' + this.codecs_[0] + '"');
           // aggregate buffer events
           this.videoBuffer_.addEventListener('updatestart',
-                                             aggregateUpdateHandler(this, 'audioBuffer_', 'updatestart'));
+                                              aggregateUpdateHandler(this, 'audioBuffer_', 'updatestart'));
           this.videoBuffer_.addEventListener('update',
-                                             aggregateUpdateHandler(this, 'audioBuffer_', 'update'));
+                                              aggregateUpdateHandler(this, 'audioBuffer_', 'update'));
           this.videoBuffer_.addEventListener('updateend',
-                                             aggregateUpdateHandler(this, 'audioBuffer_', 'updateend'));
+                                              aggregateUpdateHandler(this, 'audioBuffer_', 'updateend'));
         }
       } else if (segment.type === 'audio') {
         if (!this.audioBuffer_) {
           this.audioBuffer_ = nativeMediaSource.addSourceBuffer('audio/mp4;codecs="' + this.codecs_[1] + '"');
           // aggregate buffer events
           this.audioBuffer_.addEventListener('updatestart',
-                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
+                                              aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
           this.audioBuffer_.addEventListener('update',
-                                             aggregateUpdateHandler(this, 'videoBuffer_', 'update'));
+                                              aggregateUpdateHandler(this, 'videoBuffer_', 'update'));
           this.audioBuffer_.addEventListener('updateend',
-                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updateend'));
+                                              aggregateUpdateHandler(this, 'videoBuffer_', 'updateend'));
         }
       } else if (segment.type === 'combined') {
         if (!this.videoBuffer_) {
           this.videoBuffer_ = nativeMediaSource.addSourceBuffer('video/mp4;codecs="' + this.codecs_.join(',') + '"');
           // aggregate buffer events
           this.videoBuffer_.addEventListener('updatestart',
-                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
+                                              aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart'));
           this.videoBuffer_.addEventListener('update',
-                                             aggregateUpdateHandler(this, 'videoBuffer_', 'update'));
+                                              aggregateUpdateHandler(this, 'videoBuffer_', 'update'));
           this.videoBuffer_.addEventListener('updateend',
-                                             aggregateUpdateHandler(this, 'videoBuffer_', 'updateend'));
+                                              aggregateUpdateHandler(this, 'videoBuffer_', 'updateend'));
         }
       }
       createTextTracksIfNecessary(this, this.mediaSource_, segment);
@@ -509,10 +510,10 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     },
 
     /**
-     * Process any segments that the muxer has output
-     * Concatenate segments together based on type and append them into
-     * their respective sourceBuffers
-     */
+      * Process any segments that the muxer has output
+      * Concatenate segments together based on type and append them into
+      * their respective sourceBuffers
+      */
     processPendingSegments_: function() {
       var sortedSegments = {
           video: {
@@ -567,9 +568,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       this.bufferUpdating_ = false;
     },
     /**
-     * Combind all segments into a single Uint8Array and then append them
-     * to the destination buffer
-     */
+      * Combind all segments into a single Uint8Array and then append them
+      * to the destination buffer
+      */
     concatAndAppendSegments_: function(segmentObj, destinationBuffer) {
       var
         offset = 0,
@@ -639,29 +640,29 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   });
 
   /**
-   * The maximum size in bytes for append operations to the video.js
-   * SWF. Calling through to Flash blocks and can be expensive so
-   * tuning this parameter may improve playback on slower
-   * systems. There are two factors to consider:
-   * - Each interaction with the SWF must be quick or you risk dropping
-   * video frames. To maintain 60fps for the rest of the page, each append
-   * must not  take longer than 16ms. Given the likelihood that the page
-   * will be executing more javascript than just playback, you probably
-   * want to aim for less than 8ms. We aim for just 4ms.
-   * - Bigger appends significantly increase throughput. The total number of
-   * bytes over time delivered to the SWF must exceed the video bitrate or
-   * playback will stall.
-   *
-   * We adaptively tune the size of appends to give the best throughput
-   * possible given the performance of the system. To do that we try to append
-   * as much as possible in TIME_PER_TICK and while tuning the size of appends
-   * dynamically so that we only append about 4-times in that 4ms span.
-   *
-   * The reason we try to keep the number of appends around four is due to
-   * externalities such as Flash load and garbage collection that are highly
-   * variable and having 4 iterations allows us to exit the loop early if
-   * an iteration takes longer than expected.
-   */
+    * The maximum size in bytes for append operations to the video.js
+    * SWF. Calling through to Flash blocks and can be expensive so
+    * tuning this parameter may improve playback on slower
+    * systems. There are two factors to consider:
+    * - Each interaction with the SWF must be quick or you risk dropping
+    * video frames. To maintain 60fps for the rest of the page, each append
+    * must not  take longer than 16ms. Given the likelihood that the page
+    * will be executing more javascript than just playback, you probably
+    * want to aim for less than 8ms. We aim for just 4ms.
+    * - Bigger appends significantly increase throughput. The total number of
+    * bytes over time delivered to the SWF must exceed the video bitrate or
+    * playback will stall.
+    *
+    * We adaptively tune the size of appends to give the best throughput
+    * possible given the performance of the system. To do that we try to append
+    * as much as possible in TIME_PER_TICK and while tuning the size of appends
+    * dynamically so that we only append about 4-times in that 4ms span.
+    *
+    * The reason we try to keep the number of appends around four is due to
+    * externalities such as Flash load and garbage collection that are highly
+    * variable and having 4 iterations allows us to exit the loop early if
+    * an iteration takes longer than expected.
+    */
 
   videojs.FlashMediaSource.TIME_BETWEEN_TICKS = Math.floor(1000 / 480);
   videojs.FlashMediaSource.TIME_PER_TICK = Math.floor(1000 / 240);
@@ -686,11 +687,11 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   };
 
   /**
-   * Set or return the presentation duration.
-   * @param value {double} the duration of the media in seconds
-   * @param {double} the current presentation duration
-   * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
-   */
+    * Set or return the presentation duration.
+    * @param value {double} the duration of the media in seconds
+    * @param {double} the current presentation duration
+    * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
+    */
   try {
     Object.defineProperty(videojs.FlashMediaSource.prototype, 'duration', {
       get: function(){
@@ -726,12 +727,12 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
   }
 
   /**
-   * Signals the end of the stream.
-   * @param error {string} (optional) Signals that a playback error
-   * has occurred. If specified, it must be either "network" or
-   * "decode".
-   * @see https://w3c.github.io/media-source/#widl-MediaSource-endOfStream-void-EndOfStreamError-error
-   */
+    * Signals the end of the stream.
+    * @param error {string} (optional) Signals that a playback error
+    * has occurred. If specified, it must be either "network" or
+    * "decode".
+    * @see https://w3c.github.io/media-source/#widl-MediaSource-endOfStream-void-EndOfStreamError-error
+    */
   videojs.FlashMediaSource.prototype.endOfStream = function(error){
     if (error === 'network') {
       // MEDIA_ERR_NETWORK
@@ -959,9 +960,9 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         // bypass normal ExternalInterface calls and pass xml directly
         // IE can be slow by default
         this.mediaSource.swfObj.CallFunction('<invoke name="vjs_appendBuffer"' +
-                                             'returntype="javascript"><arguments><string>' +
-                                             b64str +
-                                             '</string></arguments></invoke>');
+                                              'returntype="javascript"><arguments><string>' +
+                                              b64str +
+                                              '</string></arguments></invoke>');
         appendTime = (new Date()) - startTime;
       } while (this.buffer_.length &&
           appendTime < videojs.FlashMediaSource.TIME_PER_TICK);
@@ -1110,4 +1111,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     }
   };
 
-})(this, this.muxjs);
+  return videojs;
+};
+module.exports = videojsMediaSources;
