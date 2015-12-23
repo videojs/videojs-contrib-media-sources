@@ -74,6 +74,9 @@ var messageHandlers = {
    * default options if `init` was never explicitly called
    */
   defaultInit: function () {
+    if (transmuxer) {
+      transmuxer.dispose();
+    }
     transmuxer = new muxjs.mp4.Transmuxer(initOptions);
     wireTransmuxerEvents(transmuxer);
   },

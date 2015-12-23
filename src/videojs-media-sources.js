@@ -62,7 +62,7 @@ createTextTracksIfNecessary = function (sourceBuffer, mediaSource, segment) {
   if (segment.captions &&
       segment.captions.length &&
       !sourceBuffer.inbandTextTrack_) {
-    sourceBuffer.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions');
+    sourceBuffer.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions', 'cc1');
   }
 
   if (segment.metadata &&
