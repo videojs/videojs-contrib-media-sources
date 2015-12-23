@@ -191,9 +191,18 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       // MediaSource
       this.sourceBuffers = [];
 
+      // Re-emit MediaSource events on the polyfill
+      [
+        'sourceopen',
+        'sourceclose',
+        'sourceended'
+      ].forEach(function(eventName) {
+        this.mediaSource_.addEventListener(eventName, this.trigger.bind(this));
+      }, this);
+
       // capture the associated player when the MediaSource is
       // successfully attached
-      this.mediaSource_.addEventListener('sourceopen', function(event) {
+      this.on('sourceopen', function(event) {
         var video = document.querySelector('[src="' + self.url_ + '"]');
 
         if (!video) {
@@ -201,7 +210,18 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         }
 
         self.player_ = videojs(video.parentNode);
-        self.trigger(event);
+      });
+
+      // explicitly terminate any WebWorkers that were created
+      // by SourceHandlers
+      this.on('sourceclose', function(event) {
+        this.sourceBuffers.forEach(function(sourceBuffer) {
+          if (sourceBuffer.transmuxer_) {
+            sourceBuffer.transmuxer_.terminate();
+          }
+        });
+
+        this.sourceBuffers.length = 0;
       });
     },
 
@@ -292,8 +312,6 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       this.mediaSource_ = mediaSource;
       this.codecs_ = codecs;
 
-      // append muxed segments to their respective native buffers as
-      // soon as they are available
       this.transmuxer_ = new Worker(videojs.MediaSource.webWorkerURI || '/src/transmuxer_worker.js');
       this.transmuxer_.postMessage({action:'init', options: {remux: false}});
 
