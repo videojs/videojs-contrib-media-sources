@@ -69,7 +69,6 @@ let messageHandlers = {
     if (gTransmuxer) {
       gTransmuxer.dispose();
     }
-
     gTransmuxer = new muxjs.mp4.Transmuxer(initOptions);
     wireTransmuxerEvents(gTransmuxer);
   },
