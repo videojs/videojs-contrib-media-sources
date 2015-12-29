@@ -1,6 +1,5 @@
-var
-  videojs = require('video.js'),
-  videojs = require('../src/videojs-media-sources.js')(videojs),
+let videojs = require('video.js'),
+let videojs = require('../src/videojs-media-sources.js')(videojs),
   req = new XMLHttpRequest();
 
 // initialize video.js
