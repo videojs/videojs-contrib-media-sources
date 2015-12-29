@@ -1,5 +1,4 @@
 import videojs from 'video.js';
-import MediaSource from '../src/plugin';
 
 let req = new XMLHttpRequest();
 // initialize video.js
