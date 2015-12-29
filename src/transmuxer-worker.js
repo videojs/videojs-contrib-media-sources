@@ -22,7 +22,9 @@ const wireTransmuxerEvents = function(transmuxer) {
     // transfer ownership of the underlying ArrayBuffer
     // instead of doing a copy to save memory
     // ArrayBuffers are transferable but generic TypedArrays are not
+    /* eslint-disable max-len */
     // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
+    /* eslint-enable max-len */
     segment.data = segment.data.buffer;
     postMessage({
       action: 'data',

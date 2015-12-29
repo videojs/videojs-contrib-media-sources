@@ -22,10 +22,10 @@ const defaults = {
 // to a video element (a swf object)
 let mediaSources = {};
 
-const contribMediaSources = function(options) {
+const MediaSource = function(options) {
   let settings = videojs.mergeOptions(defaults, options);
 
-  this.contribMediaSources = {
+  this.MediaSource = {
     // provide a method for a swf object to notify JS that a media source is now open
     open(msObjectURL, swfId) {
       let mediaSource = videojs.mediaSources[msObjectURL];
@@ -44,7 +44,7 @@ const contribMediaSources = function(options) {
   // determine whether HTML MediaSources should be used
   if (settings.mode === 'html5' ||
       (settings.mode === 'auto' &&
-        this.contribMediaSources.supportsNativeMediaSources())) {
+        this.MediaSource.supportsNativeMediaSources())) {
     return new HtmlMediaSource();
   }
 
@@ -84,8 +84,7 @@ const urlPlugin = {
   }
 };
 
-videojs.plugin('contribMediaSources', contribMediaSources);
+videojs.plugin('MediaSource', MediaSource);
 videojs.plugin('URL', urlPlugin);
 
-
-export default contribMediaSources;
+export default MediaSource;

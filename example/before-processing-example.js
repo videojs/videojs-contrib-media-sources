@@ -1,6 +1,5 @@
 import videojs from 'video.js';
-import contribMediaSources from '../src/plugin';
-videojs.plugin('contribMediaSources', contribMediaSources);
+import MediaSource from '../src/plugin';
 
 let req = new XMLHttpRequest();
 // initialize video.js
@@ -13,9 +12,7 @@ req.responseType = 'arraybuffer';
 
 req.onload = function(event) {
   // create a new media source to hold the data buffers
-  /* eslint-disable new-cap */
-  let mediaSource = new videojs.contribMediaSources();
-  /* eslint-enable new-cap */
+  let mediaSource = new videojs.MediaSource();
 
   // wrap the arraybuffer in a view so we can easily work with the
   // individual bytes

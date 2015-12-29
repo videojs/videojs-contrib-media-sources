@@ -16,7 +16,9 @@ const aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
 export default class VirtualSourceBuffer extends videojs.EventTarget {
   constructor(mediaSource, codecs) {
     super(videojs.EventTarget);
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
 
     this.timestampOffset_ = 0;
     this.pendingBuffers_ = [];

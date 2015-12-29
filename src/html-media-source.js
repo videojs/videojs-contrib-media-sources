@@ -15,7 +15,9 @@ const translateLegacyCodecs = function(codecs) {
 export default class HtmlMediaSource extends videojs.EventTarget {
   constructor() {
     super(videojs.EventTarget);
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
     let property;
 
     this.mediaSource_ = new window.MediaSource();

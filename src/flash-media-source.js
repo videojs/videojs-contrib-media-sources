@@ -5,7 +5,9 @@ import FlashConstants from './flash-constants';
 export default class FlashMediaSource extends videojs.EventTarget {
   constructor() {
     super(videojs.EventTarget);
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
 
     this.sourceBuffers = [];
     this.readyState = 'closed';
@@ -52,6 +54,7 @@ export default class FlashMediaSource extends videojs.EventTarget {
     return sourceBuffer;
   }
 
+  /* eslint-disable max-len */
   /**
     * Signals the end of the stream.
     * @param error {string} (optional) Signals that a playback error
@@ -59,6 +62,7 @@ export default class FlashMediaSource extends videojs.EventTarget {
     * "decode".
     * @see https://w3c.github.io/media-source/#widl-MediaSource-endOfStream-void-EndOfStreamError-error
     */
+  /* eslint-enable max-len */
   endOfStream(error) {
     if (error === 'network') {
       // MEDIA_ERR_NETWORK
