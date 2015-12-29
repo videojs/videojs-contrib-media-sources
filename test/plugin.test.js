@@ -3,19 +3,16 @@ import document from 'global/document';
 import QUnit from 'qunit';
 import sinon from 'sinon';
 import videojs from 'video.js';
-import muxjs from 'mux.js';
 import FlashMediaSource from '../src/flash-media-source';
 import HtmlMediaSource from '../src/html-media-source';
 
-import contribMediaSources from '../src/plugin.js';
-
-const Player = videojs.getComponent('Player');
+import MediaSource from '../src/plugin.js';
 
 QUnit.test('the environment is sane', function(assert) {
   assert.strictEqual(typeof Array.isArray, 'function', 'es5 exists');
   assert.strictEqual(typeof sinon, 'object', 'sinon exists');
   assert.strictEqual(typeof videojs, 'function', 'videojs exists');
-  assert.strictEqual(typeof contribMediaSources, 'function', 'plugin is a function');
+  assert.strictEqual(typeof MediaSource, 'function', 'plugin is a function');
 });
 
 QUnit.module('videojs-contrib-media-sources - General', {
@@ -41,25 +38,24 @@ QUnit.module('videojs-contrib-media-sources - General', {
   }
 });
 
-
 QUnit.test('implementation selection is overridable', function() {
-  ok(
-    new this.player.contribMediaSources({ mode: 'flash' }) instanceof FlashMediaSource,
+  QUnit.ok(
+    new this.player.MediaSource({ mode: 'flash' }) instanceof FlashMediaSource,
     'forced flash'
   );
-  ok(
-    new this.player.contribMediaSources({ mode: 'html5' }) instanceof HtmlMediaSource,
+  QUnit.ok(
+    new this.player.MediaSource({ mode: 'html5' }) instanceof HtmlMediaSource,
     'forced html5'
   );
 
   // 'auto' should use native mediasources when they're available
-  ok(
-    new this.player.contribMediaSources() instanceof HtmlMediaSource,
+  QUnit.ok(
+    new this.player.MediaSource() instanceof HtmlMediaSource,
     'used html5'
   );
   // 'auto' should use flash when native mediasources are not available
-  ok(
-    new this.player.contribMediaSources({ mode: 'flash' }) instanceof FlashMediaSource,
+  QUnit.ok(
+    new this.player.MediaSource({ mode: 'flash' }) instanceof FlashMediaSource,
       'used flash'
   );
 });

@@ -7,9 +7,6 @@ import muxjs from 'mux.js';
 import FlashMediaSource from '../src/flash-media-source';
 import FlashSourceBuffer from '../src/flash-source-buffer';
 import FlashConstants from '../src/flash-constants';
-import contribMediaSources from '../src/plugin.js';
-
-const Player = videojs.getComponent('Player');
 
 // return the sequence of calls to append to the SWF
 const appendCalls = function(calls) {
@@ -106,7 +103,9 @@ const MockSegmentParser = function() {
 
 QUnit.module('Flash MediaSource', {
   beforeEach(assert) {
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
     let swfObj;
 
     this.fixture = document.getElementById('qunit-fixture');
@@ -134,7 +133,7 @@ QUnit.module('Flash MediaSource', {
     muxjs.flv.Transmuxer = MockSegmentParser;
 
     this.swfCalls = [];
-    this.mediaSource = new this.player.contribMediaSources();
+    this.mediaSource = new this.player.MediaSource();
     this.player.src({
       src: this.player.URL.createObjectURL(this.mediaSource),
       type: 'video/mp2t'
@@ -265,6 +264,8 @@ QUnit.test('size of the append window changes based on timing information', func
 
   sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   time = 0;
+  /* eslint-disable no-native-reassign */
+  /* eslint-disable no-undef */
   oldDate = Date;
   Date = function() {
     return {
@@ -276,6 +277,8 @@ QUnit.test('size of the append window changes based on timing information', func
       }
     };
   };
+  /* eslint-enable no-native-reassign */
+  /* eslint-enable no-undef */
 
   // Replace the CallFunction so that we can increment "time" in response
   // to appends
@@ -323,13 +326,17 @@ QUnit.test('size of the append window changes based on timing information', func
   FlashConstants.BYTES_PER_CHUNK = BYTES_PER_CHUNK;
   FlashConstants.MIN_CHUNK = MIN_CHUNK;
   FlashConstants.MAX_CHUNK = MAX_CHUNK;
+  /* eslint-disable no-native-reassign */
+  /* eslint-disable no-undef */
   Date = oldDate;
+  /* eslint-disable no-native-reassign */
+  /* eslint-disable no-undef */
 });
 
 QUnit.test('clears the SWF on seeking', function() {
   let aborts = 0;
 
-  this.mediaSource.addSourceBuffer('video/mp2t'),
+  this.mediaSource.addSourceBuffer('video/mp2t');
   // track calls to abort()
 
   /* eslint-disable camelcase */
@@ -495,7 +502,9 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
 
 QUnit.test('calling endOfStream sets mediaSource readyState to ended', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  /* eslint-disable consistent-this */
   let self = this;
+  /* eslint-enable consistent-this */
 
   /* eslint-disable camelcase */
   this.mediaSource.swfObj.vjs_endOfStream = function() {
@@ -527,7 +536,9 @@ QUnit.test('calling endOfStream sets mediaSource readyState to ended', function(
 
 QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  /* eslint-disable consistent-this */
   let self = this;
+  /* eslint-enable consistent-this */
 
   /* eslint-disable camelcase */
   this.mediaSource.swfObj.vjs_endOfStream = function() {
@@ -652,7 +663,9 @@ QUnit.test('stops updating if abort is called', function() {
 });
 
 QUnit.test('forwards duration overrides to the SWF', function() {
+  /* eslint-disable no-unused-vars */
   let ignored = this.mediaSource.duration;
+  /* eslint-enable no-unused-vars */
 
   QUnit.deepEqual(this.swfCalls[1], {
     attr: 'duration'
@@ -669,7 +682,7 @@ QUnit.test('forwards duration overrides to the SWF', function() {
 });
 
 QUnit.test('returns NaN for duration before the SWF is ready', function() {
-  this.mediaSource.swfObj = undefined;
+  this.mediaSource.swfObj = null;
 
   QUnit.ok(isNaN(this.mediaSource.duration), 'duration is NaN');
 });

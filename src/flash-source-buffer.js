@@ -11,7 +11,9 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   constructor(mediaSource) {
     super(videojs.EventTarget);
     let encodedHeader;
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
 
     // Start off using the globally defined value but refine
     // as we append data into flash
@@ -86,7 +88,9 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   // accept video data and pass to the video (swf) object
   appendBuffer(bytes) {
     let error;
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
     let chunk = 512 * 1024;
     let i = 0;
 
@@ -137,7 +141,9 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   receiveBuffer_(segment) {
+    /* eslint-disable consistent-this */
     let self = this;
+    /* eslint-enable consistent-this */
 
     // create an in-band caption track if one is present in the segment
     createTextTracksIfNecessary(this, this.mediaSource, segment);
