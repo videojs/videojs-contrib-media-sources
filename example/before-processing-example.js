@@ -1,11 +1,14 @@
-let videojs = require('video.js');
+import videojs from 'video.js';
+import contribMediaSources from '../src/plugin';
+videojs.plugin('contribMediaSources', contribMediaSources);
+
 let req = new XMLHttpRequest();
 // initialize video.js
 let video = videojs('video');
 
 // the flash-based media sources implementation only supports FLV video data
 // use XMLHttpRequest2 to get the raw byte array of an example FLV
-req.open('GET', 'barsandtone.flv', true);
+req.open('GET', '/example/barsandtone.flv', true);
 req.responseType = 'arraybuffer';
 
 req.onload = function(event) {
