@@ -163,6 +163,25 @@
     ok(sourceBuffer.transmuxer_, 'created a transmuxer');
   });
 
+  test('the terminate is called on the transmuxer when the media source is killed', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
+        messages = [],
+        terminates = 0;
+
+    initializeNativeSourceBuffers(sourceBuffer);
+
+    sourceBuffer.transmuxer_ = {
+      terminate: function() {
+        terminates++;
+      }
+    };
+
+    mediaSource.trigger('sourceclose');
+
+    equal(terminates, 1, 'called terminate on transmux web worker');
+  });
+
   test('abort on the fake source buffer calls abort on the real ones', function(){
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
