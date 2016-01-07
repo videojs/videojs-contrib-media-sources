@@ -22,7 +22,7 @@ const defaults = {
 // to a video element (a swf object)
 let mediaSources = {};
 
-const MediaSource = function(options) {
+export const MediaSource = function(options) {
   let settings = videojs.mergeOptions(defaults, options);
 
   this.MediaSource = {
@@ -52,7 +52,7 @@ const MediaSource = function(options) {
   return new FlashMediaSource();
 };
 
-const urlPlugin = {
+export const URL = {
   createObjectURL(object) {
     let objectUrlPrefix = 'blob:vjs-media-source/';
     let url;
@@ -85,6 +85,6 @@ const urlPlugin = {
 };
 
 videojs.plugin('MediaSource', MediaSource);
-videojs.plugin('URL', urlPlugin);
+videojs.plugin('URL', URL);
 
 export default MediaSource;

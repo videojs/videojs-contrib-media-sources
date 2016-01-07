@@ -8,6 +8,8 @@ import HtmlMediaSource from '../src/html-media-source';
 
 import MediaSource from '../src/plugin.js';
 
+const Player = videojs.getComponent('Player');
+
 QUnit.test('the environment is sane', function(assert) {
   assert.strictEqual(typeof Array.isArray, 'function', 'es5 exists');
   assert.strictEqual(typeof sinon, 'object', 'sinon exists');
@@ -36,6 +38,29 @@ QUnit.module('videojs-contrib-media-sources - General', {
     this.player.dispose();
     window.MediaSource = window.WebKitMediaSource = this.oldMediaSource;
   }
+});
+
+QUnit.test('Plugin is registered', function(assert) {
+  assert.strictEqual(
+    typeof Player.prototype.MediaSource,
+    'function',
+    'MediaSource plugin is attached to videojs'
+  );
+  assert.strictEqual(
+    typeof this.player.MediaSource,
+    'function',
+    'MediaSource plugin is attached to player'
+  );
+  assert.strictEqual(
+    typeof Player.prototype.URL,
+    'object',
+    'URL plugin is attached to videojs'
+  );
+  assert.strictEqual(
+    typeof this.player.URL,
+    'object',
+    'URL plugin is attached to player'
+  );
 });
 
 QUnit.test('implementation selection is overridable', function() {
