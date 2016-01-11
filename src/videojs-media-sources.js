@@ -160,7 +160,11 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       this.duration_ = NaN;
       Object.defineProperty(this, 'duration', {
         get: function() {
-          return self.duration_;
+          if (self.duration_ === Infinity) {
+            return self.duration_;
+          } else {
+            return self.mediaSource_.duration;
+          }
         },
         set: function(duration) {
           var currentDuration;
