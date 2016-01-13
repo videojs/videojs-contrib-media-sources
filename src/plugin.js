@@ -21,24 +21,29 @@ const defaults = {
 // store references to the media sources so they can be connected
 // to a video element (a swf object)
 let mediaSources = {};
+// provide a method for a swf object to notify JS that a media source is now open
+const open = function (msObjectURL, swfId) {
+  let mediaSource = videojs.mediaSources[msObjectURL];
+
+  if (mediaSource) {
+    mediaSource.trigger({type: 'sourceopen', swfId});
+  } else {
+    throw new Error('Media Source not found (Video.js)');
+  }
+};
+
+const supportsNativeMediaSources = function() {
+  return !!window.MediaSource;
+}
+
+
 
 export const MediaSource = function(options) {
   let settings = videojs.mergeOptions(defaults, options);
 
   this.MediaSource = {
-    // provide a method for a swf object to notify JS that a media source is now open
-    open(msObjectURL, swfId) {
-      let mediaSource = videojs.mediaSources[msObjectURL];
-
-      if (mediaSource) {
-        mediaSource.trigger({type: 'sourceopen', swfId});
-      } else {
-        throw new Error('Media Source not found (Video.js)');
-      }
-    },
-    supportsNativeMediaSources() {
-      return !!window.MediaSource;
-    }
+    open,
+    supportsNativeMediaSources
   };
 
   // determine whether HTML MediaSources should be used
@@ -51,6 +56,9 @@ export const MediaSource = function(options) {
   // otherwise, emulate them through the SWF
   return new FlashMediaSource();
 };
+
+MediaSource.prototype.open = open;
+MediaSource.prototype.supportsNativeMediaSources = supportsNativeMediaSources;
 
 export const URL = {
   createObjectURL(object) {
