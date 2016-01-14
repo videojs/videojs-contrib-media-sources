@@ -21,7 +21,8 @@ module.exports = function(config) {
         'karma-detect-browsers',
         'karma-firefox-launcher',
         'karma-ie-launcher',
-        'karma-safari-launcher'
+// TODO: didn't work before es6, doesn't work now
+//        'karma-safari-launcher'
       ],
 
       detectBrowsers: {
