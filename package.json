@@ -28,7 +28,8 @@
       "docs",
       "es5",
       "test/karma",
-      "scripts"
+      "scripts",
+      "example"
     ]
   },
   "scripts": {
