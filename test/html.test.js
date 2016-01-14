@@ -111,6 +111,26 @@ QUnit.test('creates mp4 source buffers for mp2t segments', function() {
   QUnit.ok(sourceBuffer.transmuxer_, 'created a transmuxer');
 });
 
+QUnit.test(
+'the terminate is called on the transmuxer when the media source is killed',
+function() {
+  let mediaSource = new this.player.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  let terminates = 0;
+
+  initializeNativeSourceBuffers(sourceBuffer);
+
+  sourceBuffer.transmuxer_ = {
+    terminate() {
+      terminates++;
+    }
+  };
+
+  mediaSource.trigger('sourceclose');
+
+  QUnit.equal(terminates, 1, 'called terminate on transmux web worker');
+});
+
 QUnit.test('abort on the fake source buffer calls abort on the real ones', function() {
   let mediaSource = new this.player.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');

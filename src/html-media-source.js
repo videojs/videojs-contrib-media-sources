@@ -64,9 +64,18 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // MediaSource
     this.sourceBuffers = [];
 
+    // Re-emit MediaSource events on the polyfill
+    [
+      'sourceopen',
+      'sourceclose',
+      'sourceended'
+    ].forEach(function(eventName) {
+      this.mediaSource_.addEventListener(eventName, this.trigger.bind(this));
+    }, this);
+
     // capture the associated player when the MediaSource is
     // successfully attached
-    this.mediaSource_.addEventListener('sourceopen', function(event) {
+    this.on('sourceopen', function(event) {
       let video = document.querySelector('[src="' + self.url_ + '"]');
 
       if (!video) {
@@ -74,7 +83,18 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
 
       self.player_ = videojs(video.parentNode);
-      self.trigger(event);
+    });
+
+    // explicitly terminate any WebWorkers that were created
+    // by SourceHandlers
+    this.on('sourceclose', function(event) {
+      this.sourceBuffers.forEach(function(sourceBuffer) {
+        if (sourceBuffer.transmuxer_) {
+          sourceBuffer.transmuxer_.terminate();
+        }
+      });
+
+      this.sourceBuffers.length = 0;
     });
   }
 
