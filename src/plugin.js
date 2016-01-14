@@ -22,7 +22,7 @@ const defaults = {
 // to a video element (a swf object)
 let mediaSources = {};
 // provide a method for a swf object to notify JS that a media source is now open
-const open = function (msObjectURL, swfId) {
+const open = function(msObjectURL, swfId) {
   let mediaSource = videojs.mediaSources[msObjectURL];
 
   if (mediaSource) {
@@ -34,9 +34,7 @@ const open = function (msObjectURL, swfId) {
 
 const supportsNativeMediaSources = function() {
   return !!window.MediaSource;
-}
-
-
+};
 
 export const MediaSource = function(options) {
   let settings = videojs.mergeOptions(defaults, options);
@@ -48,8 +46,7 @@ export const MediaSource = function(options) {
 
   // determine whether HTML MediaSources should be used
   if (settings.mode === 'html5' ||
-      (settings.mode === 'auto' &&
-        this.MediaSource.supportsNativeMediaSources())) {
+      (settings.mode === 'auto' && supportsNativeMediaSources())) {
     return new HtmlMediaSource();
   }
 
