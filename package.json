@@ -76,7 +76,7 @@
     "watch:test": "watchify `find test -name '*.test.js'` -t babelify -o dist-test/videojs-contrib-media-sources.js"
   },
   "dependencies": {
-    "mux.js": "^1.4.1",
+    "mux.js": "^2.0.0",
     "video.js": "^5.4.4"
   },
   "devDependencies": {
