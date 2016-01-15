@@ -2,18 +2,16 @@
   "name": "videojs-contrib-media-sources",
   "version": "2.4.3",
   "description": "A Media Source Extensions plugin for video.js",
-  "author": "Brightcove",
+  "main": "es5/plugin.js",
+  "author": "Brightcove, Inc",
   "license": "Apache-2.0",
-  "main": "src/plugin.js",
-  "browser": "src/plugin.js",
   "keywords": [
     "videojs",
     "videojs-plugin"
   ],
   "browserify": {
     "transform": [
-      "browserify-shim",
-      "babelify"
+      "browserify-shim"
     ]
   },
   "browserify-shim": {
@@ -32,6 +30,17 @@
       "example"
     ]
   },
+  "files": [
+    "CONTRIBUTING.md",
+    "dist-test/",
+    "dist/",
+    "docs/",
+    "es5/",
+    "index.html",
+    "scripts/",
+    "src/",
+    "test/"
+  ],
   "scripts": {
     "prebuild": "npm run clean",
     "build": "npm-run-all -p build:*",
