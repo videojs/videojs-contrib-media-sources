@@ -1,3 +1,16 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [videojs-media-sources](#videojs-media-sources)
+  - [Getting Started](#getting-started)
+  - [Options](#options)
+    - [mode](#mode)
+  - [Release History](#release-history)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # videojs-media-sources
 
 A [Media Source Extensions](https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html) sham for video.js.
@@ -18,18 +31,18 @@ If you'd like to play higher bitrate content, you can adjust that setting:
 
 ```javascript
 // 8MB/s at 60fps
-videojs.MediaSource.BYTES_PER_SECOND_GOAL = 8 * 1024 * 1024;
+videojs.MediaSources.BYTES_PER_SECOND_GOAL = 8 * 1024 * 1024;
 ```
 Setting the `BYTES_PER_SECOND_GOAL` too high may lead to dropped frames during playback on slower computers.
 
-Check out an example of the plugin in use in [example.html](example.html).
+Check out an example of the plugin in use in [example](example).
 
 ## Options
-You can configure some aspects of the MediaSource polyfill by
+You can configure some aspects of the MediaSources polyfill by
 specifying a hash of options when you construct it:
 
 ```js
-var mediaSource = new videojs.MediaSource({ mode: 'html5' });
+var mediaSource = new videojs.MediaSources({ mode: 'html5' });
 ```
 
 ### mode
