@@ -108,14 +108,15 @@ QUnit.module('Flash MediaSource', {
     /* eslint-enable consistent-this */
     let swfObj;
 
+    // Mock the environment's timers because certain things - particularly
+    // player readiness - are asynchronous in video.js 5.
+    this.clock = sinon.useFakeTimers();
+
     this.fixture = document.getElementById('qunit-fixture');
     this.video = document.createElement('video');
     this.fixture.appendChild(this.video);
     this.player = videojs(this.video);
 
-    // Mock the environment's timers because certain things - particularly
-    // player readiness - are asynchronous in video.js 5.
-    this.clock = sinon.useFakeTimers();
     this.oldMediaSource = window.MediaSource || window.WebKitMediaSource;
 
     window.MediaSource = null;
@@ -200,8 +201,8 @@ QUnit.module('Flash MediaSource', {
     this.Flash.canPlaySource = this.oldCanPlay;
     FlashMediaSource.BYTES_PER_SECOND_GOAL = this.oldBPS;
     muxjs.flv.Transmuxer = this.oldFlashTransmuxer;
-    this.clock.restore();
     this.player.dispose();
+    this.clock.restore();
     this.swfCalls = [];
     unfakeSTO();
   }
