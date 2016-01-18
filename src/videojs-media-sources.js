@@ -451,8 +451,8 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
         segment = event.data.segment,
         nativeMediaSource = this.mediaSource_.mediaSource_;
 
-      // Cast to type
-      segment.data = new Uint8Array(segment.data);
+      // Cast ArrayBuffer to TypedArray
+      segment.data = new Uint8Array(segment.data, event.data.byteOffset, event.data.byteLength);
 
       // If any sourceBuffers have not been created, do so now
       if (segment.type === 'video') {
@@ -508,7 +508,19 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
       // Start the internal "updating" state
       this.bufferUpdating_ = true;
 
-      this.transmuxer_.postMessage({action: 'push', data: segment.buffer}, [segment.buffer]);
+      this.transmuxer_.postMessage({
+        action: 'push',
+        // Send the typed-array of data as an ArrayBuffer so that
+        // it can be sent as a "Transferable" and avoid the costly
+        // memory copy
+        data: segment.buffer,
+
+        // To recreate the original typed-array, we need information
+        // about what portion of the ArrayBuffer it was a view into
+        byteOffset: segment.byteOffset,
+        byteLength: segment.byteLength
+      },
+      [segment.buffer]);
       this.transmuxer_.postMessage({action: 'flush'});
     },
     remove: function(start, end) {

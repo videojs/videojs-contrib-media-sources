@@ -33,10 +33,13 @@ var wireTransmuxerEvents = function (transmuxer) {
     // transfer ownership of the underlying ArrayBuffer instead of doing a copy to save memory
     // ArrayBuffers are transferable but generic TypedArrays are not
     // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
-    segment.data = segment.data.buffer;
+    var typedArray = segment.data;
+    segment.data = typedArray.buffer;
     postMessage({
       action: 'data',
-      segment: segment
+      segment: segment,
+      byteOffset: typedArray.byteOffset,
+      byteLength: typedArray.byteLength
     }, [segment.data]);
   });
 
@@ -87,7 +90,7 @@ var messageHandlers = {
    */
   push: function (data) {
     // Cast array buffer to correct type for transmuxer
-    var segment = new Uint8Array(data.data);
+    var segment = new Uint8Array(data.data, data.byteOffset, data.byteLength);
     transmuxer.push(segment);
   },
   /**
