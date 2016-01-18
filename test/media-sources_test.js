@@ -44,7 +44,35 @@
       },
       initializeNativeSourceBuffers,
       oldFlashTransmuxer,
-      MockSegmentParser;
+      MockSegmentParser,
+
+      // Create a WebWorker-style message that simulates data being emitted
+      // by the transmuxer
+      createDataMessage = function(type, typedArray, extraObject) {
+        var message = {
+          data: {
+            action: 'data',
+            segment: {
+              type: type,
+              data: typedArray.buffer,
+              byteOffset: typedArray.byteOffset,
+              byteLength: typedArray.byteLength
+            }
+          }
+        };
+
+        return Object.keys(extraObject || {}).reduce(function (obj, key) {
+          obj.data.segment[key] = extraObject[key];
+          return obj;
+        }, message);
+      },
+
+      // Create a WebWorker-style message that signals the transmuxer is done
+      doneMessage = {
+        data: {
+          action: 'done'
+        }
+      };
 
   // Override default webWorkerURI for karma
   if (!videojs.MediaSource.webWorkerURI) {
@@ -115,32 +143,13 @@
   // native source buffers
   initializeNativeSourceBuffers = function(sourceBuffer) {
     // initialize an audio source buffer
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'audio',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', new Uint8Array(1)));
     // initialize a video source buffer
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
+
     // instruct the transmuxer to flush the "data" it has buffered so
     // far
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(doneMessage);
   };
 
   test('creates mp4 source buffers for mp2t segments', function(){
@@ -299,15 +308,7 @@
     equal(mp2tSegments[0][0], data[0], 'did not alter the segment');
 
     // an init segment
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
 
     // Source buffer is not created until after the muxer starts emitting data
     mediaSource.mediaSource_.sourceBuffers[0].appendBuffer = function(segment) {
@@ -315,25 +316,13 @@
     };
 
     // a media segment
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', new Uint8Array(1)));
 
     // Segments are concatenated
     equal(mp4Segments.length, 0, 'segments are not appended until after the `done` message');
 
     // send `done` message
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done',
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(doneMessage);
 
     // Segments are concatenated
     equal(mp4Segments.length, 1, 'appended the segments');
@@ -356,15 +345,7 @@
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.64001f,mp4a.40.5"');
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'combined',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('combined', new Uint8Array(1)));
     equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
@@ -374,15 +355,7 @@
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.100.31,mp4a.40.5"');
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'combined',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('combined', new Uint8Array(1)));
     equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
           'passed the codec along');
@@ -392,15 +365,7 @@
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'combined',
-          data: new Uint8Array(1).buffer
-        }
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('combined', new Uint8Array(1)));
     equal(mediaSource.mediaSource_.sourceBuffers[0].type,
           'video/mp4;codecs="avc1.4d400d,mp4a.40.2"',
           'passed the codec along');
@@ -495,11 +460,7 @@
     equal(updates, 0, 'no updates before a `done` message is received');
     equal(updateends, 0, 'no updateends before a `done` message is received');
 
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(doneMessage);
 
     // the video buffer begins updating first:
     sourceBuffer.videoBuffer_.updating = true;
@@ -546,25 +507,14 @@
       }
     };
     sourceBuffer.timestampOffset = 10;
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1),
-          captions: [{
-            startTime: 1,
-            endTime: 3,
-            text: 'This is an in-band caption'
-          }]
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
+      captions:[{
+        startTime: 1,
+        endTime: 3,
+        text: 'This is an in-band caption'
+      }]
+    }));
+    sourceBuffer.transmuxer_.onmessage(doneMessage);
 
     equal(types.length, 1, 'created one text track');
     equal(types[0], 'captions', 'the type was captions');
@@ -611,21 +561,10 @@
       }
     };
     sourceBuffer.timestampOffset = 10;
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'data',
-        segment: {
-          type: 'video',
-          data: new Uint8Array(1),
-          metadata: metadata
-        }
-      }
-    });
-    sourceBuffer.transmuxer_.onmessage({
-      data: {
-        action: 'done'
-      }
-    });
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
+      metadata: metadata
+    }));
+    sourceBuffer.transmuxer_.onmessage(doneMessage);
 
     equal(
       sourceBuffer.metadataTrack_.inBandMetadataTrackDispatchType,
