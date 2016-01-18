@@ -71,7 +71,7 @@ QUnit.test('implementation selection is overridable', function() {
 
   // mock native MediaSources
   window.MediaSource = videojs.extend(videojs.EventTarget, {
-    addSourceBuffer: function() {
+    addSourceBuffer() {
       throw new Error('Testing Mock');
     }
   });
