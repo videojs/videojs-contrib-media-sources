@@ -54,10 +54,10 @@
             action: 'data',
             segment: {
               type: type,
-              data: typedArray.buffer,
-              byteOffset: typedArray.byteOffset,
-              byteLength: typedArray.byteLength
-            }
+              data: typedArray.buffer
+            },
+            byteOffset: typedArray.byteOffset,
+            byteLength: typedArray.byteLength
           }
         };
 
@@ -326,6 +326,52 @@
 
     // Segments are concatenated
     equal(mp4Segments.length, 1, 'appended the segments');
+  });
+
+  test('handles typed-arrays that are subsets of their underlying buffer', function(){
+    var
+      mp2tSegments = [],
+      mp4Segments = [],
+      buffer = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      data = buffer.subarray(5, 7),
+      mediaSource,
+      sourceBuffer;
+    mediaSource = new videojs.MediaSource();
+    sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+    sourceBuffer.transmuxer_.postMessage = function(segment) {
+      if (segment.action === 'push') {
+        var buffer = new Uint8Array(segment.data, segment.byteOffset, segment.byteLength);
+        mp2tSegments.push(buffer);
+      }
+    };
+
+    sourceBuffer.appendBuffer(data);
+
+    equal(mp2tSegments.length, 1, 'emitted the fragment');
+    equal(mp2tSegments[0].length, 2, 'correctly handled a typed-array that is a subset');
+    equal(mp2tSegments[0][0], 5, 'fragment contains the correct first byte');
+    equal(mp2tSegments[0][1], 6, 'fragment contains the correct second byte');
+
+    // an init segment
+    sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data));
+
+    // Source buffer is not created until after the muxer starts emitting data
+    mediaSource.mediaSource_.sourceBuffers[0].appendBuffer = function(segment) {
+      mp4Segments.push(segment);
+    };
+
+    // Segments are concatenated
+    equal(mp4Segments.length, 0, 'segments are not appended until after the `done` message');
+
+    // send `done` message
+    sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+    // Segments are concatenated
+    equal(mp4Segments.length, 1, 'emitted the fragment');
+    equal(mp4Segments[0].length, 2, 'correctly handled a typed-array that is a subset');
+    equal(mp4Segments[0][0], 5, 'fragment contains the correct first byte');
+    equal(mp4Segments[0][1], 6, 'fragment contains the correct second byte');
   });
 
   test('handles codec strings in reverse order', function() {
