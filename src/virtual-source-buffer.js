@@ -91,11 +91,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         let arity = 0;
         let extents = [];
         let ranges = [];
-        // Handle the case where we have both buffers and create an
-        // intersection of the two
-        let videoBuffered = this.videoBuffer_.buffered;
-        let audioBuffered = this.audioBuffer_.buffered;
-        let count = videoBuffered.length;
 
         // Handle the case where there is no buffer data
         if ((!this.videoBuffer_ || this.videoBuffer_.buffered.length === 0) &&
@@ -109,6 +104,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         } else if (!this.audioBuffer_) {
           return this.videoBuffer_.buffered;
         }
+
+        // Handle the case where we have both buffers and create an
+        // intersection of the two
+        let videoBuffered = this.videoBuffer_.buffered;
+        let audioBuffered = this.audioBuffer_.buffered;
+        let count = videoBuffered.length;
 
         // A) Gather up all start and end times
         while (count--) {
