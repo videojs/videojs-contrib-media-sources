@@ -54,8 +54,8 @@ export const MediaSource = function(options) {
   return new FlashMediaSource();
 };
 
-MediaSource.prototype.open = open;
-MediaSource.prototype.supportsNativeMediaSources = supportsNativeMediaSources;
+MediaSource.open = open;
+MediaSource.supportsNativeMediaSources = supportsNativeMediaSources;
 
 export const URL = {
   createObjectURL(object) {

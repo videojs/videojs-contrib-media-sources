@@ -51,8 +51,6 @@
     "build:js:uglify": "uglifyjs dist/videojs-contrib-media-sources.js --comments --mangle --compress -o dist/videojs-contrib-media-sources.min.js",
     "build:test": "npm-run-all mkdirs build:test:browserify",
     "build:test:browserify": "browserify  `find test -name '*.test.js'` -t babelify -o dist-test/videojs-contrib-media-sources.js",
-    "build:example": "npm-run-all build:example:browserify",
-    "build:example:browserify": "browserify  example/before-processing-example.js -t babelify -o example/after-processing-example.js",
     "clean": "rm -rf dist dist-test es5",
     "docs": "npm-run-all -p docs:*",
     "docs:api": "documentation src/*.js -f html -o docs/api",
