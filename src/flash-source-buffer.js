@@ -1,10 +1,15 @@
 import videojs from 'video.js';
 import muxjs from 'mux.js';
 import removeCuesFromTrack from './remove-cues-from-track';
-import scheduleTick from './schedule-tick';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import addTextTrackData from './add-text-track-data';
 import FlashConstants from './flash-constants';
+
+const scheduleTick = function(func) {
+  // Chrome doesn't invoke requestAnimationFrame callbacks
+  // in background tabs, so use setTimeout.
+  window.setTimeout(func, FlashConstants.TIME_BETWEEN_TICKS);
+};
 
 // Source Buffer
 export default class FlashSourceBuffer extends videojs.EventTarget {
