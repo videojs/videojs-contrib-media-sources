@@ -8,8 +8,8 @@
  * transmuxer running inside of a WebWorker by exposing a simple
  * message-based interface to a Transmuxer object.
  */
-let muxjs = require('mux.js');
-let gTransmuxer;
+import muxjs from 'mux.js';
+let globalTransmuxer;
 let initOptions = {};
 
 /**
@@ -66,11 +66,11 @@ let messageHandlers = {
    * default options if `init` was never explicitly called
    */
   defaultInit() {
-    if (gTransmuxer) {
-      gTransmuxer.dispose();
+    if (globalTransmuxer) {
+      globalTransmuxer.dispose();
     }
-    gTransmuxer = new muxjs.mp4.Transmuxer(initOptions);
-    wireTransmuxerEvents(gTransmuxer);
+    globalTransmuxer = new muxjs.mp4.Transmuxer(initOptions);
+    wireTransmuxerEvents(globalTransmuxer);
   },
   /**
    * push
@@ -81,7 +81,7 @@ let messageHandlers = {
     // Cast array buffer to correct type for transmuxer
     let segment = new Uint8Array(data.data);
 
-    gTransmuxer.push(segment);
+    globalTransmuxer.push(segment);
   },
   /**
    * reset
@@ -100,7 +100,7 @@ let messageHandlers = {
   setTimestampOffset(data) {
     let timestampOffset = data.timestampOffset || 0;
 
-    gTransmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
+    globalTransmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
   },
   /**
    * flush
@@ -108,15 +108,15 @@ let messageHandlers = {
    * results
    */
   flush(data) {
-    gTransmuxer.flush();
+    globalTransmuxer.flush();
   }
 };
 
-module.exports = function(self) {
+const Worker = function(self) {
   self.onmessage = function(event) {
     // Setup the default transmuxer if one doesn't exist yet and we are invoked with
     // an action other than `init`
-    if (!gTransmuxer && event.data.action !== 'init') {
+    if (!globalTransmuxer && event.data.action !== 'init') {
       messageHandlers.defaultInit();
     }
 
@@ -127,3 +127,5 @@ module.exports = function(self) {
     }
   };
 };
+
+export default Worker;
