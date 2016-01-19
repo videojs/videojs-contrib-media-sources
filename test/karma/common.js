@@ -8,6 +8,7 @@ var DEFAULTS = {
     'node_modules/sinon/pkg/sinon.js',
     'node_modules/sinon/pkg/sinon-ie.js',
     'node_modules/video.js/dist/video.js',
+    'node_modules/video.js/dist/video-js.css',
     'test/**/*.js'
   ],
 
