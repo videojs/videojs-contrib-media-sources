@@ -1,35 +1,18 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>VideoJS Media Sources Test Suite</title>
-  <link rel="stylesheet" href="../node_modules/qunitjs/qunit/qunit.css">
-  <script src="../node_modules/qunitjs/qunit/qunit.js"></script>
+  <meta charset="utf-8">
+  <title>videojs-contrib-media-sources Unit Tests</title>
+  <link rel="stylesheet" href="/node_modules/qunitjs/qunit/qunit.css">
+  <link rel="stylesheet" href="/node_modules/video.js/dist/video-js.css">
 </head>
 <body>
   <div id="qunit"></div>
   <div id="qunit-fixture"></div>
-  <script>
-    module('Environment');
-    test('is sane', function() {
-      ok(true, 'true is true');
-    });
-  </script>
-
-  <script src="../node_modules/video.js/dist/video.js"></script>
-  <script src="../node_modules/mux.js/lib/utils/stream.js"></script>
-  <script src="../node_modules/mux.js/lib/utils/exp-golomb.js"></script>
-  <script src="../node_modules/mux.js/lib/m2ts/m2ts.js"></script>
-  <script src="../node_modules/mux.js/lib/m2ts/metadata-stream.js"></script>
-  <script src="../node_modules/mux.js/lib/m2ts/caption-stream.js"></script>
-  <script src="../node_modules/mux.js/lib/codecs/h264.js"></script>
-  <script src="../node_modules/mux.js/lib/codecs/aac.js"></script>
-  <script src="../node_modules/mux.js/lib/flv/flv-tag.js"></script>
-  <script src="../node_modules/mux.js/lib/flv/transmuxer.js"></script>
-  <script src="../src/videojs-media-sources.js"></script>
-  <script>
-    videojs.MediaSource.webWorkerURI = '/src/transmuxer_worker.js';
-  </script>
-  <script src="media-sources_test.js"></script>
+  <script src="/node_modules/sinon/pkg/sinon.js"></script>
+  <script src="/node_modules/sinon/pkg/sinon-ie.js"></script>
+  <script src="/node_modules/qunitjs/qunit/qunit.js"></script>
+  <script src="/node_modules/video.js/dist/video.js"></script>
+  <script src="/dist-test/videojs-contrib-media-sources.js"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 <!doctype html>
-<link rel="stylesheet" href="../node_modules/video.js/dist/video-js/video-js.css">
+<link rel="stylesheet" href="/node_modules/video.js/dist/video-js/video-js.css">
 <style>
   p {
     background-color: #cbcbcb;
@@ -38,8 +38,8 @@
   </thead>
   <tbody id="results"></tbody>
 </table>
-<script src="../node_modules/video.js/dist/video-js/video.js"></script>
-<script src="../src/videojs-media-sources.js"></script>
+<script src="/node_modules/video.js/dist/video-js/video.js"></script>
+<script src="/dist/videojs-contrib-media-sources.js"></script>
 <script>
 var player = videojs(document.querySelector('video'), {
   techOrder: ['flash', 'html']
@@ -76,7 +76,7 @@ var player = videojs(document.querySelector('video'), {
   }, false);
 
   player.src({
-    src: videojs.URL.createObjectURL(mediaSource), 
+    src: videojs.URL.createObjectURL(mediaSource),
     type: "video/flv"
   });
 });
