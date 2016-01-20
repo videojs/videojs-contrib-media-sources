@@ -134,9 +134,9 @@ QUnit.module('Flash MediaSource', {
     muxjs.flv.Transmuxer = MockSegmentParser;
 
     this.swfCalls = [];
-    this.mediaSource = new this.player.MediaSource();
+    this.mediaSource = new videojs.MediaSource();
     this.player.src({
-      src: this.player.URL.createObjectURL(this.mediaSource),
+      src: videojs.URL.createObjectURL(this.mediaSource),
       type: 'video/mp2t'
     });
     swfObj = document.createElement('fake-object');

@@ -42,7 +42,7 @@ QUnit.module('createObjectURL', {
 
 QUnit.test('delegates to the native implementation', function() {
   QUnit.ok(!(/blob:vjs-media-source\//).test(
-    this.player.URL.createObjectURL(
+    videojs.URL.createObjectURL(
       new Blob())
     ),
     'created a native blob URL'
@@ -51,7 +51,7 @@ QUnit.test('delegates to the native implementation', function() {
 
 QUnit.test('uses the native MediaSource when available', function() {
   QUnit.ok(!(/blob:vjs-media-source\//).test(
-    this.player.URL.createObjectURL(
+    videojs.URL.createObjectURL(
       new HtmlMediaSource())
     ),
     'created a native blob URL'
@@ -60,7 +60,7 @@ QUnit.test('uses the native MediaSource when available', function() {
 
 QUnit.test('emulates a URL for the shim', function() {
   QUnit.ok((/blob:vjs-media-source\//).test(
-    this.player.URL.createObjectURL(
+    videojs.URL.createObjectURL(
       new FlashMediaSource())
     ),
     'created an emulated blob URL'
@@ -69,7 +69,7 @@ QUnit.test('emulates a URL for the shim', function() {
 
 QUnit.test('stores the associated blob URL on the media source', function() {
   let blob = new Blob();
-  let url = this.player.URL.createObjectURL(blob);
+  let url = videojs.URL.createObjectURL(blob);
 
   QUnit.equal(blob.url_, url, 'captured the generated URL');
 });

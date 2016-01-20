@@ -44,7 +44,7 @@ QUnit.module('videojs-contrib-media-sources - HTML', {
 
 QUnit.test('constructs a native MediaSource', function() {
   QUnit.ok(
-    new this.player.MediaSource().mediaSource_.isNative,
+    new videojs.MediaSource().mediaSource_.isNative,
     'constructed a MediaSource'
   );
 });
@@ -82,7 +82,7 @@ const initializeNativeSourceBuffers = function(sourceBuffer) {
 };
 
 QUnit.test('creates mp4 source buffers for mp2t segments', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
   initializeNativeSourceBuffers(sourceBuffer);
@@ -114,7 +114,7 @@ QUnit.test('creates mp4 source buffers for mp2t segments', function() {
 QUnit.test(
 'the terminate is called on the transmuxer when the media source is killed',
 function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let terminates = 0;
 
@@ -132,7 +132,7 @@ function() {
 });
 
 QUnit.test('abort on the fake source buffer calls abort on the real ones', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let messages = [];
   let aborts = 0;
@@ -164,7 +164,7 @@ QUnit.test('abort on the fake source buffer calls abort on the real ones', funct
 QUnit.test(
 'calling remove deletes cues and invokes remove on any extant source buffers',
 function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let removedCue = [];
   let removes = 0;
@@ -224,7 +224,7 @@ QUnit.test('readyState delegates to the native implementation', function() {
 });
 
 QUnit.test('addSeekableRange_ throws an error for media with known duration', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
 
   mediaSource.duration = 100;
   QUnit.throws(function() {
@@ -233,7 +233,7 @@ QUnit.test('addSeekableRange_ throws an error for media with known duration', fu
 });
 
 QUnit.test('addSeekableRange_ adds to the native MediaSource duration', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
 
   mediaSource.duration = Infinity;
   mediaSource.addSeekableRange_(120, 240);
@@ -252,7 +252,7 @@ QUnit.test('transmuxes mp2t segments', function() {
   let mediaSource;
   let sourceBuffer;
 
-  mediaSource = new this.player.MediaSource();
+  mediaSource = new videojs.MediaSource();
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   sourceBuffer.transmuxer_.postMessage = function(segment) {
     if (segment.action === 'push') {
@@ -313,7 +313,7 @@ QUnit.test('transmuxes mp2t segments', function() {
 });
 
 QUnit.test('handles codec strings in reverse order', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="mp4a.40.5,avc1.64001f"');
 
@@ -331,7 +331,7 @@ QUnit.test('handles codec strings in reverse order', function() {
 });
 
 QUnit.test('forwards codec strings to native buffers when specified', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.64001f,mp4a.40.5"');
 
@@ -350,7 +350,7 @@ QUnit.test('forwards codec strings to native buffers when specified', function()
 });
 
 QUnit.test('parses old-school apple codec strings to the modern standard', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.100.31,mp4a.40.5"');
 
@@ -369,7 +369,7 @@ QUnit.test('parses old-school apple codec strings to the modern standard', funct
 });
 
 QUnit.test('specifies reasonable codecs if none are specified', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
   sourceBuffer.transmuxer_.onmessage({
@@ -387,7 +387,7 @@ QUnit.test('specifies reasonable codecs if none are specified', function() {
 });
 
 QUnit.test('virtual buffers are updating if either native buffer is', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
   initializeNativeSourceBuffers(sourceBuffer);
@@ -407,7 +407,7 @@ QUnit.test('virtual buffers are updating if either native buffer is', function()
 QUnit.test(
 'virtual buffers have a position buffered if both native buffers do',
 function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
   // send fake buffers through to cause the creation of the source buffers
@@ -431,7 +431,7 @@ function() {
 });
 
 QUnit.test('sets transmuxer baseMediaDecodeTime on appends', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let resets = [];
 
@@ -458,7 +458,7 @@ QUnit.test('sets transmuxer baseMediaDecodeTime on appends', function() {
 });
 
 QUnit.test('aggregates source buffer update events', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let updates = 0;
   let updateends = 0;
@@ -515,7 +515,7 @@ QUnit.test('aggregates source buffer update events', function() {
 });
 
 QUnit.test('translates caption events into WebVTT cues', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let types = [];
   let cues = [];
@@ -560,7 +560,7 @@ QUnit.test('translates caption events into WebVTT cues', function() {
 });
 
 QUnit.test('translates metadata events into WebVTT cues', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let types = [];
   let cues = [];
@@ -626,7 +626,7 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
 });
 
 QUnit.test('does not wrap mp4 source buffers', function() {
-  let mediaSource = new this.player.MediaSource();
+  let mediaSource = new videojs.MediaSource();
 
   mediaSource.addSourceBuffer('video/mp4;codecs=avc1.4d400d');
   mediaSource.addSourceBuffer('audio/mp4;codecs=mp4a.40.2');

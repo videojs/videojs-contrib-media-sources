@@ -89,7 +89,7 @@ export const URL = {
   }
 };
 
-videojs.plugin('MediaSource', MediaSource);
-videojs.plugin('URL', URL);
+videojs.MediaSource = MediaSource;
+videojs.URL = URL;
 
 export default MediaSource;
