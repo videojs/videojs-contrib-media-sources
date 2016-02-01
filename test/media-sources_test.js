@@ -182,6 +182,28 @@
     equal(terminates, 1, 'called terminate on transmux web worker');
   });
 
+
+  test('duration is faked when playing a live stream', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+    mediaSource.duration = Infinity;
+    mediaSource.mediaSource_.duration = 100;
+
+    equal(mediaSource.mediaSource_.duration, 100, 'native duration was not set to infinity');
+    equal(mediaSource.duration, Infinity, 'the MediaSource wrapper pretends it has an infinite duration');
+  });
+
+  test('duration uses the underlying MediaSource\'s duration when not live', function(){
+    var mediaSource = new videojs.MediaSource(),
+        sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+    mediaSource.duration = 100;
+    mediaSource.mediaSource_.duration = 120;
+
+    equal(mediaSource.duration, 120, 'the MediaSource wrapper returns the native duration');
+  });
+
   test('abort on the fake source buffer calls abort on the real ones', function(){
     var mediaSource = new videojs.MediaSource(),
         sourceBuffer = mediaSource.addSourceBuffer('video/mp2t'),
