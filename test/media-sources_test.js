@@ -97,12 +97,22 @@
         throw new Error('Testing Mock');
       }
     });
+    window.MediaSource.isTypeSupported = function (mime) {
+      return true;
+    };
+
     ok(new videojs.MediaSource({ mode: 'html5' }) instanceof videojs.HtmlMediaSource,
        'forced HTML5');
 
     // 'auto' should use native MediaSources when they're available
     ok(new videojs.MediaSource() instanceof videojs.HtmlMediaSource,
        'used HTML5');
+    window.MediaSource.isTypeSupported = function (mime) {
+      return false;
+    };
+     // 'auto' should use Flash MediaSources when isTypeSupported is false
+    ok(new videojs.MediaSource() instanceof videojs.FlashMediaSource,
+       'used Flash');
     window.MediaSource = null;
     // 'auto' should use Flash when native MediaSources are not available
     ok(new videojs.MediaSource({ mode: 'flash' }) instanceof videojs.FlashMediaSource,
@@ -127,6 +137,9 @@
           return buffer;
         }
       });
+      window.MediaSource.isTypeSupported = function(mime){
+        return true;
+      };
       window.WebKitMediaSource = window.MediaSource;
     },
     teardown: function(){

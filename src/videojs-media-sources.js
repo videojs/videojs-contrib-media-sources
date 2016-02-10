@@ -133,8 +133,11 @@ addTextTrackData = function (sourceHandler, captionArray, metadataArray) {
     return new videojs.FlashMediaSource();
   };
 
+  // Check to see if the native MediaSource object exists and supports
+  // an MP4 container with both H.264 video and AAC-LC audio
   videojs.MediaSource.supportsNativeMediaSources = function() {
-    return !!window.MediaSource;
+    return (!!window.MediaSource &&
+      window.MediaSource.isTypeSupported('video/mp4;codecs="avc1.4d400d,mp4a.40.2"'));
   };
 
   // ----
