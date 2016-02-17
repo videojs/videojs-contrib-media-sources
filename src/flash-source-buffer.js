@@ -14,11 +14,8 @@ const scheduleTick = function(func) {
 // Source Buffer
 export default class FlashSourceBuffer extends videojs.EventTarget {
   constructor(mediaSource) {
-    super(videojs.EventTarget);
+    super();
     let encodedHeader;
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
 
     // Start off using the globally defined value but refine
     // as we append data into flash
@@ -84,18 +81,15 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     // On a seek we remove all text track data since flash has no concept
     // of a buffered-range and everything else is reset on seek
-    this.mediaSource.player_.on('seeked', function() {
-      removeCuesFromTrack(0, Infinity, self.metadataTrack_);
-      removeCuesFromTrack(0, Infinity, self.inbandTextTrack_);
+    this.mediaSource.player_.on('seeked', () => {
+      removeCuesFromTrack(0, Infinity, this.metadataTrack_);
+      removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
     });
   }
 
   // accept video data and pass to the video (swf) object
   appendBuffer(bytes) {
     let error;
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
     let chunk = 512 * 1024;
     let i = 0;
 
@@ -111,15 +105,18 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.mediaSource.readyState = 'open';
     this.trigger({ type: 'update' });
 
-    (function chunkInData() {
-      self.segmentParser_.push(bytes.subarray(i, i + chunk));
+    // this is here to use recursion
+    let chunkInData = () => {
+      this.segmentParser_.push(bytes.subarray(i, i + chunk));
       i += chunk;
       if (i < bytes.byteLength) {
         scheduleTick(chunkInData);
       } else {
-        scheduleTick(self.segmentParser_.flush.bind(self.segmentParser_));
+        scheduleTick(this.segmentParser_.flush.bind(this.segmentParser_));
       }
-    }());
+    };
+
+    chunkInData();
   }
 
   // reset the parser and remove any data queued to be sent to the swf
@@ -146,25 +143,21 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   receiveBuffer_(segment) {
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
-
     // create an in-band caption track if one is present in the segment
     createTextTracksIfNecessary(this, this.mediaSource, segment);
     addTextTrackData(this, segment.captions, segment.metadata);
 
     // Do this asynchronously since convertTagsToData_ can be time consuming
-    scheduleTick(function() {
-      let flvBytes = self.convertTagsToData_(segment);
+    scheduleTick(() => {
+      let flvBytes = this.convertTagsToData_(segment);
 
-      if (self.buffer_.length === 0) {
-        scheduleTick(self.processBuffer_.bind(self));
+      if (this.buffer_.length === 0) {
+        scheduleTick(this.processBuffer_.bind(this));
       }
 
       if (flvBytes) {
-        self.buffer_.push(flvBytes);
-        self.bufferSize_ += flvBytes.byteLength;
+        this.buffer_.push(flvBytes);
+        this.bufferSize_ += flvBytes.byteLength;
       }
     });
   }

@@ -6,13 +6,17 @@ import videojs from 'video.js';
 import FlashMediaSource from '../src/flash-media-source';
 import HtmlMediaSource from '../src/html-media-source';
 
-import MediaSource from '../src/plugin.js';
+// we disable this because browserify needs to include these files
+// but the exports are not important
+/* eslint-disable no-unused-vars */
+import {MediaSource, URL} from '../src/videojs-contrib-media-sources.js';
+/* eslint-disable no-unused-vars */
 
 QUnit.test('the environment is sane', function(assert) {
   assert.strictEqual(typeof Array.isArray, 'function', 'es5 exists');
   assert.strictEqual(typeof sinon, 'object', 'sinon exists');
   assert.strictEqual(typeof videojs, 'function', 'videojs exists');
-  assert.strictEqual(typeof MediaSource, 'function', 'plugin is a function');
+  assert.strictEqual(typeof videojs.MediaSource, 'function', 'plugin is a function');
 });
 
 QUnit.module('videojs-contrib-media-sources - General', {

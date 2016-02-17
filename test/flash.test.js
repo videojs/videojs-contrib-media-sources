@@ -8,6 +8,12 @@ import FlashMediaSource from '../src/flash-media-source';
 import FlashSourceBuffer from '../src/flash-source-buffer';
 import FlashConstants from '../src/flash-constants';
 
+// we disable this because browserify needs to include these files
+// but the exports are not important
+/* eslint-disable no-unused-vars */
+import {MediaSource, URL} from '../src/videojs-contrib-media-sources.js';
+/* eslint-disable no-unused-vars */
+
 // return the sequence of calls to append to the SWF
 const appendCalls = function(calls) {
   return calls.filter(function(call) {
@@ -103,9 +109,6 @@ const MockSegmentParser = function() {
 
 QUnit.module('Flash MediaSource', {
   beforeEach(assert) {
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
     let swfObj;
 
     // Mock the environment's timers because certain things - particularly
@@ -144,7 +147,7 @@ QUnit.module('Flash MediaSource', {
     this.player.el().replaceChild(swfObj, this.player.tech_.el());
     this.player.tech_.el_ = swfObj;
     swfObj.tech = this.player.tech_;
-    swfObj.CallFunction = function(xml) {
+    swfObj.CallFunction = (xml) => {
       let parser = new DOMParser();
       let call = {};
       let doc;
@@ -160,30 +163,30 @@ QUnit.module('Flash MediaSource', {
             return c.charCodeAt(0);
           });
         });
-      self.swfCalls.push(call);
+      this.swfCalls.push(call);
     };
     /* eslint-disable camelcase */
-    swfObj.vjs_abort = function() {
-      self.swfCalls.push('abort');
+    swfObj.vjs_abort = () => {
+      this.swfCalls.push('abort');
     };
-    swfObj.vjs_getProperty = function(attr) {
+    swfObj.vjs_getProperty = (attr) => {
       if (attr === 'buffered') {
         return [];
       } else if (attr === 'currentTime') {
         return 0;
       }
-      self.swfCalls.push({ attr });
+      this.swfCalls.push({ attr });
     };
-    swfObj.vjs_load = function() {
-      self.swfCalls.push('load');
+    swfObj.vjs_load = () => {
+      this.swfCalls.push('load');
     };
-    swfObj.vjs_setProperty = function(attr, value) {
-      self.swfCalls.push({ attr, value });
+    swfObj.vjs_setProperty = (attr, value) => {
+      this.swfCalls.push({ attr, value });
     };
-    swfObj.vjs_discontinuity = function(attr, value) {
-      self.swfCalls.push({ attr, value });
+    swfObj.vjs_discontinuity = (attr, value) => {
+      this.swfCalls.push({ attr, value });
     };
-    swfObj.vjs_appendBuffer = function(flvHeader) {
+    swfObj.vjs_appendBuffer = (flvHeader) => {
       // only the FLV header directly invokes this so we can
       // ignore it
     };
@@ -503,17 +506,14 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
 
 QUnit.test('calling endOfStream sets mediaSource readyState to ended', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-  /* eslint-disable consistent-this */
-  let self = this;
-  /* eslint-enable consistent-this */
 
   /* eslint-disable camelcase */
-  this.mediaSource.swfObj.vjs_endOfStream = function() {
-    self.swfCalls.push('endOfStream');
+  this.mediaSource.swfObj.vjs_endOfStream = () => {
+    this.swfCalls.push('endOfStream');
   };
   /* eslint-enable camelcase */
-  sourceBuffer.addEventListener('updateend', function() {
-    self.mediaSource.endOfStream();
+  sourceBuffer.addEventListener('updateend', () => {
+    this.mediaSource.endOfStream();
   });
 
   this.swfCalls.length = 0;
@@ -537,19 +537,17 @@ QUnit.test('calling endOfStream sets mediaSource readyState to ended', function(
 
 QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-  /* eslint-disable consistent-this */
-  let self = this;
-  /* eslint-enable consistent-this */
+  let foo = () => {
+    this.mediaSource.endOfStream();
+    sourceBuffer.removeEventListener('updateend', foo);
+  };
 
   /* eslint-disable camelcase */
-  this.mediaSource.swfObj.vjs_endOfStream = function() {
-    self.swfCalls.push('endOfStream');
+  this.mediaSource.swfObj.vjs_endOfStream = () => {
+    this.swfCalls.push('endOfStream');
   };
   /* eslint-enable camelcase */
-  sourceBuffer.addEventListener('updateend', function foo() {
-    self.mediaSource.endOfStream();
-    sourceBuffer.removeEventListener('updateend', foo);
-  });
+  sourceBuffer.addEventListener('updateend', foo);
 
   this.swfCalls.length = 0;
   sourceBuffer.appendBuffer(new Uint8Array([0, 1]));

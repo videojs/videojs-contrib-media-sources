@@ -30,7 +30,7 @@ module.exports = function(config) {
           var safariIndex = availableBrowsers.indexOf('Safari');
           if(safariIndex !== -1) {
             availableBrowsers.splice(safariIndex, 1);
-            console.log("Disabled Safari as it was/is not supportted");
+            console.log("Disabled Safari as it was/is not supported");
           }
           return availableBrowsers;
         },
