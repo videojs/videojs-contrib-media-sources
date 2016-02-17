@@ -36,7 +36,7 @@
 
       req.onload = function(event) {
         // create a new media source to hold the data buffers
-        var mediaSource = new player.MediaSource();
+        var mediaSource = new videojs.MediaSource();
 
         // wrap the arraybuffer in a view so we can easily work with the
         // individual bytes
@@ -57,7 +57,7 @@
         }, false);
 
         // to assign a media source to a video element, you have to create a URL for it
-        url = player.URL.createObjectURL(mediaSource);
+        url = videojs.URL.createObjectURL(mediaSource);
         // assign the media source URL to video.js
         player.src({
           src: url,

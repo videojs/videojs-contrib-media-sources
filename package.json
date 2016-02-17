@@ -2,7 +2,7 @@
   "name": "videojs-contrib-media-sources",
   "version": "2.4.6",
   "description": "A Media Source Extensions plugin for video.js",
-  "main": "es5/plugin.js",
+  "main": "es5/videojs-contrib-media-sources.js",
   "scripts": {
     "prebuild": "npm run clean",
     "build": "npm-run-all -p build:*",
@@ -29,7 +29,7 @@
     "preversion": "npm test",
     "version": "npm run build",
     "watch": "npm-run-all -p watch:*",
-    "watch:js": "watchify src/plugin.js -t babelify -v -o dist/videojs-contrib-media-sources.js",
+    "watch:js": "watchify src/videojs-contrib-media-sources.js -t babelify -v -o dist/videojs-contrib-media-sources.js",
     "watch:test": "node scripts/watch-test.js",
     "prepublish": "npm run build"
   },

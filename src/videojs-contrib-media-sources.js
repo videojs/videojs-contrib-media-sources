@@ -1,7 +1,7 @@
 import FlashMediaSource from './flash-media-source';
 import HtmlMediaSource from './html-media-source';
-import videojs from 'video.js';
-
+// import videojs from 'video.js';
+let videojs = window.videojs;
 let urlCount = 0;
 
 // ------------
@@ -20,7 +20,8 @@ const defaults = {
 
 // store references to the media sources so they can be connected
 // to a video element (a swf object)
-let mediaSources = {};
+videojs.mediaSources = {};
+
 // provide a method for a swf object to notify JS that a media source is now open
 const open = function(msObjectURL, swfId) {
   let mediaSource = videojs.mediaSources[msObjectURL];
@@ -83,7 +84,7 @@ export const URL = {
     urlCount++;
 
     // setup the mapping back to object
-    mediaSources[url] = object;
+    videojs.mediaSources[url] = object;
 
     return url;
   }
@@ -91,5 +92,3 @@ export const URL = {
 
 videojs.MediaSource = MediaSource;
 videojs.URL = URL;
-
-export default MediaSource;

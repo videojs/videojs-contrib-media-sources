@@ -2,7 +2,7 @@ import videojs from 'video.js';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import removeCuesFromTrack from './remove-cues-from-track';
 import addTextTrackData from './add-text-track-data';
-import webworkify from 'webworkify';
+import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
 
 const aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
@@ -16,10 +16,6 @@ const aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
 export default class VirtualSourceBuffer extends videojs.EventTarget {
   constructor(mediaSource, codecs) {
     super(videojs.EventTarget);
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
-
     this.timestampOffset_ = 0;
     this.pendingBuffers_ = [];
     this.bufferUpdating_ = false;
@@ -28,16 +24,16 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
     // append muxed segments to their respective native buffers as
     // soon as they are available
-    this.transmuxer_ = webworkify(transmuxWorker);
+    this.transmuxer_ = work(transmuxWorker);
     this.transmuxer_.postMessage({action: 'init', options: {remux: false}});
 
-    this.transmuxer_.onmessage = function(event) {
+    this.transmuxer_.onmessage = (event) => {
       if (event.data.action === 'data') {
-        return self.data_(event);
+        return this.data_(event);
       }
 
       if (event.data.action === 'done') {
-        return self.done_(event);
+        return this.done_(event);
       }
     };
 

@@ -5,6 +5,12 @@ import sinon from 'sinon';
 import videojs from 'video.js';
 import HtmlMediaSource from '../src/html-media-source';
 
+// we disable this because browserify needs to include these files
+// but the exports are not important
+/* eslint-disable no-unused-vars */
+import {MediaSource, URL} from '../src/videojs-contrib-media-sources.js';
+/* eslint-disable no-unused-vars */
+
 QUnit.module('videojs-contrib-media-sources - HTML', {
   beforeEach() {
     this.fixture = document.getElementById('qunit-fixture');

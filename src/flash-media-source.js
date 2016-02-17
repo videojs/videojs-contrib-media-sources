@@ -4,26 +4,22 @@ import FlashConstants from './flash-constants';
 
 export default class FlashMediaSource extends videojs.EventTarget {
   constructor() {
-    super(videojs.EventTarget);
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
-
+    super();
     this.sourceBuffers = [];
     this.readyState = 'closed';
 
-    this.on(['sourceopen', 'webkitsourceopen'], function(event) {
+    this.on(['sourceopen', 'webkitsourceopen'], (event) => {
       // find the swf where we will push media data
       this.swfObj = document.getElementById(event.swfId);
       this.player_ = videojs(this.swfObj.parentNode);
       this.tech_ = this.swfObj.tech;
       this.readyState = 'open';
 
-      this.tech_.on('seeking', function() {
-        let i = self.sourceBuffers.length;
+      this.tech_.on('seeking', () => {
+        let i = this.sourceBuffers.length;
 
         while (i--) {
-          self.sourceBuffers[i].abort();
+          this.sourceBuffers[i].abort();
         }
       });
 
