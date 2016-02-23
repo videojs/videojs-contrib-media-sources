@@ -32,6 +32,7 @@ module.exports = function(grunt) {
           banner: '<%= banner %>'
         },
         src: [
+          'node_modules/mux.js/dist/mux.js',
           '<%= blobify.build.dest %>'
         ],
         dest: 'dist/videojs-media-sources.js'
@@ -67,7 +68,7 @@ module.exports = function(grunt) {
       scripts: {
         files: [
           'src/**/*.js',
-          'node_modules/mux.js/lib/**/*.js',
+          'node_modules/mux.js/dist/*.js',
           'node_modules/mux.js/legacy/**/*.js'
         ],
         tasks: ['build'],
