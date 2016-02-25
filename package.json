@@ -1,6 +1,6 @@
 {
   "name": "videojs-contrib-media-sources",
-  "version": "2.4.6",
+  "version": "3.0.0",
   "description": "A Media Source Extensions plugin for video.js",
   "main": "es5/videojs-contrib-media-sources.js",
   "scripts": {
@@ -106,6 +106,5 @@
     "videojs-standard": "^4.0.0",
     "watchify": "^3.6.0",
     "webworkify": "^1.0.2"
-
   }
 }
