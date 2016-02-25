@@ -55,8 +55,8 @@
       "dist-test",
       "docs",
       "es5",
-      "test/karma",
-      "scripts"
+      "scripts",
+      "test/karma"
     ]
   },
   "files": [

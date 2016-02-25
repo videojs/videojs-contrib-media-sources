@@ -35,7 +35,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     this.duration_ = NaN;
     Object.defineProperty(this, 'duration', {
       get() {
-        return self.duration_;
+        if (self.duration_ === Infinity) {
+          return self.duration_;
+        }
+        return self.mediaSource_.duration;
       },
       set(duration) {
         self.duration_ = duration;

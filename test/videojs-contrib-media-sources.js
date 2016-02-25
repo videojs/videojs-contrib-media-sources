@@ -56,17 +56,22 @@ QUnit.test('Plugin is registered', function(assert) {
 });
 
 QUnit.test('implementation selection is overridable', function() {
-  QUnit.ok(
-    new videojs.MediaSource({ mode: 'flash' }) instanceof FlashMediaSource,
-    'forced flash'
-  );
-
   // mock native MediaSources
   window.MediaSource = videojs.extend(videojs.EventTarget, {
     addSourceBuffer() {
       throw new Error('Testing Mock');
     }
   });
+
+  window.MediaSource.isTypeSupported = function(mime) {
+    return true;
+  };
+
+  QUnit.ok(
+    new videojs.MediaSource({ mode: 'flash' }) instanceof FlashMediaSource,
+    'forced flash'
+  );
+
   QUnit.ok(
       new videojs.MediaSource({ mode: 'html5' }) instanceof HtmlMediaSource,
     'forced html5'
@@ -77,7 +82,11 @@ QUnit.test('implementation selection is overridable', function() {
     new videojs.MediaSource() instanceof HtmlMediaSource,
     'used html5'
   );
-  window.MediaSource = null;
+
+  window.MediaSource.isTypeSupported = function(mime) {
+    return false;
+  };
+
   // 'auto' should use flash when native mediasources are not available
   QUnit.ok(
     new videojs.MediaSource() instanceof FlashMediaSource,

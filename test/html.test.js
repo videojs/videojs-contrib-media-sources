@@ -38,6 +38,9 @@ QUnit.module('videojs-contrib-media-sources - HTML', {
         return buffer;
       }
     });
+    window.MediaSource.isTypeSupported = function(mime) {
+      return true;
+    };
     window.WebKitMediaSource = window.MediaSource;
   },
   afterEach() {
@@ -143,6 +146,25 @@ function() {
   mediaSource.trigger('sourceclose');
 
   QUnit.equal(terminates, 1, 'called terminate on transmux web worker');
+});
+
+QUnit.test('duration is faked when playing a live stream', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+  mediaSource.duration = Infinity;
+  mediaSource.mediaSource_.duration = 100;
+  QUnit.equal(mediaSource.mediaSource_.duration, 100, 'native duration was not set to infinity');
+  QUnit.equal(mediaSource.duration, Infinity, 'the MediaSource wrapper pretends it has an infinite duration');
+});
+
+QUnit.test('duration uses the underlying MediaSource\'s duration when not live', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+  mediaSource.duration = 100;
+  mediaSource.mediaSource_.duration = 120;
+  QUnit.equal(mediaSource.duration, 120, 'the MediaSource wrapper returns the native duration');
 });
 
 QUnit.test('abort on the fake source buffer calls abort on the real ones', function() {
