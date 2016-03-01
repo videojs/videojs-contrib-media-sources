@@ -42,6 +42,6 @@
     "video.js": "^5.1.0"
   },
   "dependencies": {
-    "mux.js": "^1.0.0"
+    "mux.js": "^2.0.0"
   }
 }

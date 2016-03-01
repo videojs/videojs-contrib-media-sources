@@ -17,15 +17,7 @@ module.exports = function(config) {
     files: [
       'node_modules/video.js/dist/video.js',
       'node_modules/video.js/dist/video.js',
-      'node_modules/mux.js/lib/utils/stream.js',
-      'node_modules/mux.js/lib/utils/exp-golomb.js',
-      'node_modules/mux.js/lib/m2ts/m2ts.js',
-      'node_modules/mux.js/lib/m2ts/metadata-stream.js',
-      'node_modules/mux.js/lib/m2ts/caption-stream.js',
-      'node_modules/mux.js/lib/codecs/h264.js',
-      'node_modules/mux.js/lib/codecs/aac.js',
-      'node_modules/mux.js/lib/flv/flv-tag.js',
-      'node_modules/mux.js/lib/flv/transmuxer.js',
+      'node_modules/mux.js/dist/mux.js',
       {pattern: 'src/transmuxer_worker.js', included: false},
       'src/videojs-media-sources.js',
       'test/*.js'
