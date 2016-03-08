@@ -154,6 +154,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         return videojs.createTimeRanges(ranges);
       }
     });
+
+    Object.defineProperty(this, 'videoTracks', {
+      get() {
+        return this.videoBuffer_.videoTracks;
+      }
+    });
   }
 
   // Transmuxer message handlers

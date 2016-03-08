@@ -63,9 +63,17 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
     });
 
+    Object.defineProperty(this, 'activeSourceBuffers', {
+      get() {
+        return self.activeSourceBuffers_;
+      }
+    });
+
     // the list of virtual and native SourceBuffers created by this
     // MediaSource
     this.sourceBuffers = [];
+
+    this.activeSourceBuffers_ = [];
 
     // Re-emit MediaSource events on the polyfill
     [
@@ -86,6 +94,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
 
       self.player_ = videojs(video.parentNode);
+      self.player_.audioTracks().on('change', self.updateActiveSourceBuffers_.bind(self));
     });
 
     // explicitly terminate any WebWorkers that were created
@@ -125,6 +134,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     let mp4aCodec;
     let avcRegEx = /avc1\.[\da-f]+/i;
     let mp4aRegEx = /mp4a\.\d+.\d+/i;
+    let setActiveSourceBuffers;
 
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
@@ -145,14 +155,43 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
 
       buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
-      this.sourceBuffers.push(buffer);
-      return buffer;
+    } else {
+      // delegate to the native implementation
+      buffer = this.mediaSource_.addSourceBuffer(type);
     }
 
-    // delegate to the native implementation
-    buffer = this.mediaSource_.addSourceBuffer(type);
+    setActiveSourceBuffers = () => {
+      this.updateActiveSourceBuffers_();
+      // TODO buffer.one causing call stack exceeded exception
+      buffer.off('updateend', setActiveSourceBuffers);
+    };
+    // for combined audio/video tracks, we can only determine if a source buffer is
+    // active after a completed update (once it has/doesn't have videoTracks)
+    buffer.on('updateend', setActiveSourceBuffers);
+
     this.sourceBuffers.push(buffer);
     return buffer;
+  }
+
+  updateActiveSourceBuffers_() {
+    // Retain the reference but empty the array
+    this.activeSourceBuffers_.length = 0;
+
+    if (this.player_.audioTracks().some((audioTrack) => audioTrack.enabled)) {
+      // We are using an alternate audio track from the default. Since we currently only
+      // support a max of two source buffers, add all of the source buffers (in order).
+      this.sourceBuffers.forEach((sourceBuffer) => {
+        this.activeSourceBuffers_.push(sourceBuffer);
+      });
+    } else {
+      // We are using the combined audio/video stream, so only add the combined source
+      // buffer.
+      this.sourceBuffers.forEach((sourceBuffer) => {
+        if (sourceBuffer.videoTracks && sourceBuffer.videoTracks.length > 0) {
+          this.activeSourceBuffers_.push(sourceBuffer);
+        }
+      });
+    }
   }
 }
 

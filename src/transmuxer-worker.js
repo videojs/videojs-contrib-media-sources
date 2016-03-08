@@ -9,8 +9,6 @@
  * message-based interface to a Transmuxer object.
  */
 import muxjs from 'mux.js';
-let globalTransmuxer;
-let initOptions = {};
 
 /**
  * wireTransmuxerEvents
@@ -54,28 +52,20 @@ const wireTransmuxerEvents = function(transmuxer) {
  * All incoming messages route through this hash. If no function exists
  * to handle an incoming message, then we ignore the message.
  */
-let messageHandlers = {
-  /**
-   * init
-   * Allows you to initialize the transmuxer and pass along options from
-   * outside the worker
-   */
-  init(data) {
-    initOptions = (data && data.options) || {};
-    this.defaultInit();
-  },
-  /**
-   * defaultInit
-   * Is called before every function and initializes the transmuxer with
-   * default options if `init` was never explicitly called
-   */
-  defaultInit() {
-    if (globalTransmuxer) {
-      globalTransmuxer.dispose();
+class MessageHandlers {
+  constructor(options) {
+    this.options = options || {};
+    this.init();
+  }
+
+  init() {
+    if (this.transmuxer) {
+      this.transmuxer.dispose();
     }
-    globalTransmuxer = new muxjs.mp4.Transmuxer(initOptions);
-    wireTransmuxerEvents(globalTransmuxer);
-  },
+    this.transmuxer = new muxjs.mp4.Transmuxer(this.options);
+    wireTransmuxerEvents(this.transmuxer);
+  }
+
   /**
    * push
    * Adds data (a ts segment) to the start of the transmuxer pipeline for
@@ -85,16 +75,18 @@ let messageHandlers = {
     // Cast array buffer to correct type for transmuxer
     let segment = new Uint8Array(data.data, data.byteOffset, data.byteLength);
 
-    globalTransmuxer.push(segment);
-  },
+    this.transmuxer.push(segment);
+  }
+
   /**
    * reset
    * Recreate the transmuxer so that the next segment added via `push`
    * start with a fresh transmuxer
    */
   reset() {
-    this.defaultInit();
-  },
+    this.init();
+  }
+
   /**
    * setTimestampOffset
    * Set the value that will be used as the `baseMediaDecodeTime` time for the
@@ -104,32 +96,38 @@ let messageHandlers = {
   setTimestampOffset(data) {
     let timestampOffset = data.timestampOffset || 0;
 
-    globalTransmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
-  },
+    this.transmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
+  }
+
   /**
    * flush
    * Forces the pipeline to finish processing the last segment and emit it's
    * results
    */
   flush(data) {
-    globalTransmuxer.flush();
+    this.transmuxer.flush();
   }
-};
+}
 
 const Worker = function(self) {
   self.onmessage = function(event) {
-    // Setup the default transmuxer if one doesn't exist yet and we are invoked with
-    // an action other than `init`
-    if (!globalTransmuxer && event.data.action !== 'init') {
-      messageHandlers.defaultInit();
+    if (event.data.action === 'init' && event.data.options) {
+      this.messageHandlers = new MessageHandlers(event.data.options);
+      return;
     }
 
-    if (event.data && event.data.action) {
-      if (messageHandlers[event.data.action]) {
-        messageHandlers[event.data.action](event.data);
+    if (!this.messageHandlers) {
+      this.messageHandlers = new MessageHandlers();
+    }
+
+    if (event.data && event.data.action && event.data.action !== 'init') {
+      if (this.messageHandlers[event.data.action]) {
+        this.messageHandlers[event.data.action](event.data);
       }
     }
   };
 };
 
-export default Worker;
+export default (self) => {
+  return new Worker(self);
+};
