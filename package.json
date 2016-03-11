@@ -72,7 +72,8 @@
   ],
   "dependencies": {
     "video.js": "^5.0.0",
-    "mux.js": "^2.0.0"
+    "mux.js": "^2.0.0",
+    "webworkify": "1.0.2"
   },
   "devDependencies": {
     "babel": "^5.8.0",
@@ -104,8 +105,6 @@
     "sinon": "^1.0.0",
     "uglify-js": "^2.5.0",
     "videojs-standard": "^4.0.0",
-    "watchify": "^3.6.0",
-    "webworkify": "^1.0.2"
-
+    "watchify": "^3.6.0"
   }
 }
