@@ -1,9 +1,10 @@
-language: node_js
 sudo: false
+language: node_js
 node_js:
   - "stable"
 addons:
   firefox: "latest"
+# Set up a virtual screen for Firefox.
 before_script:
   - export DISPLAY=:99.0
   - sh -e /etc/init.d/xvfb start
