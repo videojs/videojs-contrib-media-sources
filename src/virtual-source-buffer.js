@@ -228,6 +228,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         );
       }
     }
+
+    if (this.videoBuffer_) {
+      this.videoTracks = this.videoBuffer_.videoTracks;
+    }
+
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
 
     // Add the segments to the pendingBuffers array

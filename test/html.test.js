@@ -17,6 +17,7 @@ QUnit.module('videojs-contrib-media-sources - HTML', {
     this.video = document.createElement('video');
     this.fixture.appendChild(this.video);
     this.player = videojs(this.video);
+    this.player.audioTracks = () => [];
 
     // Mock the environment's timers because certain things - particularly
     // player readiness - are asynchronous in video.js 5.
@@ -154,17 +155,21 @@ QUnit.test('duration is faked when playing a live stream', function() {
 
   mediaSource.duration = Infinity;
   mediaSource.mediaSource_.duration = 100;
-  QUnit.equal(mediaSource.mediaSource_.duration, 100, 'native duration was not set to infinity');
-  QUnit.equal(mediaSource.duration, Infinity, 'the MediaSource wrapper pretends it has an infinite duration');
+  QUnit.equal(mediaSource.mediaSource_.duration, 100,
+              'native duration was not set to infinity');
+  QUnit.equal(mediaSource.duration, Infinity,
+              'the MediaSource wrapper pretends it has an infinite duration');
 });
 
-QUnit.test('duration uses the underlying MediaSource\'s duration when not live', function() {
+QUnit.test(
+'duration uses the underlying MediaSource\'s duration when not live', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
   mediaSource.duration = 100;
   mediaSource.mediaSource_.duration = 120;
-  QUnit.equal(mediaSource.duration, 120, 'the MediaSource wrapper returns the native duration');
+  QUnit.equal(mediaSource.duration, 120,
+              'the MediaSource wrapper returns the native duration');
 });
 
 QUnit.test('abort on the fake source buffer calls abort on the real ones', function() {
@@ -517,6 +522,8 @@ QUnit.test('aggregates source buffer update events', function() {
   let updateends = 0;
   let updatestarts = 0;
 
+  mediaSource.player_ = this.player;
+
   initializeNativeSourceBuffers(sourceBuffer);
 
   sourceBuffer.addEventListener('updatestart', function() {
@@ -664,4 +671,86 @@ QUnit.test('does not wrap mp4 source buffers', function() {
     'did not need virtual buffers'
   );
   QUnit.equal(mediaSource.sourceBuffers.length, 2, 'created native buffers');
+});
+
+QUnit.test('can get activeSourceBuffers', function() {
+  let mediaSource = new videojs.MediaSource();
+
+  // although activeSourceBuffers should technically be a SourceBufferList, we are
+  // returning it as an array, and users may expect it to behave as such
+  QUnit.ok(Array.isArray(mediaSource.activeSourceBuffers));
+});
+
+QUnit.test('active source buffers are updated on each buffer\'s updateend',
+function() {
+  let mediaSource = new videojs.MediaSource();
+  let updateCallCount = 0;
+  let sourceBuffer;
+
+  mediaSource.updateActiveSourceBuffers_ = () => {
+    updateCallCount++;
+  };
+
+  sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  initializeNativeSourceBuffers(sourceBuffer);
+
+  QUnit.equal(updateCallCount, 0,
+              'active source buffers not updated on adding source buffer');
+
+  sourceBuffer.videoBuffer_.trigger('updateend');
+  QUnit.equal(updateCallCount, 1,
+              'active source buffers updated after first updateend');
+
+  sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  initializeNativeSourceBuffers(sourceBuffer);
+
+  QUnit.equal(updateCallCount, 1,
+              'active source buffers not updated on adding second source buffer');
+
+  sourceBuffer.videoBuffer_.trigger('updateend');
+  QUnit.equal(updateCallCount, 2,
+              'active source buffers updated after first updateend of new source buffer');
+});
+
+QUnit.test('active source buffers includes all buffers if alternate audio track enabled',
+function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBufferAudio;
+  let sourceBufferCombined;
+  let audioTracks = [{
+    enabled: true,
+    label: 'main'
+  }, {
+    enabled: false,
+    label: 'English (UK)'
+  }];
+
+  this.player.audioTracks = () => audioTracks;
+
+  mediaSource.player_ = this.player;
+
+  sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferCombined.videoTracks = {
+    length: 1
+  };
+
+  mediaSource.updateActiveSourceBuffers_();
+
+  QUnit.equal(mediaSource.activeSourceBuffers.length, 1,
+    'active source buffers starts with one source buffer');
+  QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferCombined,
+    'active source buffers starts with combined source buffer');
+
+  this.player.audioTracks()[1].enabled = true;
+
+  mediaSource.updateActiveSourceBuffers_();
+
+  QUnit.equal(mediaSource.activeSourceBuffers.length, 2,
+    'active source buffers includes both source buffers');
+  // maintains same order as source buffers were created
+  QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferAudio,
+    'active source buffers starts with audio source buffer');
+  QUnit.equal(mediaSource.activeSourceBuffers[1], sourceBufferCombined,
+    'active source buffers ends with combined source buffer');
 });

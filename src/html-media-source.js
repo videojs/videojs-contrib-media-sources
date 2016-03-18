@@ -63,9 +63,17 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
     });
 
+    Object.defineProperty(this, 'activeSourceBuffers', {
+      get() {
+        return self.activeSourceBuffers_;
+      }
+    });
+
     // the list of virtual and native SourceBuffers created by this
     // MediaSource
     this.sourceBuffers = [];
+
+    this.activeSourceBuffers_ = [];
 
     // Re-emit MediaSource events on the polyfill
     [
@@ -86,6 +94,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
 
       self.player_ = videojs(video.parentNode);
+      self.player_.audioTracks().on('change', self.updateActiveSourceBuffers_.bind(self));
     });
 
     // explicitly terminate any WebWorkers that were created
@@ -145,14 +154,54 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
 
       buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
-      this.sourceBuffers.push(buffer);
-      return buffer;
+    } else {
+      // delegate to the native implementation
+      buffer = this.mediaSource_.addSourceBuffer(type);
     }
 
-    // delegate to the native implementation
-    buffer = this.mediaSource_.addSourceBuffer(type);
+    // For combined audio/video tracks, we can only determine if a source buffer is
+    // active after a completed update (once it has/doesn't have videoTracks).
+    // Once https://github.com/videojs/video.js/issues/2981 is resolved, switch to using
+    // buffer.one instead of buffer.on.
+    buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
+
     this.sourceBuffers.push(buffer);
     return buffer;
+  }
+
+  updateActiveSourceBuffers_() {
+    let altAudioTrackEnabled;
+
+    for (let i = 0; i < this.player_.audioTracks().length; i++) {
+      if (this.player_.audioTracks()[i].enabled &&
+          this.player_.audioTracks()[i].label !== 'main') {
+        altAudioTrackEnabled = true;
+        break;
+      }
+    }
+
+    // Retain the reference but empty the array
+    this.activeSourceBuffers_.length = 0;
+
+    if (altAudioTrackEnabled) {
+      // Since we currently support a max of two source buffers, add all of the source
+      // buffers (in order).
+      this.sourceBuffers.forEach((sourceBuffer) => {
+        this.activeSourceBuffers_.push(sourceBuffer);
+      });
+    } else {
+      // We are using the combined audio/video stream, so only add the combined source
+      // buffer.
+      this.sourceBuffers.forEach((sourceBuffer) => {
+        /* eslinst-disable */
+        // TODO once codecs are required, we can switch to using the codecs to determine
+        //      what stream is the video stream, rather than relying on videoTracks
+        /* eslinst-enable */
+        if (sourceBuffer.videoTracks && sourceBuffer.videoTracks.length > 0) {
+          this.activeSourceBuffers_.push(sourceBuffer);
+        }
+      });
+    }
   }
 }
 
