@@ -712,13 +712,17 @@ function() {
               'active source buffers updated after first updateend of new source buffer');
 });
 
-QUnit.test(
-'active source buffers includes all buffers if audio track enabled', function() {
+QUnit.test('active source buffers includes all buffers if alternate audio track enabled',
+function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBufferAudio;
   let sourceBufferCombined;
   let audioTracks = [{
-    enabled: false
+    enabled: true,
+    label: 'main'
+  }, {
+    enabled: false,
+    label: 'English (UK)'
   }];
 
   this.player.audioTracks = () => audioTracks;
@@ -738,7 +742,7 @@ QUnit.test(
   QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferCombined,
     'active source buffers starts with combined source buffer');
 
-  this.player.audioTracks()[0].enabled = true;
+  this.player.audioTracks()[1].enabled = true;
 
   mediaSource.updateActiveSourceBuffers_();
 

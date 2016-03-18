@@ -170,12 +170,22 @@ export default class HtmlMediaSource extends videojs.EventTarget {
   }
 
   updateActiveSourceBuffers_() {
+    let altAudioTrackEnabled;
+
+    for (let i = 0; i < this.player_.audioTracks().length; i++) {
+      if (this.player_.audioTracks()[i].enabled &&
+          this.player_.audioTracks()[i].label !== 'main') {
+        altAudioTrackEnabled = true;
+        break;
+      }
+    }
+
     // Retain the reference but empty the array
     this.activeSourceBuffers_.length = 0;
 
-    if (this.player_.audioTracks().some((audioTrack) => audioTrack.enabled)) {
-      // We are using an alternate audio track from the default. Since we currently only
-      // support a max of two source buffers, add all of the source buffers (in order).
+    if (altAudioTrackEnabled) {
+      // Since we currently support a max of two source buffers, add all of the source
+      // buffers (in order).
       this.sourceBuffers.forEach((sourceBuffer) => {
         this.activeSourceBuffers_.push(sourceBuffer);
       });
