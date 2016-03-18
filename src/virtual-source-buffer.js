@@ -154,12 +154,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         return videojs.createTimeRanges(ranges);
       }
     });
-
-    Object.defineProperty(this, 'videoTracks', {
-      get() {
-        return this.videoBuffer_.videoTracks;
-      }
-    });
   }
 
   // Transmuxer message handlers
@@ -234,6 +228,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         );
       }
     }
+
+    if (this.videoBuffer_) {
+      this.videoTracks = this.videoBuffer_.videoTracks;
+    }
+
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
 
     // Add the segments to the pendingBuffers array

@@ -193,6 +193,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // We are using the combined audio/video stream, so only add the combined source
       // buffer.
       this.sourceBuffers.forEach((sourceBuffer) => {
+        /* eslinst-disable */
+        // TODO once codecs are required, we can switch to using the codecs to determine
+        //      what stream is the video stream, rather than relying on videoTracks
+        /* eslinst-enable */
         if (sourceBuffer.videoTracks && sourceBuffer.videoTracks.length > 0) {
           this.activeSourceBuffers_.push(sourceBuffer);
         }
