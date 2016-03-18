@@ -134,7 +134,6 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     let mp4aCodec;
     let avcRegEx = /avc1\.[\da-f]+/i;
     let mp4aRegEx = /mp4a\.\d+.\d+/i;
-    let setActiveSourceBuffers;
 
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
@@ -160,14 +159,11 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       buffer = this.mediaSource_.addSourceBuffer(type);
     }
 
-    setActiveSourceBuffers = () => {
-      this.updateActiveSourceBuffers_();
-      // TODO buffer.one causing call stack exceeded exception
-      buffer.off('updateend', setActiveSourceBuffers);
-    };
-    // for combined audio/video tracks, we can only determine if a source buffer is
-    // active after a completed update (once it has/doesn't have videoTracks)
-    buffer.on('updateend', setActiveSourceBuffers);
+    // For combined audio/video tracks, we can only determine if a source buffer is
+    // active after a completed update (once it has/doesn't have videoTracks).
+    // Once https://github.com/videojs/video.js/issues/2981 is resolved, switch to using
+    // buffer.one instead of buffer.on.
+    buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
 
     this.sourceBuffers.push(buffer);
     return buffer;

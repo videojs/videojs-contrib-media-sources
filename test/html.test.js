@@ -673,13 +673,16 @@ QUnit.test('does not wrap mp4 source buffers', function() {
   QUnit.equal(mediaSource.sourceBuffers.length, 2, 'created native buffers');
 });
 
-QUnit.test('can get activeSourceBuffers', () => {
+QUnit.test('can get activeSourceBuffers', function() {
   let mediaSource = new videojs.MediaSource();
 
+  // although activeSourceBuffers should technically be a SourceBufferList, we are
+  // returning it as an array, and users may expect it to behave as such
   QUnit.ok(Array.isArray(mediaSource.activeSourceBuffers));
 });
 
-QUnit.test('active source buffers are updated on each buffer\'s first updateend', () => {
+QUnit.test('active source buffers are updated on each buffer\'s updateend',
+function() {
   let mediaSource = new videojs.MediaSource();
   let updateCallCount = 0;
   let sourceBuffer;
@@ -698,10 +701,6 @@ QUnit.test('active source buffers are updated on each buffer\'s first updateend'
   QUnit.equal(updateCallCount, 1,
               'active source buffers updated after first updateend');
 
-  sourceBuffer.videoBuffer_.trigger('updateend');
-  QUnit.equal(updateCallCount, 1,
-              'active source buffers not updated on second updateend');
-
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   initializeNativeSourceBuffers(sourceBuffer);
 
@@ -711,14 +710,8 @@ QUnit.test('active source buffers are updated on each buffer\'s first updateend'
   sourceBuffer.videoBuffer_.trigger('updateend');
   QUnit.equal(updateCallCount, 2,
               'active source buffers updated after first updateend of new source buffer');
-
-  sourceBuffer.videoBuffer_.trigger('updateend');
-  QUnit.equal(updateCallCount, 2,
-              'active source buffers not updated after second updateend of new source ' +
-              'buffer');
 });
 
-// running under the assumption that we will have a max of two source buffers
 QUnit.test(
 'active source buffers includes all buffers if audio track enabled', function() {
   let mediaSource = new videojs.MediaSource();
