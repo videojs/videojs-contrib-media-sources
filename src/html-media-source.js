@@ -146,14 +146,16 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       mp4aCodec = (codecs.match(mp4aRegEx) || [])[0];
 
       // If a codec is unspecified, use the defaults
-      if (!avcCodec || !avcCodec.length) {
-        avcCodec = 'avc1.4d400d';
+      // TODO: FIXME
+      if (!avcCodec && !mp4aCodec) {
+        buffer = new VirtualSourceBuffer(this, ['avc1.4d400d', 'mp4a.40.2']);
+      } else if (mp4aCodec) {
+        buffer = new VirtualSourceBuffer(this, [mp4aCodec]);
+      } else if (avcCodec) {
+        buffer = new VirtualSourceBuffer(this, [avcCodec]);
+      } else {
+        buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
       }
-      if (!mp4aCodec || !mp4aCodec.length) {
-        mp4aCodec = 'mp4a.40.2';
-      }
-
-      buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
     } else {
       // delegate to the native implementation
       buffer = this.mediaSource_.addSourceBuffer(type);
@@ -204,4 +206,3 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     }
   }
 }
-

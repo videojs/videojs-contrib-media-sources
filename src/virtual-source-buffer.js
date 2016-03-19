@@ -22,10 +22,18 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.mediaSource_ = mediaSource;
     this.codecs_ = codecs;
 
+    let options = {
+      remux: false
+    };
+    // TODO: consolidate audio regex
+    if (this.codecs_.length === 1 && (/mp4a\.\d+.\d+/i).test(this.codecs_[0])) {
+      options.aacfile = true;
+    }
+
     // append muxed segments to their respective native buffers as
     // soon as they are available
     this.transmuxer_ = work(transmuxWorker);
-    this.transmuxer_.postMessage({action: 'init', options: {remux: false}});
+    this.transmuxer_.postMessage({action: 'init', options });
 
     this.transmuxer_.onmessage = (event) => {
       if (event.data.action === 'data') {
