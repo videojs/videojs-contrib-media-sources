@@ -173,10 +173,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
   updateActiveSourceBuffers_() {
     let altAudioTrackEnabled;
+    let altAudioSourceBuffer;
+    let audioSourceBuffer;
 
     for (let i = 0; i < this.player_.audioTracks().length; i++) {
       if (this.player_.audioTracks()[i].enabled &&
-          this.player_.audioTracks()[i].label !== 'main') {
+          this.player_.audioTracks()[i].kind !== 'main') {
         altAudioTrackEnabled = true;
         break;
       }
@@ -189,8 +191,18 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // Since we currently support a max of two source buffers, add all of the source
       // buffers (in order).
       this.sourceBuffers.forEach((sourceBuffer) => {
+        if (sourceBuffer.videoCodec_) {
+          audioSourceBuffer = sourceBuffer.audioBuffer_;
+          sourceBuffer.disableAudio();
+        } else {
+          altAudioSourceBuffer = sourceBuffer;
+        }
         this.activeSourceBuffers_.push(sourceBuffer);
       });
+
+      if (!altAudioSourceBuffer.audioBuffer_) {
+        altAudioSourceBuffer.audioBuffer_ = audioSourceBuffer;
+      }
     } else {
       // We are using the combined audio/video stream, so only add the combined source
       // buffer.
@@ -199,7 +211,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         // TODO once codecs are required, we can switch to using the codecs to determine
         //      what stream is the video stream, rather than relying on videoTracks
         /* eslinst-enable */
-        if (sourceBuffer.videoTracks && sourceBuffer.videoTracks.length > 0) {
+        if (sourceBuffer.videoCodec_) {
           this.activeSourceBuffers_.push(sourceBuffer);
         }
       });

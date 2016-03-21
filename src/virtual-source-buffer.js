@@ -20,13 +20,16 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.pendingBuffers_ = [];
     this.bufferUpdating_ = false;
     this.mediaSource_ = mediaSource;
+    this.nativeMediaSource = this.mediaSource_.mediaSource_;
     this.codecs_ = codecs;
+    this.audioCodec_ = this.codecs_.length === 1 ? this.codecs_[0] : this.codecs_[1];
+    this.videoCodec_ = this.codecs_.length === 1 ? void 0 : this.codecs_[0];
 
     let options = {
       remux: false
     };
     // TODO: consolidate audio regex
-    if (this.codecs_.length === 1 && (/mp4a\.\d+.\d+/i).test(this.codecs_[0])) {
+    if (!this.videoCodec_ && (/mp4a\.\d+.\d+/i).test(this.audioCodec_)) {
       options.aacfile = true;
     }
 
@@ -96,9 +99,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         let extents = [];
         let ranges = [];
 
-        // Handle the case where there is no buffer data
-        if ((!this.videoBuffer_ || this.videoBuffer_.buffered.length === 0) &&
-            (!this.audioBuffer_ || this.audioBuffer_.buffered.length === 0)) {
+        if (!this.videoBuffer && !this.audioBuffer) {
           return videojs.createTimeRange();
         }
 
@@ -107,6 +108,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
           return this.audioBuffer_.buffered;
         } else if (!this.audioBuffer_) {
           return this.videoBuffer_.buffered;
+        }
+
+        // Handle the case where there is no buffer data
+        if ((!this.videoBuffer_ || this.videoBuffer_.buffered.length === 0) &&
+            (!this.audioBuffer_ || this.audioBuffer_.buffered.length === 0)) {
+          return videojs.createTimeRange();
         }
 
         // Handle the case where we have both buffers and create an
@@ -168,7 +175,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
   data_(event) {
     let segment = event.data.segment;
-    let nativeMediaSource = this.mediaSource_.mediaSource_;
 
     // Cast ArrayBuffer to TypedArray
     segment.data = new Uint8Array(
@@ -180,8 +186,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     // If any sourceBuffers have not been created, do so now
     if (segment.type === 'video') {
       if (!this.videoBuffer_) {
-        this.videoBuffer_ = nativeMediaSource.addSourceBuffer(
-          'video/mp4;codecs="' + this.codecs_[0] + '"'
+        this.videoBuffer_ = this.nativeMediaSource.addSourceBuffer(
+          'video/mp4;codecs="' + this.videoCodec_ + '"'
         );
         // aggregate buffer events
         this.videoBuffer_.addEventListener(
@@ -198,27 +204,43 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         );
       }
     } else if (segment.type === 'audio') {
-      if (!this.audioBuffer_) {
-        this.audioBuffer_ = nativeMediaSource.addSourceBuffer(
-          'audio/mp4;codecs="' + this.codecs_[1] + '"'
+      console.log('Adding audio');
+      if (!this.audioBuffer_ && !this.audioDisabled_) {
+        this.audioBuffer_ = this.nativeMediaSource.addSourceBuffer(
+          'audio/mp4;codecs="' + this.audioCodec_ + '"'
         );
-        // aggregate buffer events
-        this.audioBuffer_.addEventListener(
-          'updatestart',
-          aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart')
-        );
-        this.audioBuffer_.addEventListener(
-          'update',
-          aggregateUpdateHandler(this, 'videoBuffer_', 'update')
-        );
-        this.audioBuffer_.addEventListener(
-          'updateend',
-          aggregateUpdateHandler(this, 'videoBuffer_', 'updateend')
-        );
+        if (this.videoBuffer_) {
+          // aggregate buffer events
+          this.audioBuffer_.addEventListener(
+            'updatestart',
+            aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart')
+          );
+          this.audioBuffer_.addEventListener(
+            'update',
+            aggregateUpdateHandler(this, 'videoBuffer_', 'update')
+          );
+          this.audioBuffer_.addEventListener(
+            'updateend',
+            aggregateUpdateHandler(this, 'videoBuffer_', 'updateend')
+          );
+        } else {
+          this.audioBuffer_.addEventListener('updatestart', () => {
+            console.log('updatestart audio only');
+            this.trigger('updatestart');
+          });
+          this.audioBuffer_.addEventListener('update', () => {
+            console.log('update audio only');
+            this.trigger('update');
+          });
+          this.audioBuffer_.addEventListener('updateend', () => {
+            console.log('updateend audio only');
+            this.trigger('updateend');
+          });
+        }
       }
     } else if (segment.type === 'combined') {
       if (!this.videoBuffer_) {
-        this.videoBuffer_ = nativeMediaSource.addSourceBuffer(
+        this.videoBuffer_ = this.nativeMediaSource.addSourceBuffer(
           'video/mp4;codecs="' + this.codecs_.join(',') + '"'
         );
         // aggregate buffer events
@@ -336,11 +358,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       return segmentObj;
     }, sortedSegments);
 
-    addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
+    //addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
 
     // Merge multiple video and audio segments into one and append
-    this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
-    this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
+    if (this.videoBuffer_) {
+      this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
+    }
+    if (this.audioBuffer_) {
+      this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
+    }
 
     this.pendingBuffers_.length = 0;
 
@@ -380,5 +406,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
     this.pendingBuffers_.length = 0;
     this.bufferUpdating_ = false;
+  }
+
+  disableAudio() {
+    this.audioDisabled_ = true;
+    this.audioBuffer_ = null;
+  }
+
+  enableAudio() {
+    this.audioDisabled_ = false;
   }
 }
