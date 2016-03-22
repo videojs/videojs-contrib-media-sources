@@ -165,7 +165,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // active after a completed update (once it has/doesn't have videoTracks).
     // Once https://github.com/videojs/video.js/issues/2981 is resolved, switch to using
     // buffer.one instead of buffer.on.
-    buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
+    //buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
 
     this.sourceBuffers.push(buffer);
     return buffer;

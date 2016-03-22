@@ -5,10 +5,13 @@ import addTextTrackData from './add-text-track-data';
 import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
 
-const aggregateUpdateHandler = function(mediaSource, guardBufferName, type) {
+const aggregateUpdateHandler = function(options, eventType) {
+  let {mediaSource, guardBufferName, emitOnDisabledAudio} = options;
+
   return function() {
-    if (!mediaSource[guardBufferName] || !mediaSource[guardBufferName].updating) {
-      return mediaSource.trigger(type);
+    if ((emitOnDisabledAudio && this.audioDisabled_) ||
+        (!mediaSource[guardBufferName] || !mediaSource[guardBufferName].updating)) {
+      return mediaSource.trigger(eventType);
     }
   };
 };
@@ -28,6 +31,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     let options = {
       remux: false
     };
+
     // TODO: consolidate audio regex
     if (!this.videoCodec_ && (/mp4a\.\d+.\d+/i).test(this.audioCodec_)) {
       options.aacfile = true;
@@ -67,6 +71,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         }
       }
     });
+
     // setting the append window affects both source buffers
     Object.defineProperty(this, 'appendWindowStart', {
       get() {
@@ -81,6 +86,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         }
       }
     });
+
     // this buffer is "updating" if either of its native buffers are
     Object.defineProperty(this, 'updating', {
       get() {
@@ -89,6 +95,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
           (this.videoBuffer_ && this.videoBuffer_.updating);
       }
     });
+
     // the buffered property is the intersection of the buffered
     // ranges of the native source buffers
     Object.defineProperty(this, 'buffered', {
@@ -99,14 +106,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         let extents = [];
         let ranges = [];
 
-        if (!this.videoBuffer && !this.audioBuffer) {
+        if (!this.videoBuffer_ && (this.audioDisabled_ || !this.audioBuffer_)) {
           return videojs.createTimeRange();
         }
 
         // Handle the case where we only have one buffer
         if (!this.videoBuffer_) {
           return this.audioBuffer_.buffered;
-        } else if (!this.audioBuffer_) {
+        } else if (this.audioDisabled_ || !this.audioBuffer_) {
           return this.videoBuffer_.buffered;
         }
 
@@ -172,7 +179,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   // Transmuxer message handlers
-
   data_(event) {
     let segment = event.data.segment;
 
@@ -186,81 +192,83 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     // If any sourceBuffers have not been created, do so now
     if (segment.type === 'video') {
       if (!this.videoBuffer_) {
-        this.videoBuffer_ = this.nativeMediaSource.addSourceBuffer(
-          'video/mp4;codecs="' + this.videoCodec_ + '"'
-        );
+        if (!this.mediaSource_.videoBuffer_) {
+          this.mediaSource_.videoBuffer_ = this.nativeMediaSource.addSourceBuffer(
+            'video/mp4;codecs="' + this.videoCodec_ + '"'
+          );
+        }
+        this.videoBuffer_ = this.mediaSource_.videoBuffer_;
+
+        let aggregateOptions = {
+          mediaSource: this,
+          guardBufferName: 'audioBuffer_',
+          emitOnDisabledAudio: true
+        };
+
         // aggregate buffer events
         this.videoBuffer_.addEventListener(
           'updatestart',
-          aggregateUpdateHandler(this, 'audioBuffer_', 'updatestart')
+          aggregateUpdateHandler(aggregateOptions, 'updatestart')
         );
         this.videoBuffer_.addEventListener(
           'update',
-          aggregateUpdateHandler(this, 'audioBuffer_', 'update')
+          aggregateUpdateHandler(aggregateOptions, 'update')
         );
         this.videoBuffer_.addEventListener(
           'updateend',
-          aggregateUpdateHandler(this, 'audioBuffer_', 'updateend')
+          aggregateUpdateHandler(aggregateOptions, 'updateend')
         );
       }
-    } else if (segment.type === 'audio') {
-      console.log('Adding audio');
-      if (!this.audioBuffer_ && !this.audioDisabled_) {
-        this.audioBuffer_ = this.nativeMediaSource.addSourceBuffer(
-          'audio/mp4;codecs="' + this.audioCodec_ + '"'
-        );
+    } else if (segment.type === 'audio' && !this.audioDisabled_) {
+      if (!this.audioBuffer_) {
+        if (!this.mediaSource_.audioBuffer_) {
+          this.mediaSource_.audioBuffer_ = this.nativeMediaSource.addSourceBuffer(
+            'audio/mp4;codecs="' + this.audioCodec_ + '"'
+          );
+        }
+        this.audioBuffer_ = this.mediaSource_.audioBuffer_;
+
+        let aggregateOptions = {
+          mediaSource: this,
+          guardBufferName: 'videoBuffer_',
+          emitOnDisabledAudio: false
+        };
+
         if (this.videoBuffer_) {
           // aggregate buffer events
           this.audioBuffer_.addEventListener(
             'updatestart',
-            aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart')
+            aggregateUpdateHandler(aggregateOptions, 'updatestart')
           );
           this.audioBuffer_.addEventListener(
             'update',
-            aggregateUpdateHandler(this, 'videoBuffer_', 'update')
+            aggregateUpdateHandler(aggregateOptions, 'update')
           );
           this.audioBuffer_.addEventListener(
             'updateend',
-            aggregateUpdateHandler(this, 'videoBuffer_', 'updateend')
+            aggregateUpdateHandler(aggregateOptions, 'updateend')
           );
         } else {
           this.audioBuffer_.addEventListener('updatestart', () => {
-            console.log('updatestart audio only');
-            this.trigger('updatestart');
+            if (!this.audioDisabled_) {
+              console.log('updatestart audio only');
+              this.trigger('updatestart');
+            }
           });
           this.audioBuffer_.addEventListener('update', () => {
-            console.log('update audio only');
-            this.trigger('update');
+            if (!this.audioDisabled_) {
+              console.log('update audio only');
+              this.trigger('update');
+            }
           });
           this.audioBuffer_.addEventListener('updateend', () => {
-            console.log('updateend audio only');
-            this.trigger('updateend');
+            if (!this.audioDisabled_) {
+              console.log('updateend audio only');
+              this.trigger('updateend');
+            }
           });
         }
       }
-    } else if (segment.type === 'combined') {
-      if (!this.videoBuffer_) {
-        this.videoBuffer_ = this.nativeMediaSource.addSourceBuffer(
-          'video/mp4;codecs="' + this.codecs_.join(',') + '"'
-        );
-        // aggregate buffer events
-        this.videoBuffer_.addEventListener(
-          'updatestart',
-          aggregateUpdateHandler(this, 'videoBuffer_', 'updatestart')
-        );
-        this.videoBuffer_.addEventListener(
-          'update',
-          aggregateUpdateHandler(this, 'videoBuffer_', 'update')
-        );
-        this.videoBuffer_.addEventListener(
-          'updateend',
-          aggregateUpdateHandler(this, 'videoBuffer_', 'updateend')
-        );
-      }
-    }
-
-    if (this.videoBuffer_) {
-      this.videoTracks = this.videoBuffer_.videoTracks;
     }
 
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
@@ -337,11 +345,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       let type = segment.type;
       let data = segment.data;
 
-      // A "combined" segment type (unified video/audio) uses the videoBuffer
-      if (type === 'combined') {
-        type = 'video';
-      }
-
       segmentObj[type].segments.push(data);
       segmentObj[type].bytes += data.byteLength;
 
@@ -364,7 +367,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
     }
-    if (this.audioBuffer_) {
+    if (!this.audioDisabled_ && this.audioBuffer_) {
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
     }
 
@@ -410,7 +413,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
   disableAudio() {
     this.audioDisabled_ = true;
-    this.audioBuffer_ = null;
+//    this.audioBuffer_ = null;
   }
 
   enableAudio() {
