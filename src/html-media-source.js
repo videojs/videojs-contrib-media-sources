@@ -149,9 +149,9 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // TODO: FIXME
       if (!avcCodec && !mp4aCodec) {
         buffer = new VirtualSourceBuffer(this, ['avc1.4d400d', 'mp4a.40.2']);
-      } else if (mp4aCodec) {
+      } else if (mp4aCodec && !avcCodec) {
         buffer = new VirtualSourceBuffer(this, [mp4aCodec]);
-      } else if (avcCodec) {
+      } else if (avcCodec && !mp4aCodec) {
         buffer = new VirtualSourceBuffer(this, [avcCodec]);
       } else {
         buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
@@ -174,7 +174,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
   updateActiveSourceBuffers_() {
     let altAudioTrackEnabled;
     let altAudioSourceBuffer;
-    let audioSourceBuffer;
+//    let audioSourceBuffer;
+
 
     for (let i = 0; i < this.player_.audioTracks().length; i++) {
       if (this.player_.audioTracks()[i].enabled &&
@@ -192,7 +193,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // buffers (in order).
       this.sourceBuffers.forEach((sourceBuffer) => {
         if (sourceBuffer.videoCodec_) {
-          audioSourceBuffer = sourceBuffer.audioBuffer_;
+        //  audioSourceBuffer = sourceBuffer.audioBuffer_;
           sourceBuffer.disableAudio();
         } else {
           altAudioSourceBuffer = sourceBuffer;
@@ -200,9 +201,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         this.activeSourceBuffers_.push(sourceBuffer);
       });
 
-      if (!altAudioSourceBuffer.audioBuffer_) {
+   /*   if (altAudioSourceBuffer && !altAudioSourceBuffer.audioBuffer_ && audioSourceBuffer) {
         altAudioSourceBuffer.audioBuffer_ = audioSourceBuffer;
-      }
+        altAudioSourceBuffer.wireAudioBufferUpdateEvents();
+      }*/
     } else {
       // We are using the combined audio/video stream, so only add the combined source
       // buffer.
