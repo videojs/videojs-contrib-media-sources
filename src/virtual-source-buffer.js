@@ -25,15 +25,22 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.mediaSource_ = mediaSource;
     this.nativeMediaSource = this.mediaSource_.mediaSource_;
     this.codecs_ = codecs;
-    this.audioCodec_ = this.codecs_.length === 1 ? this.codecs_[0] : this.codecs_[1];
-    this.videoCodec_ = this.codecs_.length === 1 ? void 0 : this.codecs_[0];
+    this.audioCodec_;
+    this.videoCodec_;
 
     let options = {
       remux: false
     };
 
-    // TODO: consolidate audio regex
-    if (!this.videoCodec_ && (/mp4a\.\d+.\d+/i).test(this.audioCodec_)) {
+    this.codecs_.forEach((codec) => {
+      if ((/^mp4a/).test(codec)) {
+        this.audioCodec_ = codec;
+      } else if ((/^avc/).test(codec)) {
+        this.videoCodec_ = codec;
+      }
+    });
+
+    if (!this.videoCodec_) {
       options.aacfile = true;
     }
 
@@ -321,7 +328,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.videoBuffer_.remove(start, end);
     }
-    if (!this.audioDisabled_ && this.audioBuffer_) {
+    if (this.audioBuffer_) {
       this.audioBuffer_.remove(start, end);
     }
 
