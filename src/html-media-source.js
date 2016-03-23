@@ -1,23 +1,23 @@
 import videojs from 'video.js';
 import VirtualSourceBuffer from './virtual-source-buffer';
+import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';
 
 // Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
 // `avc1.<hhhhhh>`
 const translateLegacyCodecs = function(codecs) {
-  return codecs.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
-    let profileHex = ('00' + Number(profile).toString(16)).slice(-2);
-    let avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
+  return codecs.map((codec) => {
+    return codec.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
+      let profileHex = ('00' + Number(profile).toString(16)).slice(-2);
+      let avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
 
-    return 'avc1.' + profileHex + '00' + avcLevelHex;
+      return 'avc1.' + profileHex + '00' + avcLevelHex;
+    });
   });
 };
 
 export default class HtmlMediaSource extends videojs.EventTarget {
   constructor() {
     super(videojs.EventTarget);
-    /* eslint-disable consistent-this */
-    let self = this;
-    /* eslint-enable consistent-this */
     let property;
 
     this.mediaSource_ = new window.MediaSource();
@@ -35,15 +35,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     this.duration_ = NaN;
     Object.defineProperty(this, 'duration', {
       get() {
-        if (self.duration_ === Infinity) {
-          return self.duration_;
+        if (this.duration_ === Infinity) {
+          return this.duration_;
         }
-        return self.mediaSource_.duration;
+        return this.mediaSource_.duration;
       },
       set(duration) {
-        self.duration_ = duration;
+        this.duration_ = duration;
         if (duration !== Infinity) {
-          self.mediaSource_.duration = duration;
+          this.mediaSource_.duration = duration;
           return;
         }
       }
@@ -51,21 +51,21 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     Object.defineProperty(this, 'seekable', {
       get() {
         if (this.duration_ === Infinity) {
-          return videojs.createTimeRanges([[0, self.mediaSource_.duration]]);
+          return videojs.createTimeRanges([[0, this.mediaSource_.duration]]);
         }
-        return self.mediaSource_.seekable;
+        return this.mediaSource_.seekable;
       }
     });
 
     Object.defineProperty(this, 'readyState', {
       get() {
-        return self.mediaSource_.readyState;
+        return this.mediaSource_.readyState;
       }
     });
 
     Object.defineProperty(this, 'activeSourceBuffers', {
       get() {
-        return self.activeSourceBuffers_;
+        return this.activeSourceBuffers_;
       }
     });
 
@@ -86,15 +86,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
     // capture the associated player when the MediaSource is
     // successfully attached
-    this.on('sourceopen', function(event) {
-      let video = document.querySelector('[src="' + self.url_ + '"]');
+    this.on('sourceopen', (event) => {
+      let video = document.querySelector('[src="' + this.url_ + '"]');
 
       if (!video) {
         return;
       }
 
-      self.player_ = videojs(video.parentNode);
-      self.player_.audioTracks().on('change', self.updateActiveSourceBuffers_.bind(self));
+      this.player_ = videojs(video.parentNode);
+      this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_.bind(this));
     });
 
     // explicitly terminate any WebWorkers that were created
@@ -129,33 +129,27 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
   addSourceBuffer(type) {
     let buffer;
-    let codecs;
-    let avcCodec;
-    let mp4aCodec;
-    let avcRegEx = /avc1\.[\da-f]+/i;
-    let mp4aRegEx = /mp4a\.\d+.\d+/i;
+    let parsedType = parseContentType(type);
 
     // create a virtual source buffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
-    if ((/^video\/mp2t/i).test(type)) {
-      codecs = type.split(';').slice(1).join(';');
-      codecs = translateLegacyCodecs(codecs);
+    if (parsedType.type === 'video/mp2t') {
+      // default codecs
+      let codecs = [];
 
-      // Pull out each individual codec string if it exists
-      avcCodec = (codecs.match(avcRegEx) || [])[0];
-      mp4aCodec = (codecs.match(mp4aRegEx) || [])[0];
-
-      // If a codec is unspecified, use the defaults
-      // TODO: FIXME
-      if (!avcCodec && !mp4aCodec) {
-        buffer = new VirtualSourceBuffer(this, ['avc1.4d400d', 'mp4a.40.2']);
-      } else if (mp4aCodec && !avcCodec) {
-        buffer = new VirtualSourceBuffer(this, [mp4aCodec]);
-      } else if (avcCodec && !mp4aCodec) {
-        buffer = new VirtualSourceBuffer(this, [avcCodec]);
-      } else {
-        buffer = new VirtualSourceBuffer(this, [avcCodec, mp4aCodec]);
+      if (parsedType.parameters && parsedType.parameters.codecs) {
+        codecs = parsedType.parameters.codecs.split(',');
+        codecs = translateLegacyCodecs(codecs);
+        codecs = codecs.filter((codec) => {
+          return (isAudioCodec(codec) || isVideoCodec(codec));
+        });
       }
+
+      if (codecs.length === 0) {
+        codecs = ['avc1.4d400d', 'mp4a.40.2'];
+      }
+
+      buffer = new VirtualSourceBuffer(this, codecs);
     } else {
       // delegate to the native implementation
       buffer = this.mediaSource_.addSourceBuffer(type);
@@ -165,51 +159,55 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // active after a completed update (once it has/doesn't have videoTracks).
     // Once https://github.com/videojs/video.js/issues/2981 is resolved, switch to using
     // buffer.one instead of buffer.on.
-    //buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
+    buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
 
     this.sourceBuffers.push(buffer);
     return buffer;
   }
 
   updateActiveSourceBuffers_() {
-    let altAudioTrackEnabled;
-    let altAudioSourceBuffer;
+    // Retain the reference but empty the array
+    this.activeSourceBuffers_.length = 0;
 
+    let combined = 'enable';
+    let audioOnly = 'disable';
+
+    // TODO: maybe we can store the sourcebuffers on the track objects?
+    // safari may do something like this
     for (let i = 0; i < this.player_.audioTracks().length; i++) {
-      if (this.player_.audioTracks()[i].enabled &&
-          this.player_.audioTracks()[i].kind !== 'main') {
-        altAudioTrackEnabled = true;
+      let track = this.player_.audioTracks()[i];
+
+      if (track.enabled && track.kind !== 'main') {
+        combined = 'disable';
+        audioOnly = 'enable';
         break;
       }
     }
 
-    // Retain the reference but empty the array
-    this.activeSourceBuffers_.length = 0;
+    // Since we currently support a max of two source buffers, add all of the source
+    // buffers (in order).
+    this.sourceBuffers.forEach((sourceBuffer) => {
+      /* eslinst-disable */
+      // TODO once codecs are required, we can switch to using the codecs to determine
+      //      what stream is the video stream, rather than relying on videoTracks
+      /* eslinst-enable */
 
-    if (altAudioTrackEnabled) {
-      // Since we currently support a max of two source buffers, add all of the source
-      // buffers (in order).
-      this.sourceBuffers.forEach((sourceBuffer) => {
-        if (sourceBuffer.videoCodec_) {
-          sourceBuffer.disableAudio();
-        } else {
-          altAudioSourceBuffer = sourceBuffer;
+      if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
+        // combined
+        sourceBuffer[`${combined}Audio`]();
+      } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
+        // video only
+        sourceBuffer.disableAudio();
+        audioOnly = 'enable';
+      } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
+        // audio only
+        sourceBuffer[`${audioOnly}Audio`]();
+        if (audioOnly !== 'enable') {
+          return;
         }
-        this.activeSourceBuffers_.push(sourceBuffer);
-      });
-    } else {
-      // We are using the combined audio/video stream, so only add the combined source
-      // buffer.
-      this.sourceBuffers.forEach((sourceBuffer) => {
-        /* eslinst-disable */
-        // TODO once codecs are required, we can switch to using the codecs to determine
-        //      what stream is the video stream, rather than relying on videoTracks
-        /* eslinst-enable */
-        if (sourceBuffer.videoCodec_) {
-          sourceBuffer.enableAudio();
-          this.activeSourceBuffers_.push(sourceBuffer);
-        }
-      });
-    }
+      }
+
+      this.activeSourceBuffers_.push(sourceBuffer);
+    });
   }
 }
