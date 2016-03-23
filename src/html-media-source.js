@@ -172,51 +172,46 @@ export default class HtmlMediaSource extends videojs.EventTarget {
   }
 
   updateActiveSourceBuffers_() {
-    let altAudioTrackEnabled;
-    let altAudioSourceBuffer;
-//    let audioSourceBuffer;
-
-
-    for (let i = 0; i < this.player_.audioTracks().length; i++) {
-      if (this.player_.audioTracks()[i].enabled &&
-          this.player_.audioTracks()[i].kind !== 'main') {
-        altAudioTrackEnabled = true;
-        break;
-      }
-    }
-
     // Retain the reference but empty the array
     this.activeSourceBuffers_.length = 0;
 
-    if (altAudioTrackEnabled) {
-      // Since we currently support a max of two source buffers, add all of the source
-      // buffers (in order).
-      this.sourceBuffers.forEach((sourceBuffer) => {
-        if (sourceBuffer.videoCodec_) {
-        //  audioSourceBuffer = sourceBuffer.audioBuffer_;
-          sourceBuffer.disableAudio();
-        } else {
-          altAudioSourceBuffer = sourceBuffer;
-        }
-        this.activeSourceBuffers_.push(sourceBuffer);
-      });
+    let combined = 'enable';
+    let audioOnly = 'disable';
 
-   /*   if (altAudioSourceBuffer && !altAudioSourceBuffer.audioBuffer_ && audioSourceBuffer) {
-        altAudioSourceBuffer.audioBuffer_ = audioSourceBuffer;
-        altAudioSourceBuffer.wireAudioBufferUpdateEvents();
-      }*/
-    } else {
-      // We are using the combined audio/video stream, so only add the combined source
-      // buffer.
-      this.sourceBuffers.forEach((sourceBuffer) => {
-        /* eslinst-disable */
-        // TODO once codecs are required, we can switch to using the codecs to determine
-        //      what stream is the video stream, rather than relying on videoTracks
-        /* eslinst-enable */
-        if (sourceBuffer.videoCodec_) {
-          this.activeSourceBuffers_.push(sourceBuffer);
-        }
-      });
-    }
+    // TODO: find a better way to determine which sourcebuffers audio
+    // needs to be enabled this method relies on the track with kind 'main'
+    // being in the combined sourcebuffer. It is possible for the main track
+    // to have no audio and have a seprate track be the main audio
+    for (let i = 0; i < this.player_.audioTracks().length; i++) {
+      let track = this.player_.audioTracks()[i];
+       if (track.enabled && track.kind !== 'main') {
+          combined = 'disable';
+          audioOnly = 'enable';
+          break;
+       }
+     }
+
+    // Since we currently support a max of two source buffers, add all of the source
+    // buffers (in order).
+    this.sourceBuffers.forEach((sourceBuffer) => {
+      /* eslinst-disable */
+      // TODO once codecs are required, we can switch to using the codecs to determine
+      //      what stream is the video stream, rather than relying on videoTracks
+      /* eslinst-enable */
+
+      if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
+        // combined
+        sourceBuffer[`${combined}Audio`]();
+      } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
+        // video only
+        sourceBuffer.disableAudio();
+        audioOnly = 'enable';
+      } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
+        // audio only
+        sourceBuffer[`${audioOnly}Audio`]();
+      }
+
+      this.activeSourceBuffers_.push(sourceBuffer);
+    });
   }
 }
