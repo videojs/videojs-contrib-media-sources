@@ -73,8 +73,8 @@
     "test/"
   ],
   "dependencies": {
-    "video.js": "^5.0.0",
     "mux.js": "^2.0.0",
+    "video.js": "^5.9.0-1",
     "webworkify": "1.0.2"
   },
   "devDependencies": {
@@ -104,7 +104,7 @@
     "qunitjs": "^1.0.0",
     "serve-static": "^1.10.0",
     "shelljs": "^0.5.3",
-    "sinon": "^1.0.0",
+    "sinon": "1.14.1",
     "uglify-js": "^2.5.0",
     "videojs-standard": "^4.0.0",
     "watchify": "^3.6.0"
