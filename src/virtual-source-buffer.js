@@ -25,8 +25,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.mediaSource_ = mediaSource;
     this.nativeMediaSource = this.mediaSource_.mediaSource_;
     this.codecs_ = codecs;
-    this.audioCodec_ = this.codecs_.length === 1 ? this.codecs_[0] : this.codecs_[1];
-    this.videoCodec_ = this.codecs_.length === 1 ? void 0 : this.codecs_[0];
+
+    if ((/mp4a\.\d+.\d+/i).test(this.codecs_[0])) {
+      this.audioCodec_ = this.codecs_[0];
+      this.videoCodec_ = this.codecs_[1];
+    } else {
+      this.audioCodec_ = this.codecs_[1];
+      this.videoCodec_ = this.codecs_[0];
+    }
 
     let options = {
       remux: false
@@ -205,7 +211,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     return;
   }
   done_() {
-    console.log('DONE');
     // All buffers should have been flushed from the muxer
     // start processing anything we have received
     this.processPendingSegments_();
@@ -276,22 +281,18 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
   }
   wireAudioBufferUpdateEvents() {
-    console.trace('wireAudioBufferUpdateEvents');
     this.audioBuffer_.addEventListener('updatestart', () => {
       if (!this.audioDisabled_) {
-        console.log('updatestart audio only');
         this.trigger('updatestart');
       }
     });
     this.audioBuffer_.addEventListener('update', () => {
       if (!this.audioDisabled_) {
-        console.log('update audio only');
         this.trigger('update');
       }
     });
     this.audioBuffer_.addEventListener('updateend', () => {
       if (!this.audioDisabled_) {
-        console.log('updateend audio only');
         this.trigger('updateend');
       }
     });
