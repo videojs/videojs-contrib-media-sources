@@ -165,7 +165,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // active after a completed update (once it has/doesn't have videoTracks).
     // Once https://github.com/videojs/video.js/issues/2981 is resolved, switch to using
     // buffer.one instead of buffer.on.
-    //buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
+    // buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
 
     this.sourceBuffers.push(buffer);
     return buffer;
@@ -184,12 +184,13 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // to have no audio and have a seprate track be the main audio
     for (let i = 0; i < this.player_.audioTracks().length; i++) {
       let track = this.player_.audioTracks()[i];
-       if (track.enabled && track.kind !== 'main') {
-          combined = 'disable';
-          audioOnly = 'enable';
-          break;
-       }
-     }
+
+      if (track.enabled && track.kind !== 'main') {
+        combined = 'disable';
+        audioOnly = 'enable';
+        break;
+      }
+    }
 
     // Since we currently support a max of two source buffers, add all of the source
     // buffers (in order).
@@ -209,6 +210,9 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
         // audio only
         sourceBuffer[`${audioOnly}Audio`]();
+        if (audioOnly !== 'enable') {
+          return;
+        }
       }
 
       this.activeSourceBuffers_.push(sourceBuffer);

@@ -25,8 +25,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.mediaSource_ = mediaSource;
     this.nativeMediaSource = this.mediaSource_.mediaSource_;
     this.codecs_ = codecs;
-    this.audioCodec_;
-    this.videoCodec_;
+    this.audioCodec_ = null;
+    this.videoCodec_ = null;
 
     let options = {
       remux: false
@@ -198,12 +198,13 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       event.data.byteLength
     );
 
-    // If any sourceBuffers have not been created, do so now
+    // TODO: If any sourceBuffers have not been created, do so now
+    /*
     if (segment.type === 'video') {
 
     } else if (segment.type === 'audio' && !this.audioDisabled_) {
 
-    }
+    }*/
 
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
 
@@ -212,7 +213,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     return;
   }
   done_() {
-    console.log('DONE');
     // All buffers should have been flushed from the muxer
     // start processing anything we have received
     this.processPendingSegments_();
@@ -283,22 +283,18 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
   }
   wireAudioBufferUpdateEvents() {
-    console.trace('wireAudioBufferUpdateEvents');
     this.audioBuffer_.addEventListener('updatestart', () => {
       if (!this.audioDisabled_) {
-        console.log('updatestart audio only');
         this.trigger('updatestart');
       }
     });
     this.audioBuffer_.addEventListener('update', () => {
       if (!this.audioDisabled_) {
-        console.log('update audio only');
         this.trigger('update');
       }
     });
     this.audioBuffer_.addEventListener('updateend', () => {
       if (!this.audioDisabled_) {
-        console.log('updateend audio only');
         this.trigger('updateend');
       }
     });
@@ -380,11 +376,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       return segmentObj;
     }, sortedSegments);
 
-    //addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
-
     // Merge multiple video and audio segments into one and append
     if (this.videoBuffer_) {
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
+      // TODO: are video tracks the only ones with text tracks?
+      addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
     }
     if (!this.audioDisabled_ && this.audioBuffer_) {
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
