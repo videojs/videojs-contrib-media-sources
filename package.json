@@ -29,7 +29,9 @@
     "preversion": "npm test",
     "version": "npm run build",
     "watch": "npm-run-all -p watch:*",
-    "watch:js": "watchify src/videojs-contrib-media-sources.js -t babelify -v -o dist/videojs-contrib-media-sources.js",
+    "watch:js": "npm-run-all -p watch:js:babel watch:js:browserify",
+    "watch:js:babel": "babel src --watch -d es5",
+    "watch:js:browserify": "watchify . -v -o dist/videojs-contrib-media-sources.js",
     "watch:test": "node scripts/watch-test.js",
     "prepublish": "npm run build"
   },
