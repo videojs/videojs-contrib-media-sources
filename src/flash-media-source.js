@@ -1,8 +1,19 @@
+/**
+ * @file flash-media-source.js
+ */
 import videojs from 'video.js';
 import FlashSourceBuffer from './flash-source-buffer';
 import FlashConstants from './flash-constants';
 import {parseContentType} from './codec-utils';
 
+/**
+ * our flash implmentation of MediaSources. a polyfill
+ * for browsers that don't support native or HTML media sources
+ *
+ * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
+ * @class FlashMediaSource
+ * @extends videojs.EventTarget
+ */
 export default class FlashMediaSource extends videojs.EventTarget {
   constructor() {
     super();
@@ -31,11 +42,24 @@ export default class FlashMediaSource extends videojs.EventTarget {
     });
   }
 
+  /**
+   * we have this function so that the html and flash interfaces
+   * are the same
+   *
+   * @private
+   */
   addSeekableRange_() {
     // intentional no-op
   }
 
-  // create a new source buffer to receive a type of media data
+  /**
+   * create a new flash source buffer and add it to our flash media source.
+   * build to mimic the MediaSource api
+   *
+   * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource/addSourceBuffer
+   * @param {String} type the content-type of the source
+   * @return {Object} the flash source buffer
+   */
   addSourceBuffer(type) {
     let parsedType = parseContentType(type);
     let sourceBuffer;
@@ -52,15 +76,14 @@ export default class FlashMediaSource extends videojs.EventTarget {
     return sourceBuffer;
   }
 
-  /* eslint-disable max-len */
   /**
-    * Signals the end of the stream.
-    * @param error {string} (optional) Signals that a playback error
-    * has occurred. If specified, it must be either "network" or
-    * "decode".
-    * @see https://w3c.github.io/media-source/#widl-MediaSource-endOfStream-void-EndOfStreamError-error
-    */
-  /* eslint-enable max-len */
+   * Signals the end of the stream.
+   *
+   * @link https://w3c.github.io/media-source/#widl-MediaSource-endOfStream-void-EndOfStreamError-error
+   * @param {String=} error Signals that a playback error
+   * has occurred. If specified, it must be either "network" or
+   * "decode".
+   */
   endOfStream(error) {
     if (error === 'network') {
       // MEDIA_ERR_NETWORK
@@ -79,12 +102,19 @@ export default class FlashMediaSource extends videojs.EventTarget {
 
 /**
   * Set or return the presentation duration.
-  * @param value {double} the duration of the media in seconds
-  * @param {double} the current presentation duration
-  * @see http://www.w3.org/TR/media-source/#widl-MediaSource-duration
+  *
+  * @param {Double} value the duration of the media in seconds
+  * @param {Double} the current presentation duration
+  * @link http://www.w3.org/TR/media-source/#widl-MediaSource-duration
   */
 try {
   Object.defineProperty(FlashMediaSource.prototype, 'duration', {
+    /**
+     * return the presentation duration.
+     *
+     * @return {Double} the duration of the media in seconds
+     * @link http://www.w3.org/TR/media-source/#widl-MediaSource-duration
+     */
     get() {
       if (!this.swfObj) {
         return NaN;
@@ -92,6 +122,13 @@ try {
       // get the current duration from the SWF
       return this.swfObj.vjs_getProperty('duration');
     },
+    /**
+     * Set the presentation duration.
+     *
+     * @param {Double} value the duration of the media in seconds
+     * @return {Double} the duration of the media in seconds
+     * @link http://www.w3.org/TR/media-source/#widl-MediaSource-duration
+     */
     set(value) {
       let i;
       let oldDuration = this.swfObj.vjs_getProperty('duration');

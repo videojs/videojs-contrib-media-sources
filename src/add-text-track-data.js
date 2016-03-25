@@ -1,4 +1,15 @@
+/**
+ * @file add-text-track-data.js
+ */
 import videojs from 'video.js';
+/**
+ * define properties on a cue for backwards compatability
+ * but warn the user that they way that they are using it
+ * is depricated and will be removed at a later date
+ *
+ * @param {Cue} cue the cue to add the properties on
+ * @private
+ */
 const deprecateOldCue = function(cue) {
   Object.defineProperties(cue.frame, {
     id: {
@@ -28,6 +39,14 @@ const deprecateOldCue = function(cue) {
   });
 };
 
+/**
+ * add text track data to a source handler given the text track data
+ *
+ * @param {Object} sourceHandlere the flash or virtual source buffer
+ * @param {Array} captionArray an array of caption data
+ * @param {Array} cue an array of meta data
+ * @private
+ */
 const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
   let Cue = window.WebKitDataCue || window.VTTCue;
 

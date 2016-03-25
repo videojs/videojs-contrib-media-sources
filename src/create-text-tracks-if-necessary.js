@@ -1,3 +1,15 @@
+/**
+ * @file create-text-tracks-if-necessary.js
+ */
+
+/**
+ * Create text tracks on video.js if they exist
+ *
+ * @param {Object} sourceBuffer the VSB or FSB
+ * @param {Object} mediaSource the HTML or Flash media source
+ * @param {Object} segment the segment that may contain the text track
+ * @private
+ */
 const createTextTracksIfNecessary = function(sourceBuffer, mediaSource, segment) {
   // create an in-band caption track if one is present in the segment
   if (segment.captions &&

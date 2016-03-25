@@ -1,9 +1,19 @@
+/**
+ * @file html-media-source.js
+ */
 import videojs from 'video.js';
 import VirtualSourceBuffer from './virtual-source-buffer';
 import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';
 
-// Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
-// `avc1.<hhhhhh>`
+/**
+ * Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
+ * `avc1.<hhhhhh>`
+ *
+ * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
+ * @param {Array} codecs an array of codec strings to fix
+ * @return {Array} the translated codec array
+ * @private
+ */
 const translateLegacyCodecs = function(codecs) {
   return codecs.map((codec) => {
     return codec.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
@@ -15,6 +25,13 @@ const translateLegacyCodecs = function(codecs) {
   });
 };
 
+/**
+ * Our MediaSource implementation in HTML,
+ * mimics native source buffer where possible
+ *
+ * @class HtmlMediaSource
+ * @extends videojs.EventTarget
+ */
 export default class HtmlMediaSource extends videojs.EventTarget {
   constructor() {
     super();
@@ -75,6 +92,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
     this.activeSourceBuffers_ = [];
 
+    /**
+     * update the list of active source buffers based upon various
+     * imformation from HLS and video.js
+     *
+     * @private
+     */
     this.updateActiveSourceBuffers_ = () => {
       // Retain the reference but empty the array
       this.activeSourceBuffers_.length = 0;
@@ -167,6 +190,13 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     });
   }
 
+  /**
+   * add a range that that can now be seeked to
+   *
+   * @param {Number} start where to start the addition
+   * @param {Number} end where to end the addition
+   * @private
+   */
   addSeekableRange_(start, end) {
     let error;
 
@@ -184,6 +214,14 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     }
   }
 
+  /**
+   * add a source buffer to the media source. based on the native
+   * implementation
+   *
+   * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource/addSourceBuffer
+   * @param {String} type the content-type of the content
+   * @return {Object} the created source buffer
+   */
   addSourceBuffer(type) {
     let buffer;
     let parsedType = parseContentType(type);
@@ -221,5 +259,4 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     this.sourceBuffers.push(buffer);
     return buffer;
   }
-
 }
