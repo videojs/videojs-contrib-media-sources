@@ -71,8 +71,9 @@
     "test/"
   ],
   "dependencies": {
-    "video.js": "^5.0.0",
+    "content-type": "^1.0.1",
     "mux.js": "^2.0.0",
+    "video.js": "^5.9.0-1",
     "webworkify": "1.0.2"
   },
   "devDependencies": {

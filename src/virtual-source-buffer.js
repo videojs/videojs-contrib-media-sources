@@ -4,6 +4,7 @@ import removeCuesFromTrack from './remove-cues-from-track';
 import addTextTrackData from './add-text-track-data';
 import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
+import {isAudioCodec, isVideoCodec} from './codec-check';
 
 const aggregateUpdateHandler = function(options, eventType) {
   let {mediaSource, guardBufferName, emitOnDisabledAudio} = options;
@@ -27,15 +28,16 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.codecs_ = codecs;
     this.audioCodec_ = null;
     this.videoCodec_ = null;
+    this.audioDisabled_ = false;
 
     let options = {
       remux: false
     };
 
     this.codecs_.forEach((codec) => {
-      if ((/^mp4a/).test(codec)) {
+      if (isAudioCodec(codec)) {
         this.audioCodec_ = codec;
-      } else if ((/^avc/).test(codec)) {
+      } else if (isVideoCodec(codec)) {
         this.videoCodec_ = codec;
       }
     });
@@ -198,14 +200,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       event.data.byteLength
     );
 
-    // TODO: If any sourceBuffers have not been created, do so now
-    /*
-    if (segment.type === 'video') {
-
-    } else if (segment.type === 'audio' && !this.audioDisabled_) {
-
-    }*/
-
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
 
     // Add the segments to the pendingBuffers array
@@ -220,84 +214,53 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   createRealSourceBuffers() {
-    if (this.videoCodec_) {
-      if (!this.mediaSource_.videoBuffer_) {
-        this.mediaSource_.videoBuffer_ = this.nativeMediaSource.addSourceBuffer(
-          'video/mp4;codecs="' + this.videoCodec_ + '"'
-        );
+    ['audio', 'video'].forEach((type) => {
+      if (!this[`${type}Codec_`]) {
+        return;
       }
-      this.videoBuffer_ = this.mediaSource_.videoBuffer_;
-
-      let aggregateOptions = {
+      // if the mediasource already has a buffer for the codec
+      // use that
+      if (this.mediaSource_[`${type}Buffer_`]) {
+        this[`${type}Buffer_`] = this.mediaSource_[`${type}Buffer_`];
+        return;
+      }
+      let buffer = this.nativeMediaSource.addSourceBuffer(
+        type + '/mp4;codecs="' + this[`${type}Codec_`] + '"'
+      );
+      let options = {
         mediaSource: this,
         guardBufferName: 'audioBuffer_',
         emitOnDisabledAudio: true
       };
 
-      // aggregate buffer events
-      this.videoBuffer_.addEventListener(
-        'updatestart',
-        aggregateUpdateHandler(aggregateOptions, 'updatestart')
-      );
-      this.videoBuffer_.addEventListener(
-        'update',
-        aggregateUpdateHandler(aggregateOptions, 'update')
-      );
-      this.videoBuffer_.addEventListener(
-        'updateend',
-        aggregateUpdateHandler(aggregateOptions, 'updateend')
-      );
+      this.mediaSource_[`${type}Buffer_`] = buffer;
+      this[`${type}Buffer_`] = buffer;
+
+      if (type === 'audio') {
+        options.guardBufferName = 'videoBuffer_';
+        options.emitOnDisabledAudio = false;
+      }
+      // we only add audio event handlers here if we also have
+      // a videoCodec. we will add seprate event handlers
+      // for audio only after this block of code
+      if (!this.videoCodec_) {
+        return;
+      }
+      ['update', 'updatestart', 'updateend'].forEach((event) => {
+        buffer.addEventListener(event, aggregateUpdateHandler(options, event));
+      });
+    });
+
+    // if we onlt have an audioCodec_
+    if (this.audioCodec_ && !this.videoCodec_) {
+      ['updatestart', 'update', 'updateend'].forEach((event) => {
+        this.audioBuffer_.addEventListener(event, () => {
+          if (!this.audioDisabled_) {
+            this.trigger(event);
+          }
+        });
+      });
     }
-
-    if (this.audioCodec_) {
-      if (!this.mediaSource_.audioBuffer_) {
-        this.mediaSource_.audioBuffer_ = this.nativeMediaSource.addSourceBuffer(
-          'audio/mp4;codecs="' + this.audioCodec_ + '"'
-        );
-      }
-      this.audioBuffer_ = this.mediaSource_.audioBuffer_;
-
-      let aggregateOptions = {
-        mediaSource: this,
-        guardBufferName: 'videoBuffer_',
-        emitOnDisabledAudio: false
-      };
-
-      if (this.videoCodec_) {
-        // aggregate buffer events
-        this.audioBuffer_.addEventListener(
-          'updatestart',
-          aggregateUpdateHandler(aggregateOptions, 'updatestart')
-        );
-        this.audioBuffer_.addEventListener(
-          'update',
-          aggregateUpdateHandler(aggregateOptions, 'update')
-        );
-        this.audioBuffer_.addEventListener(
-          'updateend',
-          aggregateUpdateHandler(aggregateOptions, 'updateend')
-        );
-      } else {
-        this.wireAudioBufferUpdateEvents();
-      }
-    }
-  }
-  wireAudioBufferUpdateEvents() {
-    this.audioBuffer_.addEventListener('updatestart', () => {
-      if (!this.audioDisabled_) {
-        this.trigger('updatestart');
-      }
-    });
-    this.audioBuffer_.addEventListener('update', () => {
-      if (!this.audioDisabled_) {
-        this.trigger('update');
-      }
-    });
-    this.audioBuffer_.addEventListener('updateend', () => {
-      if (!this.audioDisabled_) {
-        this.trigger('updateend');
-      }
-    });
   }
 
   // SourceBuffer Implementation
@@ -428,7 +391,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
   disableAudio() {
     this.audioDisabled_ = true;
-//    this.audioBuffer_ = null;
   }
 
   enableAudio() {
