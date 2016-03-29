@@ -85,40 +85,22 @@ const doneMessage = {
   }
 };
 
-// send fake data to the transmuxer to trigger the creation of the
-// native source buffers
-const initializeNativeSourceBuffers = function(sourceBuffer) {
-  // initialize an audio source buffer
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', new Uint8Array(1)));
-
-  // initialize a video source buffer
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
-
-  // instruct the transmuxer to flush the "data" it has buffered so
-  // far
-  sourceBuffer.transmuxer_.onmessage(doneMessage);
-};
-
 QUnit.test('creates mp4 source buffers for mp2t segments', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-  initializeNativeSourceBuffers(sourceBuffer);
-
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
   QUnit.equal(
-    mediaSource.mediaSource_.sourceBuffers.length,
-    2,
-    'created two native buffers'
-  );
-  QUnit.equal(
-    mediaSource.mediaSource_.sourceBuffers[0].type,
-    'audio/mp4;codecs="mp4a.40.2"',
-    'created an mp4a buffer'
-  );
-  QUnit.equal(
-    mediaSource.mediaSource_.sourceBuffers[1].type,
+    mediaSource.videoBuffer_.type,
     'video/mp4;codecs="avc1.4d400d"',
-    'created an avc1 buffer'
+    'video buffer has the default codec'
+  );
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created an audio buffer');
+  QUnit.equal(
+    mediaSource.audioBuffer_.type,
+    'audio/mp4;codecs="mp4a.40.2"',
+    'audio buffer has the default codec'
   );
   QUnit.equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
   QUnit.equal(
@@ -135,8 +117,6 @@ function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let terminates = 0;
-
-  initializeNativeSourceBuffers(sourceBuffer);
 
   sourceBuffer.transmuxer_ = {
     terminate() {
@@ -178,15 +158,14 @@ QUnit.test('abort on the fake source buffer calls abort on the real ones', funct
   let messages = [];
   let aborts = 0;
 
-  initializeNativeSourceBuffers(sourceBuffer);
   sourceBuffer.transmuxer_.postMessage = function(message) {
     messages.push(message);
   };
   sourceBuffer.bufferUpdating_ = true;
-  mediaSource.mediaSource_.sourceBuffers[0].abort = function() {
+  sourceBuffer.videoBuffer_.abort = function() {
     aborts++;
   };
-  mediaSource.mediaSource_.sourceBuffers[1].abort = function() {
+  sourceBuffer.audioBuffer_.abort = function() {
     aborts++;
   };
 
@@ -210,7 +189,6 @@ function() {
   let removedCue = [];
   let removes = 0;
 
-  initializeNativeSourceBuffers(sourceBuffer);
   sourceBuffer.inbandTextTrack_ = {
     removeCue(cue) {
       removedCue.push(cue);
@@ -221,12 +199,12 @@ function() {
       {startTime: 0, endTime: 2, text: 'save me'}
     ]
   };
-  mediaSource.mediaSource_.sourceBuffers[0].remove = function(start, end) {
+  mediaSource.videoBuffer_.remove = function(start, end) {
     if (start === 3 && end === 10) {
       removes++;
     }
   };
-  mediaSource.mediaSource_.sourceBuffers[1].remove = function(start, end) {
+  mediaSource.audioBuffer_.remove = function(start, end) {
     if (start === 3 && end === 10) {
       removes++;
     }
@@ -365,13 +343,13 @@ function() {
   QUnit.equal(mp2tSegments[0][0], 5, 'fragment contains the correct first byte');
   QUnit.equal(mp2tSegments[0][1], 6, 'fragment contains the correct second byte');
 
-  // an init segment
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data));
-
   // Source buffer is not created until after the muxer starts emitting data
-  mediaSource.mediaSource_.sourceBuffers[0].appendBuffer = function(segment) {
+  mediaSource.videoBuffer_.appendBuffer = function(segment) {
     mp4Segments.push(segment);
   };
+
+  // an init segment
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data));
 
   // Segments are concatenated
   QUnit.equal(
@@ -394,22 +372,124 @@ function() {
   QUnit.equal(mp4Segments[0][1], 6, 'fragment contains the correct second byte');
 });
 
+QUnit.test('handles empty codec string value', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer =
+    mediaSource.addSourceBuffer('video/mp2t; codecs=""');
+
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
+  QUnit.equal(
+    mediaSource.videoBuffer_.type,
+    'video/mp4;codecs="avc1.4d400d"',
+    'video buffer has the default codec'
+  );
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created an audio buffer');
+  QUnit.equal(
+    mediaSource.audioBuffer_.type,
+    'audio/mp4;codecs="mp4a.40.2"',
+    'audio buffer has the default codec'
+  );
+  QUnit.equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
+  QUnit.equal(
+    mediaSource.sourceBuffers[0],
+    sourceBuffer,
+    'returned the virtual buffer'
+  );
+});
+
+QUnit.test('can create an audio buffer by itself', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer =
+    mediaSource.addSourceBuffer('video/mp2t; codecs="mp4a.40.2"');
+
+  QUnit.ok(!mediaSource.videoBuffer_, 'did not create a video buffer');
+  QUnit.ok(mediaSource.audioBuffer_, 'created an audio buffer');
+  QUnit.equal(
+    mediaSource.audioBuffer_.type,
+    'audio/mp4;codecs="mp4a.40.2"',
+    'audio buffer has the default codec'
+  );
+  QUnit.equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
+  QUnit.equal(
+    mediaSource.sourceBuffers[0],
+    sourceBuffer,
+    'returned the virtual buffer'
+  );
+});
+
+QUnit.test('can create an video buffer by itself', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer =
+    mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.4d400d"');
+
+  QUnit.ok(!mediaSource.audioBuffer_, 'did not create an audio buffer');
+  QUnit.ok(mediaSource.videoBuffer_, 'created an video buffer');
+  QUnit.equal(
+    mediaSource.videoBuffer_.type,
+    'video/mp4;codecs="avc1.4d400d"',
+    'video buffer has the codec that was passed'
+  );
+  QUnit.equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
+  QUnit.equal(
+    mediaSource.sourceBuffers[0],
+    sourceBuffer,
+    'returned the virtual buffer'
+  );
+});
+
+QUnit.test('handles invalid codec string', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer =
+    mediaSource.addSourceBuffer('video/mp2t; codecs="nope"');
+
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
+  QUnit.equal(
+    mediaSource.videoBuffer_.type,
+    'video/mp4;codecs="avc1.4d400d"',
+    'video buffer has the default codec'
+  );
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created an audio buffer');
+  QUnit.equal(
+    mediaSource.audioBuffer_.type,
+    'audio/mp4;codecs="mp4a.40.2"',
+    'audio buffer has the default codec'
+  );
+  QUnit.equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
+  QUnit.equal(
+    mediaSource.sourceBuffers[0],
+    sourceBuffer,
+    'returned the virtual buffer'
+  );
+});
+
 QUnit.test('handles codec strings in reverse order', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="mp4a.40.5,avc1.64001f"');
 
-  initializeNativeSourceBuffers(sourceBuffer);
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
+
   QUnit.equal(
-    mediaSource.mediaSource_.sourceBuffers[0].type,
-    'audio/mp4;codecs="mp4a.40.5"',
-    'passed the audio codec along'
-  );
-  QUnit.equal(
-    mediaSource.mediaSource_.sourceBuffers[1].type,
+    mediaSource.videoBuffer_.type,
     'video/mp4;codecs="avc1.64001f"',
-    'passed the video codec along'
+    'video buffer has the passed codec'
   );
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created an audio buffer');
+  QUnit.equal(
+    mediaSource.audioBuffer_.type,
+    'audio/mp4;codecs="mp4a.40.5"',
+    'audio buffer has the passed codec'
+  );
+  QUnit.equal(mediaSource.sourceBuffers.length, 1, 'created one virtual buffer');
+  QUnit.equal(
+    mediaSource.sourceBuffers[0],
+    sourceBuffer,
+    'returned the virtual buffer'
+  );
+  QUnit.ok(sourceBuffer.transmuxer_, 'created a transmuxer');
 });
 
 QUnit.test('forwards codec strings to native buffers when specified', function() {
@@ -417,10 +497,15 @@ QUnit.test('forwards codec strings to native buffers when specified', function()
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.64001f,mp4a.40.5"');
 
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('combined', new Uint8Array(1)));
-  QUnit.equal(mediaSource.mediaSource_.sourceBuffers[0].type,
-              'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
-              'passed the codec along');
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
+  QUnit.equal(mediaSource.videoBuffer_.type,
+              'video/mp4;codecs="avc1.64001f"',
+              'passed the video codec along');
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created a video buffer');
+  QUnit.equal(mediaSource.audioBuffer_.type,
+              'audio/mp4;codecs="mp4a.40.5"',
+              'passed the audio codec along');
 });
 
 QUnit.test('parses old-school apple codec strings to the modern standard', function() {
@@ -428,37 +513,48 @@ QUnit.test('parses old-school apple codec strings to the modern standard', funct
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.100.31,mp4a.40.5"');
 
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('combined', new Uint8Array(1)));
-  QUnit.equal(mediaSource.mediaSource_.sourceBuffers[0].type,
-              'video/mp4;codecs="avc1.64001f,mp4a.40.5"',
-              'passed the codec along');
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
+  QUnit.equal(mediaSource.videoBuffer_.type,
+              'video/mp4;codecs="avc1.64001f"',
+              'passed the video codec along');
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created a video buffer');
+  QUnit.equal(mediaSource.audioBuffer_.type,
+              'audio/mp4;codecs="mp4a.40.5"',
+              'passed the audio codec along');
+
 });
 
 QUnit.test('specifies reasonable codecs if none are specified', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('combined', new Uint8Array(1)));
-  QUnit.equal(mediaSource.mediaSource_.sourceBuffers[0].type,
-              'video/mp4;codecs="avc1.4d400d,mp4a.40.2"',
-              'passed the codec along');
+  QUnit.ok(mediaSource.videoBuffer_, 'created a video buffer');
+  QUnit.equal(mediaSource.videoBuffer_.type,
+              'video/mp4;codecs="avc1.4d400d"',
+              'passed the video codec along');
+
+  QUnit.ok(mediaSource.audioBuffer_, 'created a video buffer');
+  QUnit.equal(mediaSource.audioBuffer_.type,
+              'audio/mp4;codecs="mp4a.40.2"',
+              'passed the audio codec along');
 });
 
 QUnit.test('virtual buffers are updating if either native buffer is', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-  initializeNativeSourceBuffers(sourceBuffer);
+  mediaSource.videoBuffer_.updating = true;
+  mediaSource.audioBuffer_.updating = false;
+  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
 
-  mediaSource.mediaSource_.sourceBuffers[0].updating = true;
-  mediaSource.mediaSource_.sourceBuffers[1].updating = false;
+  mediaSource.audioBuffer_.updating = true;
+  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
 
+  mediaSource.videoBuffer_.updating = false;
   QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-  mediaSource.mediaSource_.sourceBuffers[1].updating = true;
-  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-  mediaSource.mediaSource_.sourceBuffers[0].updating = false;
-  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-  mediaSource.mediaSource_.sourceBuffers[1].updating = false;
+
+  mediaSource.audioBuffer_.updating = false;
   QUnit.equal(sourceBuffer.updating, false, 'virtual buffer is not updating');
 });
 
@@ -468,14 +564,11 @@ function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-  // send fake buffers through to cause the creation of the source buffers
-  initializeNativeSourceBuffers(sourceBuffer);
-
-  mediaSource.mediaSource_.sourceBuffers[0].buffered = videojs.createTimeRanges([
+  mediaSource.videoBuffer_.buffered = videojs.createTimeRanges([
     [0, 10],
     [20, 30]
   ]);
-  mediaSource.mediaSource_.sourceBuffers[1].buffered = videojs.createTimeRanges([
+  mediaSource.audioBuffer_.buffered = videojs.createTimeRanges([
     [0, 7],
     [11, 15],
     [16, 40]
@@ -501,8 +594,6 @@ QUnit.test('sets transmuxer baseMediaDecodeTime on appends', function() {
 
   sourceBuffer.timestampOffset = 42;
 
-  initializeNativeSourceBuffers(sourceBuffer);
-
   QUnit.equal(
     resets.length,
     1,
@@ -523,8 +614,6 @@ QUnit.test('aggregates source buffer update events', function() {
   let updatestarts = 0;
 
   mediaSource.player_ = this.player;
-
-  initializeNativeSourceBuffers(sourceBuffer);
 
   sourceBuffer.addEventListener('updatestart', function() {
     updatestarts++;
@@ -692,8 +781,6 @@ function() {
   };
 
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
-  initializeNativeSourceBuffers(sourceBuffer);
-
   QUnit.equal(updateCallCount, 0,
               'active source buffers not updated on adding source buffer');
 
@@ -702,26 +789,26 @@ function() {
               'active source buffers updated after first updateend');
 
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
-  initializeNativeSourceBuffers(sourceBuffer);
-
   QUnit.equal(updateCallCount, 1,
               'active source buffers not updated on adding second source buffer');
 
   sourceBuffer.videoBuffer_.trigger('updateend');
   QUnit.equal(updateCallCount, 2,
-              'active source buffers updated after first updateend of new source buffer');
+              'active source buffers updaed after first updateend of new source buffer');
 });
 
-QUnit.test('active source buffers includes all buffers if alternate audio track enabled',
+QUnit.test('combined buffer is the only active buffer when main track enabled',
 function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBufferAudio;
   let sourceBufferCombined;
   let audioTracks = [{
     enabled: true,
+    kind: 'main',
     label: 'main'
   }, {
     enabled: false,
+    kind: 'alternative',
     label: 'English (UK)'
   }];
 
@@ -729,11 +816,16 @@ function() {
 
   mediaSource.player_ = this.player;
 
-  sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
-  sourceBufferCombined.videoTracks = {
-    length: 1
-  };
+  sourceBufferCombined.videoCodec_ = true;
+  sourceBufferCombined.audioCodec_ = true;
+  sourceBufferCombined.enableAudio = () => {};
+  sourceBufferCombined.disableAudio = () => {};
+  sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferAudio.videoCodec_ = false;
+  sourceBufferAudio.audioCodec_ = true;
+  sourceBufferAudio.enableAudio = () => {};
+  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
@@ -741,16 +833,99 @@ function() {
     'active source buffers starts with one source buffer');
   QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferCombined,
     'active source buffers starts with combined source buffer');
+});
 
-  this.player.audioTracks()[1].enabled = true;
+QUnit.test('combined & audio buffers are active when alternative track enabled',
+function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBufferAudio;
+  let sourceBufferCombined;
+  let audioTracks = [{
+    enabled: false,
+    kind: 'main',
+    label: 'main'
+  }, {
+    enabled: true,
+    kind: 'alternative',
+    label: 'English (UK)'
+  }];
+
+  this.player.audioTracks = () => audioTracks;
+
+  mediaSource.player_ = this.player;
+
+  sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferCombined.videoCodec_ = true;
+  sourceBufferCombined.audioCodec_ = true;
+  sourceBufferCombined.enableAudio = () => {};
+  sourceBufferCombined.disableAudio = () => {};
+  sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferAudio.videoCodec_ = false;
+  sourceBufferAudio.audioCodec_ = true;
+  sourceBufferAudio.enableAudio = () => {};
+  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
   QUnit.equal(mediaSource.activeSourceBuffers.length, 2,
     'active source buffers includes both source buffers');
   // maintains same order as source buffers were created
-  QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferAudio,
-    'active source buffers starts with audio source buffer');
-  QUnit.equal(mediaSource.activeSourceBuffers[1], sourceBufferCombined,
-    'active source buffers ends with combined source buffer');
+  QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferCombined,
+    'active source buffers starts with combined source buffer');
+  QUnit.equal(mediaSource.activeSourceBuffers[1], sourceBufferAudio,
+    'active source buffers ends with audio source buffer');
+});
+
+QUnit.test('video only & audio only buffers are always active',
+function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBufferAudio;
+  let sourceBufferCombined;
+  let audioTracks = [{
+    enabled: false,
+    kind: 'main',
+    label: 'main'
+  }, {
+    enabled: true,
+    kind: 'alternative',
+    label: 'English (UK)'
+  }];
+
+  this.player.audioTracks = () => audioTracks;
+
+  mediaSource.player_ = this.player;
+
+  sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferCombined.videoCodec_ = true;
+  sourceBufferCombined.audioCodec_ = false;
+  sourceBufferCombined.enableAudio = () => {};
+  sourceBufferCombined.disableAudio = () => {};
+  sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
+  sourceBufferAudio.videoCodec_ = false;
+  sourceBufferAudio.audioCodec_ = true;
+  sourceBufferAudio.enableAudio = () => {};
+  sourceBufferAudio.disableAudio = () => {};
+
+  mediaSource.updateActiveSourceBuffers_();
+
+  QUnit.equal(mediaSource.activeSourceBuffers.length, 2,
+    'active source buffers includes both source buffers');
+  // maintains same order as source buffers were created
+  QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferCombined,
+    'active source buffers starts with combined source buffer');
+  QUnit.equal(mediaSource.activeSourceBuffers[1], sourceBufferAudio,
+    'active source buffers ends with audio source buffer');
+
+  audioTracks[0].enabled = true;
+  audioTracks[1].enabled = false;
+  mediaSource.updateActiveSourceBuffers_();
+
+  QUnit.equal(mediaSource.activeSourceBuffers.length, 2,
+    'active source buffers includes both source buffers');
+  // maintains same order as source buffers were created
+  QUnit.equal(mediaSource.activeSourceBuffers[0], sourceBufferCombined,
+    'active source buffers starts with combined source buffer');
+  QUnit.equal(mediaSource.activeSourceBuffers[1], sourceBufferAudio,
+    'active source buffers ends with audio source buffer');
+
 });
