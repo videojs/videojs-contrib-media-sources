@@ -1,6 +1,7 @@
 import videojs from 'video.js';
 import FlashSourceBuffer from './flash-source-buffer';
 import FlashConstants from './flash-constants';
+import {parseContentType} from './codec-utils';
 
 export default class FlashMediaSource extends videojs.EventTarget {
   constructor() {
@@ -36,10 +37,11 @@ export default class FlashMediaSource extends videojs.EventTarget {
 
   // create a new source buffer to receive a type of media data
   addSourceBuffer(type) {
+    let parsedType = parseContentType(type);
     let sourceBuffer;
 
     // if this is an FLV type, we'll push data to flash
-    if (type.indexOf('video/mp2t') === 0) {
+    if (parsedType.type === 'video/mp2t') {
       // Flash source buffers
       sourceBuffer = new FlashSourceBuffer(this);
     } else {
