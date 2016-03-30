@@ -73,6 +73,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     Object.defineProperty(this, 'buffered', {
       get() {
+        if (!this.mediaSource ||
+            !this.mediaSource.swfObj ||
+            !('vjs_getProperty' in this.mediaSource.swfObj)) {
+          return videojs.createTimeRange();
+        }
+
         return videojs.createTimeRanges(
           this.mediaSource.swfObj.vjs_getProperty('buffered')
         );

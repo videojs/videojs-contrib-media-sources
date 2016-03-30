@@ -210,12 +210,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       if (!this[`${type}Codec_`]) {
         return;
       }
+
       // if the mediasource already has a buffer for the codec
       // use that
       if (this.mediaSource_[`${type}Buffer_`]) {
         this[`${type}Buffer_`] = this.mediaSource_[`${type}Buffer_`];
         return;
       }
+
       let buffer = this.nativeMediaSource.addSourceBuffer(
         type + '/mp4;codecs="' + this[`${type}Codec_`] + '"'
       );
@@ -231,12 +233,20 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       ['update', 'updatestart', 'updateend'].forEach((event) => {
         buffer.addEventListener(event, () => {
           // if audio is disabled
-          if (type === 'audio' && !this.audioDisabled_) {
+          if (type === 'audio' && this.audioDisabled_) {
             return;
           }
-          for (let t in types) {
+
+          for (let t of types) {
+            // skip checking audio's updating status if audio
+            // is not enabled
+            if (t === 'audio' && this.audioDisabled_) {
+              continue;
+            }
             // if the other type if updating we don't trigger
-            if (type !== t && this[`${t}Buffer_`] && this[`${t}Buffer_`].updating) {
+            if (type !== t &&
+                this[`${t}Buffer_`] &&
+                this[`${t}Buffer_`].updating) {
               return;
             }
           }

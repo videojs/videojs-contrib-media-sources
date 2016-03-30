@@ -75,6 +75,52 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
     this.activeSourceBuffers_ = [];
 
+    this.updateActiveSourceBuffers_ = () => {
+      // Retain the reference but empty the array
+      this.activeSourceBuffers_.length = 0;
+
+      let combined = 'enable';
+      let audioOnly = 'disable';
+
+      // TODO: maybe we can store the sourcebuffers on the track objects?
+      // safari may do something like this
+      for (let i = 0; i < this.player_.audioTracks().length; i++) {
+        let track = this.player_.audioTracks()[i];
+
+        if (track.enabled && track.kind !== 'main') {
+          combined = 'disable';
+          audioOnly = 'enable';
+          break;
+        }
+      }
+
+      // Since we currently support a max of two source buffers, add all of the source
+      // buffers (in order).
+      this.sourceBuffers.forEach((sourceBuffer) => {
+        /* eslinst-disable */
+        // TODO once codecs are required, we can switch to using the codecs to determine
+        //      what stream is the video stream, rather than relying on videoTracks
+        /* eslinst-enable */
+
+        if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
+          // combined
+          sourceBuffer[`${combined}Audio`]();
+        } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
+          // video only
+          sourceBuffer.disableAudio();
+          audioOnly = 'enable';
+        } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
+          // audio only
+          sourceBuffer[`${audioOnly}Audio`]();
+          if (audioOnly !== 'enable') {
+            return;
+          }
+        }
+
+        this.activeSourceBuffers_.push(sourceBuffer);
+      });
+    };
+
     // Re-emit MediaSource events on the polyfill
     [
       'sourceopen',
@@ -94,7 +140,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
 
       this.player_ = videojs(video.parentNode);
-      this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_.bind(this));
+
+      this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_);
+      this.player_.audioTracks().on('addtrack', this.updateActiveSourceBuffers_);
+      this.player_.audioTracks().on('removetrack', this.updateActiveSourceBuffers_);
     });
 
     // explicitly terminate any WebWorkers that were created
@@ -105,6 +154,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
           sourceBuffer.transmuxer_.terminate();
         }
       });
+
+      this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
+      this.player_.audioTracks().off('addtrack', this.updateActiveSourceBuffers_);
+      this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
 
       this.sourceBuffers.length = 0;
     });
@@ -155,59 +208,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       buffer = this.mediaSource_.addSourceBuffer(type);
     }
 
-    // For combined audio/video tracks, we can only determine if a source buffer is
-    // active after a completed update (once it has/doesn't have videoTracks).
-    // Once https://github.com/videojs/video.js/issues/2981 is resolved, switch to using
-    // buffer.one instead of buffer.on.
-    buffer.on('updateend', this.updateActiveSourceBuffers_.bind(this));
+    if (this.sourceBuffers.length !== 0) {
+      this.sourceBuffers[0].disableAudio();
+    }
 
     this.sourceBuffers.push(buffer);
     return buffer;
   }
 
-  updateActiveSourceBuffers_() {
-    // Retain the reference but empty the array
-    this.activeSourceBuffers_.length = 0;
-
-    let combined = 'enable';
-    let audioOnly = 'disable';
-
-    // TODO: maybe we can store the sourcebuffers on the track objects?
-    // safari may do something like this
-    for (let i = 0; i < this.player_.audioTracks().length; i++) {
-      let track = this.player_.audioTracks()[i];
-
-      if (track.enabled && track.kind !== 'main') {
-        combined = 'disable';
-        audioOnly = 'enable';
-        break;
-      }
-    }
-
-    // Since we currently support a max of two source buffers, add all of the source
-    // buffers (in order).
-    this.sourceBuffers.forEach((sourceBuffer) => {
-      /* eslinst-disable */
-      // TODO once codecs are required, we can switch to using the codecs to determine
-      //      what stream is the video stream, rather than relying on videoTracks
-      /* eslinst-enable */
-
-      if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
-        // combined
-        sourceBuffer[`${combined}Audio`]();
-      } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
-        // video only
-        sourceBuffer.disableAudio();
-        audioOnly = 'enable';
-      } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
-        // audio only
-        sourceBuffer[`${audioOnly}Audio`]();
-        if (audioOnly !== 'enable') {
-          return;
-        }
-      }
-
-      this.activeSourceBuffers_.push(sourceBuffer);
-    });
-  }
 }
