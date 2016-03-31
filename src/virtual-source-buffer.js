@@ -237,20 +237,24 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
             return;
           }
 
-          for (let t of types) {
+          let shouldTrigger = types.every((t) => {
             // skip checking audio's updating status if audio
             // is not enabled
             if (t === 'audio' && this.audioDisabled_) {
-              continue;
+              return true;
             }
             // if the other type if updating we don't trigger
             if (type !== t &&
                 this[`${t}Buffer_`] &&
                 this[`${t}Buffer_`].updating) {
-              return;
+              return false;
             }
+            return true;
+          });
+
+          if (shouldTrigger) {
+            return this.trigger(event);
           }
-          return this.trigger(event);
         });
       });
     });

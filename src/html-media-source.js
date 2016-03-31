@@ -208,6 +208,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       buffer = this.mediaSource_.addSourceBuffer(type);
     }
 
+    // Automatically disable the audio on the first source buffer if
+    // a second source buffer is ever created
     if (this.sourceBuffers.length !== 0) {
       this.sourceBuffers[0].disableAudio();
     }
