@@ -332,6 +332,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       let type = segment.type;
       let data = segment.data;
 
+      // A "combined" segment type (unified video/audio) uses the videoBuffer
+      if (type === 'combined') {
+        type = 'video';
+      }
+
       segmentObj[type].segments.push(data);
       segmentObj[type].bytes += data.byteLength;
 
