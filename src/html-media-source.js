@@ -17,7 +17,7 @@ const translateLegacyCodecs = function(codecs) {
 
 export default class HtmlMediaSource extends videojs.EventTarget {
   constructor() {
-    super(videojs.EventTarget);
+    super();
     let property;
 
     this.mediaSource_ = new window.MediaSource();
@@ -133,6 +133,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // capture the associated player when the MediaSource is
     // successfully attached
     this.on('sourceopen', (event) => {
+      // TODO: find a better way to get the player this MediaSoruce
+      // is attached to
       let video = document.querySelector('[src="' + this.url_ + '"]');
 
       if (!video) {
@@ -154,12 +156,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
           sourceBuffer.transmuxer_.terminate();
         }
       });
+      this.sourceBuffers.length = 0;
+      if (!this.player_) {
+        return;
+      }
 
       this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
       this.player_.audioTracks().off('addtrack', this.updateActiveSourceBuffers_);
       this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
 
-      this.sourceBuffers.length = 0;
     });
   }
 
@@ -211,7 +216,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // Automatically disable the audio on the first source buffer if
     // a second source buffer is ever created
     if (this.sourceBuffers.length !== 0) {
-      this.sourceBuffers[0].disableAudio();
+      this.sourceBuffers[0].audioDisabled_ = true;
     }
 
     this.sourceBuffers.push(buffer);

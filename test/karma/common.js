@@ -33,6 +33,7 @@ var DEFAULTS = {
   concurrency: Infinity,
 
   browserify: {
+    debug: true,
     transform: [
       'babelify',
       'browserify-shim'
