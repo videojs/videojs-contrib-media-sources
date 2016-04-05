@@ -832,13 +832,9 @@ function() {
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined.videoCodec_ = true;
   sourceBufferCombined.audioCodec_ = true;
-  sourceBufferCombined.enableAudio = () => {};
-  sourceBufferCombined.disableAudio = () => {};
   sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferAudio.videoCodec_ = false;
   sourceBufferAudio.audioCodec_ = true;
-  sourceBufferAudio.enableAudio = () => {};
-  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
@@ -870,13 +866,9 @@ function() {
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined.videoCodec_ = true;
   sourceBufferCombined.audioCodec_ = true;
-  sourceBufferCombined.enableAudio = () => {};
-  sourceBufferCombined.disableAudio = () => {};
   sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferAudio.videoCodec_ = false;
   sourceBufferAudio.audioCodec_ = true;
-  sourceBufferAudio.enableAudio = () => {};
-  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
@@ -911,13 +903,9 @@ function() {
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined.videoCodec_ = true;
   sourceBufferCombined.audioCodec_ = false;
-  sourceBufferCombined.enableAudio = () => {};
-  sourceBufferCombined.disableAudio = () => {};
   sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferAudio.videoCodec_ = false;
   sourceBufferAudio.audioCodec_ = true;
-  sourceBufferAudio.enableAudio = () => {};
-  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
