@@ -17,7 +17,7 @@ const translateLegacyCodecs = function(codecs) {
 
 export default class HtmlMediaSource extends videojs.EventTarget {
   constructor() {
-    super(videojs.EventTarget);
+    super();
     let property;
 
     this.mediaSource_ = new window.MediaSource();
@@ -79,8 +79,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // Retain the reference but empty the array
       this.activeSourceBuffers_.length = 0;
 
-      let combined = 'enable';
-      let audioOnly = 'disable';
+      let combined = true;
+      let audioOnly = false;
 
       // TODO: maybe we can store the sourcebuffers on the track objects?
       // safari may do something like this
@@ -88,8 +88,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         let track = this.player_.audioTracks()[i];
 
         if (track.enabled && track.kind !== 'main') {
-          combined = 'disable';
-          audioOnly = 'enable';
+          combined = false;
+          audioOnly = true;
           break;
         }
       }
@@ -104,15 +104,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
         if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // combined
-          sourceBuffer[`${combined}Audio`]();
+          sourceBuffer.audioDisabled_ = combined;
         } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
           // video only
-          sourceBuffer.disableAudio();
-          audioOnly = 'enable';
+          sourceBuffer.audioDisabled_ = true;
+          audioOnly = true;
         } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // audio only
-          sourceBuffer[`${audioOnly}Audio`]();
-          if (audioOnly !== 'enable') {
+          sourceBuffer.audioDisabled_ = audioOnly;
+          if (!audioOnly) {
             return;
           }
         }
@@ -133,6 +133,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // capture the associated player when the MediaSource is
     // successfully attached
     this.on('sourceopen', (event) => {
+      // Get the player this MediaSource is attached to
       let video = document.querySelector('[src="' + this.url_ + '"]');
 
       if (!video) {
@@ -154,12 +155,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
           sourceBuffer.transmuxer_.terminate();
         }
       });
+      this.sourceBuffers.length = 0;
+      if (!this.player_) {
+        return;
+      }
 
       this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
       this.player_.audioTracks().off('addtrack', this.updateActiveSourceBuffers_);
       this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
 
-      this.sourceBuffers.length = 0;
     });
   }
 
@@ -211,7 +215,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     // Automatically disable the audio on the first source buffer if
     // a second source buffer is ever created
     if (this.sourceBuffers.length !== 0) {
-      this.sourceBuffers[0].disableAudio();
+      this.sourceBuffers[0].audioDisabled_ = true;
     }
 
     this.sourceBuffers.push(buffer);

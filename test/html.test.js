@@ -16,8 +16,13 @@ QUnit.module('videojs-contrib-media-sources - HTML', {
     this.fixture = document.getElementById('qunit-fixture');
     this.video = document.createElement('video');
     this.fixture.appendChild(this.video);
+    this.source = document.createElement('source');
+
     this.player = videojs(this.video);
-    this.player.audioTracks = () => [];
+    // add a fake source so that we can get this.player_ on sourceopen
+    this.url = 'fake.ts';
+    this.source.src = this.url;
+    this.video.appendChild(this.source);
 
     // Mock the environment's timers because certain things - particularly
     // player readiness - are asynchronous in video.js 5.
@@ -781,20 +786,28 @@ function() {
   };
 
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  mediaSource.player_ = this.player;
+  mediaSource.url_ = this.url;
+  mediaSource.trigger('sourceopen');
   QUnit.equal(updateCallCount, 0,
               'active source buffers not updated on adding source buffer');
 
-  sourceBuffer.videoBuffer_.trigger('updateend');
+  mediaSource.player_.audioTracks().trigger('addtrack');
   QUnit.equal(updateCallCount, 1,
-              'active source buffers updated after first updateend');
+              'active source buffers updated after addtrack');
 
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   QUnit.equal(updateCallCount, 1,
               'active source buffers not updated on adding second source buffer');
 
-  sourceBuffer.videoBuffer_.trigger('updateend');
+  mediaSource.player_.audioTracks().trigger('removetrack');
   QUnit.equal(updateCallCount, 2,
-              'active source buffers updaed after first updateend of new source buffer');
+              'active source buffers updated after removetrack');
+
+  mediaSource.player_.audioTracks().trigger('change');
+  QUnit.equal(updateCallCount, 3,
+              'active source buffers updated after change');
+
 });
 
 QUnit.test('combined buffer is the only active buffer when main track enabled',
@@ -819,13 +832,9 @@ function() {
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined.videoCodec_ = true;
   sourceBufferCombined.audioCodec_ = true;
-  sourceBufferCombined.enableAudio = () => {};
-  sourceBufferCombined.disableAudio = () => {};
   sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferAudio.videoCodec_ = false;
   sourceBufferAudio.audioCodec_ = true;
-  sourceBufferAudio.enableAudio = () => {};
-  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
@@ -857,13 +866,9 @@ function() {
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined.videoCodec_ = true;
   sourceBufferCombined.audioCodec_ = true;
-  sourceBufferCombined.enableAudio = () => {};
-  sourceBufferCombined.disableAudio = () => {};
   sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferAudio.videoCodec_ = false;
   sourceBufferAudio.audioCodec_ = true;
-  sourceBufferAudio.enableAudio = () => {};
-  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 
@@ -898,13 +903,9 @@ function() {
   sourceBufferCombined = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferCombined.videoCodec_ = true;
   sourceBufferCombined.audioCodec_ = false;
-  sourceBufferCombined.enableAudio = () => {};
-  sourceBufferCombined.disableAudio = () => {};
   sourceBufferAudio = mediaSource.addSourceBuffer('video/m2pt');
   sourceBufferAudio.videoCodec_ = false;
   sourceBufferAudio.audioCodec_ = true;
-  sourceBufferAudio.enableAudio = () => {};
-  sourceBufferAudio.disableAudio = () => {};
 
   mediaSource.updateActiveSourceBuffers_();
 

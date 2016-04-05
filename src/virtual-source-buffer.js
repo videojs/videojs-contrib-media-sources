@@ -397,12 +397,4 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.pendingBuffers_.length = 0;
     this.bufferUpdating_ = false;
   }
-
-  disableAudio() {
-    this.audioDisabled_ = true;
-  }
-
-  enableAudio() {
-    this.audioDisabled_ = false;
-  }
 }
