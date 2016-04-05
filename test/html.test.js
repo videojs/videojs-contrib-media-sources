@@ -930,3 +930,133 @@ function() {
     'active source buffers ends with audio source buffer');
 
 });
+
+QUnit.test('calls changeInfo_ on mediaSource when info is given for audio', function() {
+  let mp2tSegments = [];
+  let mp4Segments = [];
+  let data = new Uint8Array(1);
+  let changeInfoCalls = 0;
+  let mediaSource;
+  let sourceBuffer;
+
+  mediaSource = new videojs.MediaSource();
+  mediaSource.changeInfo_ = () => changeInfoCalls++;
+  sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  sourceBuffer.transmuxer_.postMessage = function(segment) {
+    if (segment.action === 'push') {
+      let buffer = new Uint8Array(segment.data, segment.byteOffset, segment.byteLength);
+
+      mp2tSegments.push(buffer);
+    }
+  };
+
+  sourceBuffer.appendBuffer(data);
+  QUnit.equal(mp2tSegments.length, 1, 'transmuxed one segment');
+  QUnit.equal(mp2tSegments[0].length, 1, 'did not alter the segment');
+  QUnit.equal(mp2tSegments[0][0], data[0], 'did not alter the segment');
+
+  // an init segment
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
+
+  // Source buffer is not created until after the muxer starts emitting data
+  mediaSource.mediaSource_.sourceBuffers[0].appendBuffer = function(segment) {
+    mp4Segments.push(segment);
+  };
+
+  let info = {samplerate: 44100};
+
+  // a media segment
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio',
+                                                       new Uint8Array(1),
+                                                       {info}));
+
+  // Segments are concatenated
+  QUnit.equal(
+    mp4Segments.length,
+    0,
+    'segments are not appended until after the `done` message'
+  );
+
+  // send `done` message
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  // Segments are concatenated
+  QUnit.equal(mp4Segments.length, 1, 'appended the segments');
+  QUnit.equal(changeInfoCalls, 1, 'change info called once for audio');
+});
+
+QUnit.test('audio segments with info are added to media source, ' +
+           'if info has changed it triggers audioinfochanged', function() {
+  let mp2tSegments = [];
+  let mp4Segments = [];
+  let data = new Uint8Array(1);
+  let audioInfoChangeTriggers = 0;
+  let mediaSource;
+  let sourceBuffer;
+
+  mediaSource = new videojs.MediaSource();
+  mediaSource.on('audioinfochanged', () => audioInfoChangeTriggers++);
+  sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  sourceBuffer.transmuxer_.postMessage = function(segment) {
+    if (segment.action === 'push') {
+      let buffer = new Uint8Array(segment.data, segment.byteOffset, segment.byteLength);
+
+      mp2tSegments.push(buffer);
+    }
+  };
+
+  sourceBuffer.appendBuffer(data);
+  QUnit.equal(mp2tSegments.length, 1, 'transmuxed one segment');
+  QUnit.equal(mp2tSegments[0].length, 1, 'did not alter the segment');
+  QUnit.equal(mp2tSegments[0][0], data[0], 'did not alter the segment');
+
+  // an init segment
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
+
+  // Source buffer is not created until after the muxer starts emitting data
+  mediaSource.mediaSource_.sourceBuffers[0].appendBuffer = function(segment) {
+    mp4Segments.push(segment);
+  };
+
+  let info = {samplerate: 44100};
+
+  // a media segment
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio',
+                                                       new Uint8Array(1),
+                                                       {info}));
+
+  // Segments are concatenated
+  QUnit.equal(
+    mp4Segments.length,
+    0,
+    'segments are not appended until after the `done` message'
+  );
+
+  // send `done` message
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  // Segments are concatenated
+  QUnit.equal(mp4Segments.length, 1, 'appended the segments');
+  QUnit.deepEqual(info, mediaSource.audioInfo_,
+                  'audio info and the info passed are equal');
+  QUnit.equal(audioInfoChangeTriggers,
+              0,
+              'audio info change should not have been triggered');
+
+  let newinfo = {samplerate: 22500};
+
+  // a media segment
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio',
+                                                       new Uint8Array(1),
+                                                       {info: newinfo}));
+
+  // send `done` message
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(mp4Segments.length, 2, 'appended the segments');
+  QUnit.deepEqual(newinfo,
+                  mediaSource.audioInfo_,
+                  'audio info and the new info passed are equal');
+  QUnit.equal(audioInfoChangeTriggers, 1, 'audio info change should have been triggered');
+});
+

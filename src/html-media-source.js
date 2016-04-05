@@ -264,4 +264,41 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     this.sourceBuffers.push(buffer);
     return buffer;
   }
+
+  /**
+   * add a property to the VSB indicating the current audio/video/text stream
+   * properties (sample rate, channels, etc) and fire an event
+   * when the info changes
+   *
+   * @private
+   * @param {String} type the type of stream to change info on (audio, video, text)
+   * @param {Object} info info about the currently muxed audio/video/text stream
+   */
+  changeInfo_(type, info) {
+    let propName = `${type}Info_`;
+    let old = {};
+
+    if (!this[propName]) {
+      this[propName] = info;
+      return;
+    }
+
+    // copy current properties to another object
+    for (let prop in this[propName]) {
+      old[prop] = this[propName][prop];
+    }
+
+    for (let prop in info) {
+      if (this[propName][prop] !== info[prop]) {
+        this[propName] = info;
+        this.trigger({
+          old,
+          type: `${type}infochanged`,
+          new: info
+        });
+        break;
+      }
+    }
+  }
+
 }
