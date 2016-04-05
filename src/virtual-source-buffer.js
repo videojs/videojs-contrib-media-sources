@@ -91,7 +91,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     Object.defineProperty(this, 'updating', {
       get() {
         return this.bufferUpdating_ ||
-          (this.audioBuffer_ && this.audioBuffer_.updating) ||
+          (!this.audioDisabled_ && this.audioBuffer_ && this.audioBuffer_.updating) ||
           (this.videoBuffer_ && this.videoBuffer_.updating);
       }
     });
