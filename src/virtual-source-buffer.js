@@ -221,7 +221,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
   /**
    * When we get a done event from the transmuxer
-   * we call this function and we handle process all
+   * we call this function and we process all
    * of the pending data that we have been saving in the
    * data_ function
    *
@@ -236,8 +236,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * create our internal native audio/video source buffers and add
-   * event handlers to them. Only create then if:
+   * Create our internal native audio/video source buffers and add
+   * event handlers to them with the following conditions:
    * 1. they do not already exist on the mediaSource
    * 2. this VSB has a codec for them
    *
@@ -312,7 +312,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * emulate the native mediasource function, but our function will
+   * Emulate the native mediasource function, but our function will
    * send all of the proposed segments to the transmuxer so that we
    * can transmux them before we append them to our internal
    * native source buffers in the correct format.
@@ -341,12 +341,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * emulate the native mediasource function and remove parts
+   * Emulate the native mediasource function and remove parts
    * of the buffer from any of our internal buffers that exist
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/remove
-   * @param {Number} start position to start the remove at
-   * @param {Number} end position to end the remove at
+   * @param {Double} start position to start the remove at
+   * @param {Double} end position to end the remove at
    */
   remove(start, end) {
     if (this.videoBuffer_) {
@@ -423,7 +423,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * Combind all segments into a single Uint8Array and then append them
+   * Combine all segments into a single Uint8Array and then append them
    * to the destination buffer
    *
    * @param {Object} segmentObj
@@ -448,7 +448,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * emulate the native mediasource function. abort any soureBuffer
+   * Emulate the native mediasource function. abort any soureBuffer
    * actions and throw out any un-appended data.
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/abort

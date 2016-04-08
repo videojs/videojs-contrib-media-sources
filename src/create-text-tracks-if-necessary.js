@@ -3,7 +3,7 @@
  */
 
 /**
- * Create text tracks on video.js if they exist
+ * Create text tracks on video.js if they exist on a segment.
  *
  * @param {Object} sourceBuffer the VSB or FSB
  * @param {Object} mediaSource the HTML or Flash media source

@@ -9,8 +9,8 @@ import addTextTrackData from './add-text-track-data';
 import FlashConstants from './flash-constants';
 
 /**
- * a wrapper around the setTimeout function that always uses
- * the flash contant time between ticks value
+ * A wrapper around the setTimeout function that uses
+ * the flash constant time between ticks value.
  *
  * @param {Function} func the function callback to run
  * @private
@@ -22,7 +22,7 @@ const scheduleTick = function(func) {
 };
 
 /**
- * a SourceBuffer implementation for Flash rather than HTML
+ * A SourceBuffer implementation for Flash rather than HTML.
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
  * @param {Object} mediaSource the flash media source
@@ -111,8 +111,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * append bytes to the sourcebuffers buffer, in this case we
-   * have to append it to swf object
+   * Append bytes to the sourcebuffers buffer, in this case we
+   * have to append it to swf object.
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/appendBuffer
    * @param {Array} bytes
@@ -149,7 +149,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * reset the parser and remove any data queued to be sent to the swf
+   * Reset the parser and remove any data queued to be sent to the SWF.
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/abort
    */
@@ -171,8 +171,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    * having this operation act as a no-op is acceptable.
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/remove
-   * @param {Number} start start of the section to remove
-   * @param {Number} end end of the section to remove
+   * @param {Double} start start of the section to remove
+   * @param {Double} end end of the section to remove
    */
   remove(start, end) {
     removeCuesFromTrack(start, end, this.metadataTrack_);
@@ -182,7 +182,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * receive a buffer from the flv
+   * Receive a buffer from the flv.
    *
    * @param {Object} segment
    * @private
@@ -208,7 +208,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * append a portion of the current buffer to the SWF
+   * Append a portion of the current buffer to the SWF.
    *
    * @private
    */
@@ -357,7 +357,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * assemble the FLV tags in decoder order
+   * Assemble the FLV tags in decoder order.
    *
    * @private
    * @param {Object} segmentData object of segment data

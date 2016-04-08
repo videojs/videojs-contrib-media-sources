@@ -3,9 +3,9 @@
  */
 import videojs from 'video.js';
 /**
- * define properties on a cue for backwards compatability
- * but warn the user that they way that they are using it
- * is depricated and will be removed at a later date
+ * Define properties on a cue for backwards compatability,
+ * but warn the user that the way that they are using it
+ * is depricated and will be removed at a later date.
  *
  * @param {Cue} cue the cue to add the properties on
  * @private
@@ -40,9 +40,10 @@ const deprecateOldCue = function(cue) {
 };
 
 /**
- * add text track data to a source handler given the text track data
+ * Add text track data to a source handler given the captions and
+ * metadata from the buffer.
  *
- * @param {Object} sourceHandlere the flash or virtual source buffer
+ * @param {Object} sourceHandler the flash or virtual source buffer
  * @param {Array} captionArray an array of caption data
  * @param {Array} cue an array of meta data
  * @private

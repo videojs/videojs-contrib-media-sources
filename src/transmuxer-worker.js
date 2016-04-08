@@ -15,9 +15,8 @@
 import muxjs from 'mux.js';
 
 /**
- * wireTransmuxerEvents
  * Re-emits tranmsuxer events by converting them into messages to the
- * world outside the worker
+ * world outside the worker.
  *
  * @param {Object} transmuxer the transmuxer to wire events on
  * @private
@@ -67,7 +66,7 @@ class MessageHandlers {
   }
 
   /**
-   * initialize our web worker and wire all the events
+   * initialize our web worker and wire all the events.
    */
   init() {
     if (this.transmuxer) {
@@ -79,7 +78,7 @@ class MessageHandlers {
 
   /**
    * Adds data (a ts segment) to the start of the transmuxer pipeline for
-   * processing
+   * processing.
    *
    * @param {ArrayBuffer} data data to push into the muxer
    */
@@ -92,7 +91,7 @@ class MessageHandlers {
 
   /**
    * Recreate the transmuxer so that the next segment added via `push`
-   * start with a fresh transmuxer
+   * start with a fresh transmuxer.
    */
   reset() {
     this.init();
@@ -113,7 +112,7 @@ class MessageHandlers {
 
   /**
    * Forces the pipeline to finish processing the last segment and emit it's
-   * results
+   * results.
    *
    * @param {Object} data event data, not really used
    */
@@ -123,9 +122,9 @@ class MessageHandlers {
 }
 
 /**
- * our web wroker interface so that things can talk to mux.js
+ * Our web wroker interface so that things can talk to mux.js
  * that will be running in a web worker. the scope is passed to this by
- * webworkify
+ * webworkify.
  *
  * @param {Object} self the scope for the web worker
  */

@@ -3,10 +3,10 @@
  */
 
 /**
- * remove cues from a track
+ * Remove cues from a track on video.js.
  *
- * @param {Number} start start of where we should remove the cue
- * @param {Number} end end of where the we should remove the cue
+ * @param {Double} start start of where we should remove the cue
+ * @param {Double} end end of where the we should remove the cue
  * @param {Object} track the text track to remove the cues from
  * @private
  */

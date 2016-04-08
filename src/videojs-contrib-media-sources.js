@@ -27,8 +27,8 @@ const defaults = {
 videojs.mediaSources = {};
 
 /**
- * provide a method for a swf object to notify JS that a
- * media source is now open
+ * Provide a method for a swf object to notify JS that a
+ * media source is now open.
  *
  * @param {String} msObjectURL string referencing the MSE Object URL
  * @param {String} swfId the swf id
@@ -45,7 +45,7 @@ const open = function(msObjectURL, swfId) {
 
 /**
  * Check to see if the native MediaSource object exists and supports
- * an MP4 container with both H.264 video and AAC-LC audio
+ * an MP4 container with both H.264 video and AAC-LC audio.
  *
  * @return {Boolean} if  native media sources are supported
  */
@@ -55,7 +55,7 @@ const supportsNativeMediaSources = function() {
 };
 
 /**
- * an emulation of the MediaSource API so that we can support
+ * An emulation of the MediaSource API so that we can support
  * native and non-native functionality such as flash and
  * video/mp2t videos. returns an instance of HtmlMediaSource or
  * FlashMediaSource depending on what is supported and what options
@@ -86,14 +86,14 @@ MediaSource.open = open;
 MediaSource.supportsNativeMediaSources = supportsNativeMediaSources;
 
 /**
- * a wrapper around the native URL for our MSE object
+ * A wrapper around the native URL for our MSE object
  * implementation, this object is exposed under videojs.URL
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/URL/URL
  */
 export const URL = {
   /**
-   * a wrapper around the native createObjectURL for our objects.
+   * A wrapper around the native createObjectURL for our objects.
    * This function maps a native or emulated mediaSource to a blob
    * url so that it can be loaded into video.js
    *

@@ -7,8 +7,8 @@ import FlashConstants from './flash-constants';
 import {parseContentType} from './codec-utils';
 
 /**
- * our flash implmentation of MediaSources. a polyfill
- * for browsers that don't support native or HTML media sources
+ * A flash implmentation of HTML MediaSources and a polyfill
+ * for browsers that don't support native or HTML MediaSources..
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
  * @class FlashMediaSource
@@ -43,8 +43,8 @@ export default class FlashMediaSource extends videojs.EventTarget {
   }
 
   /**
-   * we have this function so that the html and flash interfaces
-   * are the same
+   * We have this function so that the html and flash interfaces
+   * are the same.
    *
    * @private
    */
@@ -53,8 +53,7 @@ export default class FlashMediaSource extends videojs.EventTarget {
   }
 
   /**
-   * create a new flash source buffer and add it to our flash media source.
-   * build to mimic the MediaSource api
+   * Create a new flash source buffer and add it to our flash media source.
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource/addSourceBuffer
    * @param {String} type the content-type of the source
@@ -110,7 +109,7 @@ export default class FlashMediaSource extends videojs.EventTarget {
 try {
   Object.defineProperty(FlashMediaSource.prototype, 'duration', {
     /**
-     * return the presentation duration.
+     * Return the presentation duration.
      *
      * @return {Double} the duration of the media in seconds
      * @link http://www.w3.org/TR/media-source/#widl-MediaSource-duration

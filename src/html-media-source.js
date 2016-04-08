@@ -9,7 +9,6 @@ import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';
  * Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
  * `avc1.<hhhhhh>`
  *
- * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
  * @param {Array} codecs an array of codec strings to fix
  * @return {Array} the translated codec array
  * @private
@@ -26,9 +25,10 @@ const translateLegacyCodecs = function(codecs) {
 };
 
 /**
- * Our MediaSource implementation in HTML,
- * mimics native source buffer where possible
+ * Our MediaSource implementation in HTML, mimics native
+ * MediaSource where/if possible.
  *
+ * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
  * @class HtmlMediaSource
  * @extends videojs.EventTarget
  */
@@ -191,10 +191,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
   }
 
   /**
-   * add a range that that can now be seeked to
+   * Add a range that that can now be seeked to.
    *
-   * @param {Number} start where to start the addition
-   * @param {Number} end where to end the addition
+   * @param {Double} start where to start the addition
+   * @param {Double} end where to end the addition
    * @private
    */
   addSeekableRange_(start, end) {
@@ -215,8 +215,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
   }
 
   /**
-   * add a source buffer to the media source. based on the native
-   * implementation
+   * Add a source buffer to the media source.
    *
    * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource/addSourceBuffer
    * @param {String} type the content-type of the content

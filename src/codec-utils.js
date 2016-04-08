@@ -3,7 +3,7 @@
  */
 
 /**
- * check if a codec string refers to an audio codec
+ * Check if a codec string refers to an audio codec.
  *
  * @param {String} codec codec string to check
  * @return {Boolean} if this is an audio codec
@@ -14,10 +14,10 @@ const isAudioCodec = function(codec) {
 };
 
 /**
- * check if a codec string refers to a video codec
+ * Check if a codec string refers to a video codec.
  *
  * @param {String} codec codec string to check
- * @return {Boolean} if this is an video codec
+ * @return {Boolean} if this is a video codec
  * @private
  */
 const isVideoCodec = function(codec) {
@@ -25,7 +25,8 @@ const isVideoCodec = function(codec) {
 };
 
 /**
- * parse a content type header into a type and parameters
+ * Parse a content type header into a type and parameters
+ * object
  *
  * @param {String} type the content type header
  * @return {Object} the parsed content-type
