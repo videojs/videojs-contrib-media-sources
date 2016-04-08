@@ -79,6 +79,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // Retain the reference but empty the array
       this.activeSourceBuffers_.length = 0;
 
+      // By default, disable the audio in the combined virtual source buffer
+      // and enable the audio-only source buffer.
       let combined = true;
       let audioOnly = false;
 
@@ -87,7 +89,9 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       for (let i = 0; i < this.player_.audioTracks().length; i++) {
         let track = this.player_.audioTracks()[i];
 
-        if (track.enabled && track.kind !== 'main') {
+        if (track.enabled && track.kind === 'main') {
+          // The enabled track is a combined audio and video track so we'll enable the
+          // combined source buffer and disable the audio-only source buffer.
           combined = false;
           audioOnly = true;
           break;
@@ -106,13 +110,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
           // combined
           sourceBuffer.audioDisabled_ = combined;
         } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
-          // video only
+          // If the "combined" source buffer is video only, then we do not want
+          // disable the audio-only source buffer (this is mostly for demuxed
+          // audio and video hls)
           sourceBuffer.audioDisabled_ = true;
-          audioOnly = true;
+          audioOnly = false;
         } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // audio only
           sourceBuffer.audioDisabled_ = audioOnly;
-          if (!audioOnly) {
+          if (audioOnly) {
             return;
           }
         }
