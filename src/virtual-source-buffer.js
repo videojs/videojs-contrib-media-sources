@@ -1,3 +1,6 @@
+/**
+ * @file virtual-source-buffer.js
+ */
 import videojs from 'video.js';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import removeCuesFromTrack from './remove-cues-from-track';
@@ -6,6 +9,19 @@ import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
 import {isAudioCodec, isVideoCodec} from './codec-utils';
 
+/**
+ * VirtualSourceBuffers exist so that we can transmux non native formats
+ * into a native format, but keep the same api as a native source buffer.
+ * It creates a transmuxer, that works in its own thread (a web worker) and
+ * that transmuxer muxes the data into a native format. VirtualSourceBuffer will
+ * then send all of that data to the naive sourcebuffer so that it is
+ * indestinguishable from a natively supported format.
+ *
+ * @param {HtmlMediaSource} mediaSource the parent mediaSource
+ * @param {Array} codecs array of codecs that we will be dealing with
+ * @class VirtualSourceBuffer
+ * @extends video.js.EventTarget
+ */
 export default class VirtualSourceBuffer extends videojs.EventTarget {
   constructor(mediaSource, codecs) {
     super(videojs.EventTarget);
@@ -178,7 +194,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     });
   }
 
-  // Transmuxer message handlers
+  /**
+   * When we get a data event from the transmuxer
+   * we call this function and handle the data that
+   * was sent to us
+   *
+   * @private
+   * @param {Event} event the data event from the transmuxer
+   */
   data_(event) {
     let segment = event.data.segment;
 
@@ -196,13 +219,30 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     return;
   }
 
-  done_() {
+  /**
+   * When we get a done event from the transmuxer
+   * we call this function and we process all
+   * of the pending data that we have been saving in the
+   * data_ function
+   *
+   * @private
+   * @param {Event} event the done event from the transmuxer
+   */
+  done_(event) {
     // All buffers should have been flushed from the muxer
     // start processing anything we have received
     this.processPendingSegments_();
     return;
   }
 
+  /**
+   * Create our internal native audio/video source buffers and add
+   * event handlers to them with the following conditions:
+   * 1. they do not already exist on the mediaSource
+   * 2. this VSB has a codec for them
+   *
+   * @private
+   */
   createRealSourceBuffers_() {
     let types = ['audio', 'video'];
 
@@ -271,7 +311,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
   }
 
-  // SourceBuffer Implementation
+  /**
+   * Emulate the native mediasource function, but our function will
+   * send all of the proposed segments to the transmuxer so that we
+   * can transmux them before we append them to our internal
+   * native source buffers in the correct format.
+   *
+   * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/appendBuffer
+   * @param {Uint8Array} segment the segment to append to the buffer
+   */
   appendBuffer(segment) {
     // Start the internal "updating" state
     this.bufferUpdating_ = true;
@@ -292,6 +340,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.transmuxer_.postMessage({action: 'flush'});
   }
 
+  /**
+   * Emulate the native mediasource function and remove parts
+   * of the buffer from any of our internal buffers that exist
+   *
+   * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/remove
+   * @param {Double} start position to start the remove at
+   * @param {Double} end position to end the remove at
+   */
   remove(start, end) {
     if (this.videoBuffer_) {
       this.videoBuffer_.remove(start, end);
@@ -308,10 +364,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-    * Process any segments that the muxer has output
-    * Concatenate segments together based on type and append them into
-    * their respective sourceBuffers
-    */
+   * Process any segments that the muxer has output
+   * Concatenate segments together based on type and append them into
+   * their respective sourceBuffers
+   *
+   * @private
+   */
   processPendingSegments_() {
     let sortedSegments = {
       video: {
@@ -363,10 +421,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     // We are no longer in the internal "updating" state
     this.bufferUpdating_ = false;
   }
+
   /**
-    * Combind all segments into a single Uint8Array and then append them
-    * to the destination buffer
-    */
+   * Combine all segments into a single Uint8Array and then append them
+   * to the destination buffer
+   *
+   * @param {Object} segmentObj
+   * @param {SourceBuffer} destinationBuffer native source buffer to append data to
+   * @private
+   */
   concatAndAppendSegments_(segmentObj, destinationBuffer) {
     let offset = 0;
     let tempBuffer;
@@ -383,7 +446,13 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       destinationBuffer.appendBuffer(tempBuffer);
     }
   }
-  // abort any sourceBuffer actions and throw out any un-appended data
+
+  /**
+   * Emulate the native mediasource function. abort any soureBuffer
+   * actions and throw out any un-appended data.
+   *
+   * @link https://developer.mozilla.org/en-US/docs/Web/API/SourceBuffer/abort
+   */
   abort() {
     if (this.videoBuffer_) {
       this.videoBuffer_.abort();
