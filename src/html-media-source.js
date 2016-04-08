@@ -79,21 +79,21 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // Retain the reference but empty the array
       this.activeSourceBuffers_.length = 0;
 
-      // By default, disable the audio in the combined virtual source buffer
-      // and enable the audio-only source buffer.
-      let combined = true;
-      let audioOnly = false;
+      // By default, the audio in the combined virtual source buffer is enabled
+      // and the audio-only source buffer (if it exists) is disabled.
+      let combined = false;
+      let audioOnly = true;
 
       // TODO: maybe we can store the sourcebuffers on the track objects?
       // safari may do something like this
       for (let i = 0; i < this.player_.audioTracks().length; i++) {
         let track = this.player_.audioTracks()[i];
 
-        if (track.enabled && track.kind === 'main') {
-          // The enabled track is a combined audio and video track so we'll enable the
-          // combined source buffer and disable the audio-only source buffer.
-          combined = false;
-          audioOnly = true;
+        if (track.enabled && track.kind !== 'main') {
+          // The enabled track is an alternate audio track so disable the audio in
+          // the combined source buffer and enable the audio-only source buffer.
+          combined = true;
+          audioOnly = false;
           break;
         }
       }
