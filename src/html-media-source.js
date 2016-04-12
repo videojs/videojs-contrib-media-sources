@@ -276,27 +276,34 @@ export default class HtmlMediaSource extends videojs.EventTarget {
    */
   changeInfo_(type, info) {
     let propName = `${type}Info_`;
-    let old = {};
 
     if (!this[propName]) {
       this[propName] = info;
       return;
     }
 
-    // copy current properties to another object
-    for (let prop in this[propName]) {
-      old[prop] = this[propName][prop];
+    let change = () => {
+      // copy current properties to another object
+      let old = videojs.mergeOptions({}, this[propName]);
+
+      this[propName] = info;
+      this.trigger({
+        revert: () => this[propName] = old,
+        type: `${type}infochanged`
+      });
+    };
+
+    // if we have a different number of elements
+    // something has changed
+    if (Object.keys(this[propName]).length !== Object.keys(info).length) {
+      change();
+      return;
     }
 
     for (let prop in info) {
       if (this[propName][prop] !== info[prop]) {
-        this[propName] = info;
-        this.trigger({
-          old,
-          type: `${type}infochanged`,
-          new: info
-        });
-        break;
+        change();
+        return;
       }
     }
   }
