@@ -411,10 +411,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }, sortedSegments);
 
     if (sortedSegments.audio.info) {
-      this.mediaSource_.changeInfo_('audio', sortedSegments.audio.info);
+      this.mediaSource_.trigger({type: 'audioinfo', info: sortedSegments.audio.info});
     }
     if (sortedSegments.video.info) {
-      this.mediaSource_.changeInfo_('video', sortedSegments.video.info);
+      this.mediaSource_.trigger({type: 'videoinfo', info: sortedSegments.video.info});
     }
 
     // Merge multiple video and audio segments into one and append
