@@ -930,3 +930,53 @@ function() {
     'active source buffers ends with audio source buffer');
 
 });
+
+QUnit.test('video segments with info trigger videooinfo event', function() {
+  let data = new Uint8Array(1);
+  let infoEvents = [];
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  let info = {width: 100};
+  let newinfo = {width: 225};
+
+  mediaSource.on('videoinfo', (e) => infoEvents.push(e));
+
+  // send an audio segment with info, then send done
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data, {info}));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(infoEvents.length, 1, 'video info should trigger');
+  QUnit.deepEqual(infoEvents[0].info, info, 'video info = muxed info');
+
+  // send an audio segment with info, then send done
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data, {info: newinfo}));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(infoEvents.length, 2, 'video info should trigger');
+  QUnit.deepEqual(infoEvents[1].info, newinfo, 'video info = muxed info');
+});
+
+QUnit.test('audio segments with info trigger audioinfo event', function() {
+  let data = new Uint8Array(1);
+  let infoEvents = [];
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  let info = {width: 100};
+  let newinfo = {width: 225};
+
+  mediaSource.on('audioinfo', (e) => infoEvents.push(e));
+
+  // send an audio segment with info, then send done
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', data, {info}));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(infoEvents.length, 1, 'audio info should trigger');
+  QUnit.deepEqual(infoEvents[0].info, info, 'audio info = muxed info');
+
+  // send an audio segment with info, then send done
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', data, {info: newinfo}));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(infoEvents.length, 2, 'audio info should trigger');
+  QUnit.deepEqual(infoEvents[1].info, newinfo, 'audio info = muxed info');
+});

@@ -398,6 +398,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         segmentObj.captions = segmentObj.captions.concat(segment.captions);
       }
 
+      if (segment.info) {
+        segmentObj[type].info = segment.info;
+      }
+
       // Gather any metadata into a single array
       if (segment.metadata) {
         segmentObj.metadata = segmentObj.metadata.concat(segment.metadata);
@@ -405,6 +409,13 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
       return segmentObj;
     }, sortedSegments);
+
+    if (sortedSegments.audio.info) {
+      this.mediaSource_.trigger({type: 'audioinfo', info: sortedSegments.audio.info});
+    }
+    if (sortedSegments.video.info) {
+      this.mediaSource_.trigger({type: 'videoinfo', info: sortedSegments.video.info});
+    }
 
     // Merge multiple video and audio segments into one and append
     if (this.videoBuffer_) {
