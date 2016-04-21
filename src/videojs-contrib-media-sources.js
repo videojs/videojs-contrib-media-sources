@@ -3,8 +3,7 @@
  */
 import FlashMediaSource from './flash-media-source';
 import HtmlMediaSource from './html-media-source';
-// import videojs from 'video.js';
-let videojs = window.videojs;
+import videojs from 'video.js';
 let urlCount = 0;
 
 // ------------
