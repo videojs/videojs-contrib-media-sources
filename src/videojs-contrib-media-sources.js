@@ -49,7 +49,7 @@ const open = function(msObjectURL, swfId) {
  * @return {Boolean} if  native media sources are supported
  */
 const supportsNativeMediaSources = function() {
-  return (!!window.MediaSource &&
+  return (!!window.MediaSource && !!window.MediaSource.isTypeSupported &&
     window.MediaSource.isTypeSupported('video/mp4;codecs="avc1.4d400d,mp4a.40.2"'));
 };
 
