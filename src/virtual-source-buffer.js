@@ -396,12 +396,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       return segmentObj;
     }, sortedSegments);
 
-    // Create the real source buffers if they don't exist by now
+    // Create the real source buffers if they don't exist by now since we
+    // finally are sure what tracks are contained in the source
     if (!this.videoBuffer_ && !this.audioBuffer_) {
+      // Remove any codecs that may have been specified by default but
+      // are no longer applicable now
       if (sortedSegments.video.bytes === 0) {
         this.videoCodec_ = null;
       }
-
       if (sortedSegments.audio.bytes === 0) {
         this.audioCodec_ = null;
       }

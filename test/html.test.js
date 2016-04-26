@@ -1023,7 +1023,7 @@ QUnit.test('audio segments with info trigger audioinfo event', function() {
 });
 
 QUnit.test('creates native SourceBuffers immediately if a second ' +
-  'VirtualSourceBuffer is created', function() {
+           'VirtualSourceBuffer is created', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer =
     mediaSource.addSourceBuffer('video/mp2t; codecs="avc1.64001f,mp4a.40.5"');
