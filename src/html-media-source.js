@@ -231,10 +231,22 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     let buffer;
     let parsedType = parseContentType(type);
 
-    // create a virtual source buffer to transmux MPEG-2 transport
+    // Create a VirtualSourceBuffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if (parsedType.type === 'video/mp2t') {
-      // default codecs
+      if (this.sourceBuffers.length !== 0) {
+        // If another VirtualSourceBuffer already exists, then we are creating a
+        // SourceBuffer for an alternate audio track and therefore we know that
+        // the source has both an audio and video track.
+        // That means we should trigger the manual creation of the real
+        // SourceBuffers instead of waiting for the transmuxer to return data
+        this.sourceBuffers[0].createRealSourceBuffers_();
+
+        // Automatically disable the audio on the first source buffer if
+        // a second source buffer is ever created
+        this.sourceBuffers[0].audioDisabled_ = true;
+      }
+
       let codecs = [];
 
       if (parsedType.parameters && parsedType.parameters.codecs) {
@@ -253,12 +265,6 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     } else {
       // delegate to the native implementation
       buffer = this.mediaSource_.addSourceBuffer(type);
-    }
-
-    // Automatically disable the audio on the first source buffer if
-    // a second source buffer is ever created
-    if (this.sourceBuffers.length !== 0) {
-      this.sourceBuffers[0].audioDisabled_ = true;
     }
 
     this.sourceBuffers.push(buffer);
