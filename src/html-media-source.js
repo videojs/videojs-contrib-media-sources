@@ -37,12 +37,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     super();
     let property;
 
-    this.mediaSource_ = new window.MediaSource();
+    this.nativeMediaSource_ = new window.MediaSource();
     // delegate to the native MediaSource's methods by default
-    for (property in this.mediaSource_) {
+    for (property in this.nativeMediaSource_) {
       if (!(property in HtmlMediaSource.prototype) &&
-          typeof this.mediaSource_[property] === 'function') {
-        this[property] = this.mediaSource_[property].bind(this.mediaSource_);
+          typeof this.nativeMediaSource_[property] === 'function') {
+        this[property] = this.nativeMediaSource_[property].bind(this.nativeMediaSource_);
       }
     }
 
@@ -55,12 +55,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         if (this.duration_ === Infinity) {
           return this.duration_;
         }
-        return this.mediaSource_.duration;
+        return this.nativeMediaSource_.duration;
       },
       set(duration) {
         this.duration_ = duration;
         if (duration !== Infinity) {
-          this.mediaSource_.duration = duration;
+          this.nativeMediaSource_.duration = duration;
           return;
         }
       }
@@ -68,15 +68,15 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     Object.defineProperty(this, 'seekable', {
       get() {
         if (this.duration_ === Infinity) {
-          return videojs.createTimeRanges([[0, this.mediaSource_.duration]]);
+          return videojs.createTimeRanges([[0, this.nativeMediaSource_.duration]]);
         }
-        return this.mediaSource_.seekable;
+        return this.nativeMediaSource_.seekable;
       }
     });
 
     Object.defineProperty(this, 'readyState', {
       get() {
-        return this.mediaSource_.readyState;
+        return this.nativeMediaSource_.readyState;
       }
     });
 
@@ -156,7 +156,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       'sourceclose',
       'sourceended'
     ].forEach(function(eventName) {
-      this.mediaSource_.addEventListener(eventName, this.trigger.bind(this));
+      this.nativeMediaSource_.addEventListener(eventName, this.trigger.bind(this));
     }, this);
 
     // capture the associated player when the MediaSource is
@@ -214,9 +214,9 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       throw error;
     }
 
-    if (end > this.mediaSource_.duration ||
-        isNaN(this.mediaSource_.duration)) {
-      this.mediaSource_.duration = end;
+    if (end > this.nativeMediaSource_.duration ||
+        isNaN(this.nativeMediaSource_.duration)) {
+      this.nativeMediaSource_.duration = end;
     }
   }
 
@@ -231,10 +231,22 @@ export default class HtmlMediaSource extends videojs.EventTarget {
     let buffer;
     let parsedType = parseContentType(type);
 
-    // create a virtual source buffer to transmux MPEG-2 transport
+    // Create a VirtualSourceBuffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
     if (parsedType.type === 'video/mp2t') {
-      // default codecs
+      if (this.sourceBuffers.length !== 0) {
+        // If another VirtualSourceBuffer already exists, then we are creating a
+        // SourceBuffer for an alternate audio track and therefore we know that
+        // the source has both an audio and video track.
+        // That means we should trigger the manual creation of the real
+        // SourceBuffers instead of waiting for the transmuxer to return data
+        this.sourceBuffers[0].createRealSourceBuffers_();
+
+        // Automatically disable the audio on the first source buffer if
+        // a second source buffer is ever created
+        this.sourceBuffers[0].audioDisabled_ = true;
+      }
+
       let codecs = [];
 
       if (parsedType.parameters && parsedType.parameters.codecs) {
@@ -252,13 +264,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       buffer = new VirtualSourceBuffer(this, codecs);
     } else {
       // delegate to the native implementation
-      buffer = this.mediaSource_.addSourceBuffer(type);
-    }
-
-    // Automatically disable the audio on the first source buffer if
-    // a second source buffer is ever created
-    if (this.sourceBuffers.length !== 0) {
-      this.sourceBuffers[0].audioDisabled_ = true;
+      buffer = this.nativeMediaSource_.addSourceBuffer(type);
     }
 
     this.sourceBuffers.push(buffer);

@@ -29,7 +29,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.pendingBuffers_ = [];
     this.bufferUpdating_ = false;
     this.mediaSource_ = mediaSource;
-    this.nativeMediaSource = this.mediaSource_.mediaSource_;
     this.codecs_ = codecs;
     this.audioCodec_ = null;
     this.videoCodec_ = null;
@@ -47,10 +46,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       }
     });
 
-    if (!this.videoCodec_) {
-      options.aacfile = true;
-    }
-
     // append muxed segments to their respective native buffers as
     // soon as they are available
     this.transmuxer_ = work(transmuxWorker);
@@ -65,8 +60,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         return this.done_(event);
       }
     };
-
-    this.createRealSourceBuffers_();
 
     // this timestampOffset is a property with the side-effect of resetting
     // baseMediaDecodeTime in the transmuxer on the setter
@@ -247,29 +240,33 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     let types = ['audio', 'video'];
 
     types.forEach((type) => {
+      // Don't create a SourceBuffer of this type if we don't have a
+      // codec for it
       if (!this[`${type}Codec_`]) {
         return;
       }
 
-      // if the mediasource already has a buffer for the codec
+      // Do nothing if a SourceBuffer of this type already exists
+      if (this[`${type}Buffer_`]) {
+        return;
+      }
+
+      let buffer = null;
+
+      // If the mediasource already has a SourceBuffer for the codec
       // use that
       if (this.mediaSource_[`${type}Buffer_`]) {
-        this[`${type}Buffer_`] = this.mediaSource_[`${type}Buffer_`];
-        return;
+        buffer = this.mediaSource_[`${type}Buffer_`];
+      } else {
+        buffer = this.mediaSource_.nativeMediaSource_.addSourceBuffer(
+          type + '/mp4;codecs="' + this[`${type}Codec_`] + '"'
+        );
+        this.mediaSource_[`${type}Buffer_`] = buffer;
       }
 
-      let buffer = this.nativeMediaSource.addSourceBuffer(
-        type + '/mp4;codecs="' + this[`${type}Codec_`] + '"'
-      );
-
-      this.mediaSource_[`${type}Buffer_`] = buffer;
       this[`${type}Buffer_`] = buffer;
-      // we only add audio event handlers here if we also have
-      // a videoCodec. we will add seprate event handlers
-      // for audio only after this block of code
-      if (!this.videoCodec_) {
-        return;
-      }
+
+      // Wire up the events to the SourceBuffer
       ['update', 'updatestart', 'updateend'].forEach((event) => {
         buffer.addEventListener(event, () => {
           // if audio is disabled
@@ -298,17 +295,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         });
       });
     });
-
-    // if we onlt have an audioCodec_
-    if (this.audioCodec_ && !this.videoCodec_) {
-      ['updatestart', 'update', 'updateend'].forEach((event) => {
-        this.audioBuffer_.addEventListener(event, () => {
-          if (!this.audioDisabled_) {
-            this.trigger(event);
-          }
-        });
-      });
-    }
   }
 
   /**
@@ -409,6 +395,21 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
       return segmentObj;
     }, sortedSegments);
+
+    // Create the real source buffers if they don't exist by now since we
+    // finally are sure what tracks are contained in the source
+    if (!this.videoBuffer_ && !this.audioBuffer_) {
+      // Remove any codecs that may have been specified by default but
+      // are no longer applicable now
+      if (sortedSegments.video.bytes === 0) {
+        this.videoCodec_ = null;
+      }
+      if (sortedSegments.audio.bytes === 0) {
+        this.audioCodec_ = null;
+      }
+
+      this.createRealSourceBuffers_();
+    }
 
     if (sortedSegments.audio.info) {
       this.mediaSource_.trigger({type: 'audioinfo', info: sortedSegments.audio.info});
