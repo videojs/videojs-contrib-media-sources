@@ -29,7 +29,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.pendingBuffers_ = [];
     this.bufferUpdating_ = false;
     this.mediaSource_ = mediaSource;
-    this.nativeMediaSource = this.mediaSource_.mediaSource_;
     this.codecs_ = codecs;
     this.audioCodec_ = null;
     this.videoCodec_ = null;
@@ -259,7 +258,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       if (this.mediaSource_[`${type}Buffer_`]) {
         buffer = this.mediaSource_[`${type}Buffer_`];
       } else {
-        buffer = this.nativeMediaSource.addSourceBuffer(
+        buffer = this.mediaSource_.nativeMediaSource_.addSourceBuffer(
           type + '/mp4;codecs="' + this[`${type}Codec_`] + '"'
         );
         this.mediaSource_[`${type}Buffer_`] = buffer;

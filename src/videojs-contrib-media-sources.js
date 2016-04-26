@@ -105,7 +105,7 @@ export const URL = {
 
     // use the native MediaSource to generate an object URL
     if (object instanceof HtmlMediaSource) {
-      url = window.URL.createObjectURL(object.mediaSource_);
+      url = window.URL.createObjectURL(object.nativeMediaSource_);
       object.url_ = url;
       return url;
     }
