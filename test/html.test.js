@@ -1056,4 +1056,7 @@ QUnit.test('creates native SourceBuffers immediately if a second ' +
     sourceBuffer.audioDisabled_,
     true,
     'first source buffer\'s audio is automatically disabled');
+  QUnit.ok(
+    sourceBuffer2.audioBuffer_,
+    'second source buffer has an audio source buffer');
 });
