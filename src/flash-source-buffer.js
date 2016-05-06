@@ -22,6 +22,25 @@ const scheduleTick = function(func) {
 };
 
 /**
+ * Round a number to a specified number of places much like
+ * toFixed but return a number instead of a string representation.
+ *
+ * @param {Number} num A number
+ * @param {Number} places The number of decimal places which to
+ * round
+ * @private
+ */
+const toDecimalPlaces = function(num, places) {
+  if (typeof places !== 'number' || places < 0) {
+    places = 0;
+  }
+
+  let scale = Math.pow(10, places);
+
+  return Math.round(num * scale) / scale;
+};
+
+/**
  * A SourceBuffer implementation for Flash rather than HTML.
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
@@ -96,9 +115,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
           return videojs.createTimeRange();
         }
 
-        return videojs.createTimeRanges(
-          this.mediaSource.swfObj.vjs_getProperty('buffered')
-        );
+        let buffered = this.mediaSource.swfObj.vjs_getProperty('buffered');
+
+        if (buffered && buffered.length) {
+          buffered[0][0] = toDecimalPlaces(buffered[0][0], 3);
+          buffered[0][1] = toDecimalPlaces(buffered[0][1], 3);
+        }
+        return videojs.createTimeRanges(buffered);
       }
     });
 
