@@ -1,6 +1,6 @@
 {
   "name": "videojs-contrib-media-sources",
-  "version": "3.0.1",
+  "version": "3.1.0-0",
   "description": "A Media Source Extensions plugin for video.js",
   "main": "es5/videojs-contrib-media-sources.js",
   "scripts": {
@@ -29,7 +29,10 @@
     "preversion": "npm test",
     "version": "npm run build",
     "watch": "npm-run-all -p watch:*",
-    "watch:js": "watchify src/videojs-contrib-media-sources.js -t babelify -v -o dist/videojs-contrib-media-sources.js",
+    "watch:doc": "nodemon --watch src/ --exec npm run docs",
+    "watch:js": "npm-run-all -p watch:js:babel watch:js:browserify",
+    "watch:js:babel": "babel src --watch -d es5",
+    "watch:js:browserify": "watchify . -v -o dist/videojs-contrib-media-sources.js",
     "watch:test": "node scripts/watch-test.js",
     "prepublish": "npm run build"
   },
@@ -71,8 +74,8 @@
     "test/"
   ],
   "dependencies": {
-    "video.js": "^5.0.0",
-    "mux.js": "^2.0.0",
+    "mux.js": "^2.2.0",
+    "video.js": "5.9.0-1",
     "webworkify": "1.0.2"
   },
   "devDependencies": {
@@ -97,12 +100,13 @@
     "karma-safari-launcher": "^0.1.0",
     "lodash-compat": "^3.10.0",
     "minimist": "^1.2.0",
+    "nodemon": "^1.9.1",
     "npm-run-all": "^1.2.0",
     "portscanner": "^1.0.0",
     "qunitjs": "^1.0.0",
     "serve-static": "^1.10.0",
     "shelljs": "^0.5.3",
-    "sinon": "^1.0.0",
+    "sinon": "1.14.1",
     "uglify-js": "^2.5.0",
     "videojs-standard": "^4.0.0",
     "watchify": "^3.6.0"

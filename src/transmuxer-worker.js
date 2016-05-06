@@ -1,4 +1,8 @@
 /**
+ * @file transmuxer-worker.js
+ */
+
+/**
  * videojs-contrib-media-sources
  *
  * Copyright (c) 2015 Brightcove
@@ -9,22 +13,20 @@
  * message-based interface to a Transmuxer object.
  */
 import muxjs from 'mux.js';
-let globalTransmuxer;
-let initOptions = {};
 
 /**
- * wireTransmuxerEvents
  * Re-emits tranmsuxer events by converting them into messages to the
- * world outside the worker
+ * world outside the worker.
+ *
+ * @param {Object} transmuxer the transmuxer to wire events on
+ * @private
  */
 const wireTransmuxerEvents = function(transmuxer) {
   transmuxer.on('data', function(segment) {
     // transfer ownership of the underlying ArrayBuffer
     // instead of doing a copy to save memory
     // ArrayBuffers are transferable but generic TypedArrays are not
-    /* eslint-disable max-len */
-    // see https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
-    /* eslint-enable max-len */
+    // @link https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
     let typedArray = segment.data;
 
     segment.data = typedArray.buffer;
@@ -53,83 +55,98 @@ const wireTransmuxerEvents = function(transmuxer) {
 /**
  * All incoming messages route through this hash. If no function exists
  * to handle an incoming message, then we ignore the message.
+ *
+ * @class MessageHandlers
+ * @param {Object} options the options to initialize with
  */
-let messageHandlers = {
+class MessageHandlers {
+  constructor(options) {
+    this.options = options || {};
+    this.init();
+  }
+
   /**
-   * init
-   * Allows you to initialize the transmuxer and pass along options from
-   * outside the worker
+   * initialize our web worker and wire all the events.
    */
-  init(data) {
-    initOptions = (data && data.options) || {};
-    this.defaultInit();
-  },
-  /**
-   * defaultInit
-   * Is called before every function and initializes the transmuxer with
-   * default options if `init` was never explicitly called
-   */
-  defaultInit() {
-    if (globalTransmuxer) {
-      globalTransmuxer.dispose();
+  init() {
+    if (this.transmuxer) {
+      this.transmuxer.dispose();
     }
-    globalTransmuxer = new muxjs.mp4.Transmuxer(initOptions);
-    wireTransmuxerEvents(globalTransmuxer);
-  },
+    this.transmuxer = new muxjs.mp4.Transmuxer(this.options);
+    wireTransmuxerEvents(this.transmuxer);
+  }
+
   /**
-   * push
    * Adds data (a ts segment) to the start of the transmuxer pipeline for
-   * processing
+   * processing.
+   *
+   * @param {ArrayBuffer} data data to push into the muxer
    */
   push(data) {
     // Cast array buffer to correct type for transmuxer
     let segment = new Uint8Array(data.data, data.byteOffset, data.byteLength);
 
-    globalTransmuxer.push(segment);
-  },
+    this.transmuxer.push(segment);
+  }
+
   /**
-   * reset
    * Recreate the transmuxer so that the next segment added via `push`
-   * start with a fresh transmuxer
+   * start with a fresh transmuxer.
    */
   reset() {
-    this.defaultInit();
-  },
+    this.init();
+  }
+
   /**
-   * setTimestampOffset
    * Set the value that will be used as the `baseMediaDecodeTime` time for the
    * next segment pushed in. Subsequent segments will have their `baseMediaDecodeTime`
    * set relative to the first based on the PTS values.
+   *
+   * @param {Object} data used to set the timestamp offset in the muxer
    */
   setTimestampOffset(data) {
     let timestampOffset = data.timestampOffset || 0;
 
-    globalTransmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
-  },
+    this.transmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
+  }
+
   /**
-   * flush
    * Forces the pipeline to finish processing the last segment and emit it's
-   * results
+   * results.
+   *
+   * @param {Object} data event data, not really used
    */
   flush(data) {
-    globalTransmuxer.flush();
+    this.transmuxer.flush();
   }
-};
+}
 
+/**
+ * Our web wroker interface so that things can talk to mux.js
+ * that will be running in a web worker. the scope is passed to this by
+ * webworkify.
+ *
+ * @param {Object} self the scope for the web worker
+ */
 const Worker = function(self) {
   self.onmessage = function(event) {
-    // Setup the default transmuxer if one doesn't exist yet and we are invoked with
-    // an action other than `init`
-    if (!globalTransmuxer && event.data.action !== 'init') {
-      messageHandlers.defaultInit();
+    if (event.data.action === 'init' && event.data.options) {
+      this.messageHandlers = new MessageHandlers(event.data.options);
+      return;
     }
 
-    if (event.data && event.data.action) {
-      if (messageHandlers[event.data.action]) {
-        messageHandlers[event.data.action](event.data);
+    if (!this.messageHandlers) {
+      this.messageHandlers = new MessageHandlers();
+    }
+
+    if (event.data && event.data.action && event.data.action !== 'init') {
+      if (this.messageHandlers[event.data.action]) {
+        this.messageHandlers[event.data.action](event.data);
       }
     }
   };
 };
 
-export default Worker;
+export default (self) => {
+  return new Worker(self);
+};
