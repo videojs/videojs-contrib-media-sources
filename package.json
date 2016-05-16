@@ -9,7 +9,7 @@
     "build:js": "npm-run-all build:js:babel build:js:browserify build:js:bannerize build:js:uglify",
     "build:js:babel": "babel src -d es5",
     "build:js:bannerize": "bannerize dist/videojs-contrib-media-sources.js --banner=scripts/banner.ejs",
-    "build:js:browserify": "browserify . -s videojs-contrib-media-sources -o dist/videojs-contrib-media-sources.js",
+    "build:js:browserify": "browserify . -t browserify-shim -s videojs-contrib-media-sources -o dist/videojs-contrib-media-sources.js",
     "build:js:uglify": "uglifyjs dist/videojs-contrib-media-sources.js --comments --mangle --compress -o dist/videojs-contrib-media-sources.min.js",
     "build:test": "node scripts/build-test.js",
     "clean": "node -e \"var s=require('shelljs'),d=['dist','dist-test','es5'];s.rm('-rf',d);s.mkdir('-p',d);\"",
@@ -32,7 +32,7 @@
     "watch:doc": "nodemon --watch src/ --exec npm run docs",
     "watch:js": "npm-run-all -p watch:js:babel watch:js:browserify",
     "watch:js:babel": "babel src --watch -d es5",
-    "watch:js:browserify": "watchify . -v -o dist/videojs-contrib-media-sources.js",
+    "watch:js:browserify": "watchify . -t browserify-shim -v -o dist/videojs-contrib-media-sources.js",
     "watch:test": "node scripts/watch-test.js",
     "prepublish": "npm run build"
   },
@@ -42,11 +42,6 @@
   ],
   "author": "Brightcove, Inc.",
   "license": "Apache-2.0",
-  "browserify": {
-    "transform": [
-      "browserify-shim"
-    ]
-  },
   "browserify-shim": {
     "qunit": "global:QUnit",
     "sinon": "global:sinon",
