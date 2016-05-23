@@ -171,9 +171,11 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
       this.player_ = videojs(video.parentNode);
 
-      this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_);
-      this.player_.audioTracks().on('addtrack', this.updateActiveSourceBuffers_);
-      this.player_.audioTracks().on('removetrack', this.updateActiveSourceBuffers_);
+      if (this.player_.audioTracks && this.player_.audioTracks()) {
+        this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_);
+        this.player_.audioTracks().on('addtrack', this.updateActiveSourceBuffers_);
+        this.player_.audioTracks().on('removetrack', this.updateActiveSourceBuffers_);
+      }
     });
 
     // explicitly terminate any WebWorkers that were created
@@ -189,10 +191,11 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         return;
       }
 
-      this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
-      this.player_.audioTracks().off('addtrack', this.updateActiveSourceBuffers_);
-      this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
-
+      if (this.player_.audioTracks && this.player_.audioTracks()) {
+        this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
+        this.player_.audioTracks().off('addtrack', this.updateActiveSourceBuffers_);
+        this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
+      }
     });
   }
 
