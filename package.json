@@ -69,7 +69,7 @@
     "test/"
   ],
   "dependencies": {
-    "mux.js": "^2.2.0",
+    "mux.js": "^2.3.0",
     "video.js": "^5.10.1",
     "webworkify": "1.0.2"
   },

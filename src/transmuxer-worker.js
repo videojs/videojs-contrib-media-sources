@@ -12,7 +12,7 @@
  * transmuxer running inside of a WebWorker by exposing a simple
  * message-based interface to a Transmuxer object.
  */
-import muxjs from 'mux.js';
+import mp4 from 'mux.js/lib/mp4';
 
 /**
  * Re-emits tranmsuxer events by converting them into messages to the
@@ -72,7 +72,7 @@ class MessageHandlers {
     if (this.transmuxer) {
       this.transmuxer.dispose();
     }
-    this.transmuxer = new muxjs.mp4.Transmuxer(this.options);
+    this.transmuxer = new mp4.Transmuxer(this.options);
     wireTransmuxerEvents(this.transmuxer);
   }
 
