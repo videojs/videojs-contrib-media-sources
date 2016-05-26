@@ -2,7 +2,7 @@
  * @file flash-source-buffer.js
  */
 import videojs from 'video.js';
-import muxjs from 'mux.js';
+import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import addTextTrackData from './add-text-track-data';
@@ -77,7 +77,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.timestampOffset_ = 0;
 
     // TS to FLV transmuxer
-    this.segmentParser_ = new muxjs.flv.Transmuxer();
+    this.segmentParser_ = new flv.Transmuxer();
     this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
     encodedHeader = window.btoa(
       String.fromCharCode.apply(
@@ -96,7 +96,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       set(val) {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
-          this.segmentParser_ = new muxjs.flv.Transmuxer();
+          this.segmentParser_ = new flv.Transmuxer();
           this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
           // We have to tell flash to expect a discontinuity
           this.mediaSource.swfObj.vjs_discontinuity();
@@ -412,4 +412,3 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     return tags;
   }
 }
-
