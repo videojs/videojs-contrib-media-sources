@@ -11,6 +11,8 @@ import HtmlMediaSource from '../src/html-media-source';
 import {MediaSource, URL} from '../src/videojs-contrib-media-sources.js';
 /* eslint-disable no-unused-vars */
 
+import {createDataMessage} from './utils';
+
 QUnit.module('videojs-contrib-media-sources - HTML', {
   beforeEach() {
     this.fixture = document.getElementById('qunit-fixture');
@@ -64,25 +66,6 @@ QUnit.test('constructs a native MediaSource', function() {
   );
 });
 
-const createDataMessage = function(type, typedArray, extraObject) {
-  let message = {
-    data: {
-      action: 'data',
-      segment: {
-        type,
-        data: typedArray.buffer
-      },
-      byteOffset: typedArray.byteOffset,
-      byteLength: typedArray.byteLength
-    }
-  };
-
-  return Object.keys(extraObject || {}).reduce(function(obj, key) {
-    obj.data.segment[key] = extraObject[key];
-    return obj;
-  }, message);
-};
-
 // Create a WebWorker-style message that signals the transmuxer is done
 const doneMessage = {
   data: {
@@ -94,10 +77,16 @@ const doneMessage = {
 // native source buffers
 const initializeNativeSourceBuffers = function(sourceBuffer) {
   // initialize an audio source buffer
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', new Uint8Array(1)));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'audio',
+    typedArray: new Uint8Array(1)
+  }));
 
   // initialize a video source buffer
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: new Uint8Array(1)
+  }));
 
   // instruct the transmuxer to flush the "data" it has buffered so
   // far
@@ -317,10 +306,16 @@ QUnit.test('transmuxes mp2t segments', function() {
   QUnit.equal(mp2tSegments[0][0], data[0], 'did not alter the segment');
 
   // an init segment
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1)));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: new Uint8Array(1)
+  }));
 
   // a media segment
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', new Uint8Array(1)));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'audio',
+    typedArray: new Uint8Array(1)
+  }));
 
   // Segments are concatenated
   QUnit.equal(
@@ -373,7 +368,10 @@ function() {
   QUnit.equal(mp2tSegments[0][1], 6, 'fragment contains the correct second byte');
 
   // an init segment
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: data
+  }));
 
   // Segments are concatenated
   QUnit.equal(
@@ -387,13 +385,13 @@ function() {
 
   // Segments are concatenated
   QUnit.equal(mp4Segments.length, 1, 'emitted the fragment');
-  QUnit.equal(
-    mp4Segments[0].length,
-    2,
-    'correctly handled a typed-array that is a subset'
-  );
-  QUnit.equal(mp4Segments[0][0], 5, 'fragment contains the correct first byte');
-  QUnit.equal(mp4Segments[0][1], 6, 'fragment contains the correct second byte');
+
+  let initSegmentOffset = mp4Segments[0].byteLength - data.byteLength;
+
+  QUnit.equal(mp4Segments[0][initSegmentOffset], 5,
+              'fragment contains the correct first byte');
+  QUnit.equal(mp4Segments[0][initSegmentOffset + 1], 6,
+              'fragment contains the correct second byte');
 });
 
 QUnit.test('handles empty codec string value', function() {
@@ -722,12 +720,16 @@ QUnit.test('translates caption events into WebVTT cues', function() {
     }
   };
   sourceBuffer.timestampOffset = 10;
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
-    captions: [{
-      startTime: 1,
-      endTime: 3,
-      text: 'This is an in-band caption'
-    }]
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: new Uint8Array(1),
+    extraObject: {
+      captions: [{
+        startTime: 1,
+        endTime: 3,
+        text: 'This is an in-band caption'
+      }]
+    }
   }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
 
@@ -771,8 +773,12 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   };
   sourceBuffer.timestampOffset = 10;
 
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
-    metadata
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: new Uint8Array(1),
+    extraObject: {
+      metadata
+    }
   }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
 
@@ -983,14 +989,26 @@ QUnit.test('video segments with info trigger videooinfo event', function() {
   mediaSource.on('videoinfo', (e) => infoEvents.push(e));
 
   // send an audio segment with info, then send done
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data, {info}));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: data,
+    extraObject: {
+      info
+    }
+  }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
 
   QUnit.equal(infoEvents.length, 1, 'video info should trigger');
   QUnit.deepEqual(infoEvents[0].info, info, 'video info = muxed info');
 
   // send an audio segment with info, then send done
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', data, {info: newinfo}));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'video',
+    typedArray: data,
+    extraObject: {
+      info: newinfo
+    }
+  }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
 
   QUnit.equal(infoEvents.length, 2, 'video info should trigger');
@@ -1008,14 +1026,26 @@ QUnit.test('audio segments with info trigger audioinfo event', function() {
   mediaSource.on('audioinfo', (e) => infoEvents.push(e));
 
   // send an audio segment with info, then send done
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', data, {info}));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'audio',
+    typedArray: data,
+    extraObject: {
+      info
+    }
+  }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
 
   QUnit.equal(infoEvents.length, 1, 'audio info should trigger');
   QUnit.deepEqual(infoEvents[0].info, info, 'audio info = muxed info');
 
   // send an audio segment with info, then send done
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', data, {info: newinfo}));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage({
+    type: 'audio',
+    typedArray: data,
+    extraObject: {
+      info: newinfo
+    }
+  }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
 
   QUnit.equal(infoEvents.length, 2, 'audio info should trigger');

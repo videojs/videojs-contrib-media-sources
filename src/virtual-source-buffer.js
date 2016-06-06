@@ -8,6 +8,7 @@ import addTextTrackData from './add-text-track-data';
 import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
 import {isAudioCodec, isVideoCodec} from './codec-utils';
+import {mp4} from 'mux.js';
 
 /**
  * VirtualSourceBuffers exist so that we can transmux non native formats
@@ -204,6 +205,17 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       event.data.byteOffset,
       event.data.byteLength
     );
+
+    let tracks = mp4.utils.deserializeTracks(segment.serializedTracks);
+    let initSegment = mp4.generator.initSegment(tracks);
+
+    delete segment.serializedTracks;
+
+    let fullDataArray = new Uint8Array(initSegment.byteLength + event.data.byteLength);
+
+    fullDataArray.set(initSegment);
+    fullDataArray.set(segment.data, initSegment.byteLength);
+    segment.data = fullDataArray;
 
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
 
