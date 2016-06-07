@@ -68,11 +68,11 @@ function(assert) {
     hasAudio: true
   })));
   let pes = mp2t.utils.packetize(mp2t.utils.audioPes([0x19, 0x47], true, 10000));
-  let ts = new Uint8Array(pat.length + pmt.length + pes.length);
+  let ts = new Uint8Array(pat.byteLength + pmt.byteLength + pes.byteLength);
 
   ts.set(pat);
-  ts.set(pmt, pat.length);
-  ts.set(pes, pat.length + pmt.length);
+  ts.set(pmt, pat.byteLength);
+  ts.set(pes, pat.byteLength + pmt.byteLength);
 
   transmuxer.push(ts);
   transmuxer.flush();
@@ -115,10 +115,10 @@ function(assert) {
   }
 
   let adtsPayload = new Uint8Array(mp2t.utils.adtsFrame(2).concat([0x19, 0x47]));
-  let payload = new Uint8Array(id3Tag.length + adtsPayload.length);
+  let payload = new Uint8Array(id3Tag.byteLength + adtsPayload.byteLength);
 
   payload.set(id3Tag);
-  payload.set(adtsPayload, id3Tag.length);
+  payload.set(adtsPayload, id3Tag.byteLength);
 
   transmuxer.push(payload);
   transmuxer.flush();
