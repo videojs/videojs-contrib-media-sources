@@ -9,6 +9,7 @@ import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
 import {isAudioCodec, isVideoCodec} from './codec-utils';
 import {mp4} from 'mux.js';
+import {objToTypedArr} from './utils';
 
 /**
  * VirtualSourceBuffers exist so that we can transmux non native formats
@@ -206,11 +207,23 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       event.data.byteLength
     );
 
-    let tracks = mp4.utils.deserializeTracks(segment.serializedTracks);
+    let tracks = segment.tracks;
+
+    // convert back to typed arrays
+    tracks.forEach((track) => {
+      if (track.sps) {
+        track.sps = track.sps.map((sps) => {
+          return objToTypedArr(sps);
+        });
+      }
+      if (track.pps) {
+        track.pps = track.pps.map((pps) => {
+          return objToTypedArr(pps);
+        });
+      }
+    });
+
     let initSegment = mp4.generator.initSegment(tracks);
-
-    delete segment.serializedTracks;
-
     let fullDataArray = new Uint8Array(initSegment.byteLength + event.data.byteLength);
 
     fullDataArray.set(initSegment);

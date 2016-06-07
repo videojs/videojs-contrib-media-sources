@@ -1,0 +1,18 @@
+[
+  {
+    timelineStartInfo: {
+      baseMediaDecodeTime: 0,
+      pts: 900000,
+      dts: 900000
+    },
+    id: 257,
+    codec: 'adts',
+    type: 'audio',
+    audioobjecttype: 2,
+    channelcount: 2,
+    samplerate: 22050,
+    samplingfrequencyindex: 7,
+    samplesize: 16,
+    baseMediaDecodeTime: 0
+  }
+]

@@ -1,11 +1,11 @@
-import serializedVideoTracks from './data/serialized-video-tracks.js';
-import serializedAudioTracks from './data/serialized-audio-tracks.js';
+import videoTracks from './data/video-tracks';
+import audioTracks from './data/audio-tracks';
 
 export const createDataMessage = function({
   type,
   typedArray,
   extraObject,
-  serializedTracks
+  tracks
 }) {
   let message = {
     data: {
@@ -13,8 +13,7 @@ export const createDataMessage = function({
       segment: {
         type,
         data: typedArray.buffer,
-        serializedTracks: serializedTracks ||
-          (type === 'video' ? serializedVideoTracks : serializedAudioTracks)
+        tracks: tracks || (type === 'video' ? videoTracks : audioTracks)
       },
       byteOffset: typedArray.byteOffset,
       byteLength: typedArray.byteLength

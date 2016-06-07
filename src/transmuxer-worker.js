@@ -13,6 +13,7 @@
  * message-based interface to a Transmuxer object.
  */
 import muxjs from 'mux.js';
+import {typedArrToObj} from './utils';
 
 /**
  * Re-emits tranmsuxer events by converting them into messages to the
@@ -28,6 +29,23 @@ const wireTransmuxerEvents = function(transmuxer) {
     // ArrayBuffers are transferable but generic TypedArrays are not
     // @link https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
     let typedArray = segment.data;
+
+    // samples are no longer needed, as only the init segment needs to be created
+    // samples also represent the bulk of the track information
+    delete segment.tracks.samples;
+    // convert TypedArrays to objects
+    segment.tracks.forEach((track) => {
+      if (track.sps) {
+        track.sps = track.sps.map((sps) => {
+          return typedArrToObj(sps);
+        });
+      }
+      if (track.pps) {
+        track.pps = track.pps.map((pps) => {
+          return typedArrToObj(pps);
+        });
+      }
+    });
 
     segment.data = typedArray.buffer;
     postMessage({

@@ -1,0 +1,62 @@
+[
+  {
+    timelineStartInfo: {
+      baseMediaDecodeTime: 0,
+      pts: 900000,
+      dts: 900000
+    },
+    id: 258,
+    codec: 'avc',
+    type: 'video',
+    sps: [
+      {
+        bytes: [
+          39,
+          77,
+          64,
+          30,
+          169,
+          24,
+          20,
+          5,
+          255,
+          46,
+          0,
+          212,
+          24,
+          4,
+          26,
+          219,
+          122,
+          2,
+          96,
+          28,
+          87,
+          189,
+          240,
+          16
+        ],
+        byteOffset: 29,
+        byteLength: 24
+      }
+    ],
+    width: 640,
+    height: 360,
+    profileIdc: 77,
+    levelIdc: 30,
+    profileCompatibility: 64,
+    pps: [
+      {
+        bytes: [
+          40,
+          222,
+          9,
+          200
+        ],
+        byteOffset: 57,
+        byteLength: 4
+      }
+    ],
+    baseMediaDecodeTime: 0
+  }
+]
