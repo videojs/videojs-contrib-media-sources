@@ -221,6 +221,22 @@ QUnit.test('raises an exception for unrecognized MIME types', function() {
   QUnit.ok(false, 'no error was thrown');
 });
 
+QUnit.test('fires loadedmetadata on initial append', function() {
+  let count = 0;
+  let sourceBuffer;
+
+  this.mediaSource.tech_.on('loadedmetadata', function() {
+    count += 1;
+  });
+  sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  QUnit.equal(count, 0, 'loadedmetadata not called on initial buffer creation');
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  QUnit.equal(count, 1, 'loadedmetadata fires on first appended segment');
+  timers.runAll();
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  QUnit.equal(count, 1, 'loadedmetadata didnt fire on second append');
+});
+
 QUnit.test('creates FlashSourceBuffers for video/mp2t', function() {
   QUnit.ok(this.mediaSource.addSourceBuffer('video/mp2t') instanceof FlashSourceBuffer,
       'create source buffer');
