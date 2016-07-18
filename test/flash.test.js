@@ -763,3 +763,20 @@ QUnit.test('passes endOfStream decode errors to the tech', function() {
 QUnit.test('has addSeekableRange()', function() {
   QUnit.ok(this.mediaSource.addSeekableRange_, 'has addSeekableRange_');
 });
+
+QUnit.test('fires loadedmetadata after first segment append', function() {
+  let loadedmetadataCount = 0;
+
+  this.mediaSource.tech_.on('loadedmetadata', () => loadedmetadataCount++);
+
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+
+  QUnit.equal(loadedmetadataCount, 0, 'loadedmetadata not called on buffer creation');
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  QUnit.equal(loadedmetadataCount, 0, 'loadedmetadata not called on segment append');
+  timers.runAll();
+  QUnit.equal(loadedmetadataCount, 1, 'loadedmetadata fires after first append');
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  timers.runAll();
+  QUnit.equal(loadedmetadataCount, 1, 'loadedmetadata does not fire after second append');
+});

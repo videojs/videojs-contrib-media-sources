@@ -89,6 +89,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     );
     this.mediaSource.swfObj.vjs_appendBuffer(encodedHeader);
 
+    this.one('updateend', () => {
+      this.mediaSource.tech_.trigger('loadedmetadata');
+    });
+
     Object.defineProperty(this, 'timestampOffset', {
       get() {
         return this.timestampOffset_;
