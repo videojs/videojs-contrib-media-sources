@@ -1,6 +1,8 @@
 /**
  * @file html-media-source.js
  */
+import window from 'global/window';
+import document from 'global/document';
 import videojs from 'video.js';
 import VirtualSourceBuffer from './virtual-source-buffer';
 import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';

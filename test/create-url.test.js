@@ -1,5 +1,5 @@
 import document from 'global/document';
-
+import window from 'global/window';
 import QUnit from 'qunit';
 import sinon from 'sinon';
 import videojs from 'video.js';
@@ -26,7 +26,7 @@ QUnit.module('createObjectURL', {
     // force MediaSource support
     if (!window.MediaSource) {
       window.MediaSource = function() {
-        let result = new Blob();
+        let result = new window.Blob();
 
         result.addEventListener = function() {};
         result.addSourceBuffer = function() {};
@@ -48,7 +48,7 @@ QUnit.module('createObjectURL', {
 QUnit.test('delegates to the native implementation', function() {
   QUnit.ok(!(/blob:vjs-media-source\//).test(
     videojs.URL.createObjectURL(
-      new Blob())
+      new window.Blob())
     ),
     'created a native blob URL'
   );
@@ -73,7 +73,7 @@ QUnit.test('emulates a URL for the shim', function() {
 });
 
 QUnit.test('stores the associated blob URL on the media source', function() {
-  let blob = new Blob();
+  let blob = new window.Blob();
   let url = videojs.URL.createObjectURL(blob);
 
   QUnit.equal(blob.url_, url, 'captured the generated URL');

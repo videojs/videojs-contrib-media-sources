@@ -1,6 +1,7 @@
 /**
  * @file flash-media-source.js
  */
+import document from 'global/document';
 import videojs from 'video.js';
 import FlashSourceBuffer from './flash-source-buffer';
 import FlashConstants from './flash-constants';
