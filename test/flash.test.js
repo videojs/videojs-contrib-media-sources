@@ -1,5 +1,5 @@
 import document from 'global/document';
-
+import window from 'global/window';
 import QUnit from 'qunit';
 import sinon from 'sinon';
 import videojs from 'video.js';
@@ -148,7 +148,7 @@ QUnit.module('Flash MediaSource', {
     this.player.tech_.el_ = swfObj;
     swfObj.tech = this.player.tech_;
     swfObj.CallFunction = (xml) => {
-      let parser = new DOMParser();
+      let parser = new window.DOMParser();
       let call = {};
       let doc;
 

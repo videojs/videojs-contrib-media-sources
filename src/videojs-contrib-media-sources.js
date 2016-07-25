@@ -1,6 +1,7 @@
 /**
  * @file videojs-contrib-media-sources.js
  */
+import window from 'global/window';
 import FlashMediaSource from './flash-media-source';
 import HtmlMediaSource from './html-media-source';
 import videojs from 'video.js';

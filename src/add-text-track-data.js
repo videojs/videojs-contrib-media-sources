@@ -1,6 +1,7 @@
 /**
  * @file add-text-track-data.js
  */
+import window from 'global/window';
 import videojs from 'video.js';
 /**
  * Define properties on a cue for backwards compatability,

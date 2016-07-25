@@ -1,6 +1,7 @@
 /**
  * @file flash-source-buffer.js
  */
+import window from 'global/window';
 import videojs from 'video.js';
 import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
