@@ -28,12 +28,12 @@
  * @private
  */
 const flashConstants = {
-  TIME_BETWEEN_TICKS: Math.floor(1000 / 480),
-  TIME_PER_TICK: Math.floor(1000 / 240),
+  TIME_BETWEEN_TICKS: Math.floor(1000 / 500),
+  TIME_PER_TICK: Math.floor(1000 / 100),
   // 1kb
-  BYTES_PER_CHUNK: 1 * 1024,
-  MIN_CHUNK: 1024,
-  MAX_CHUNK: 1024 * 1024
+  BYTES_PER_CHUNK: 4 * 1024,
+  MIN_CHUNK: 4096,
+  MAX_CHUNK: 4 * 1024 * 1024
 };
 
 export default flashConstants;
