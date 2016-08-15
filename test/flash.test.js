@@ -258,10 +258,14 @@ QUnit.test('size of the append window changes based on timing information', func
   let swfObj = this.mediaSource.swfObj;
   let callFunction = swfObj.CallFunction;
   // Set some easy-to-test values
+  let TIME_BETWEEN_TICKS = FlashConstants.TIME_BETWEEN_TICKS;
+  let TIME_PER_TICK = FlashConstants.TIME_PER_TICK;
   let BYTES_PER_CHUNK = FlashConstants.BYTES_PER_CHUNK;
   let MIN_CHUNK = FlashConstants.MIN_CHUNK;
   let MAX_CHUNK = FlashConstants.MAX_CHUNK;
 
+  FlashConstants.TIME_BETWEEN_TICKS = 2;
+  FlashConstants.TIME_PER_TICK = 4;
   FlashConstants.BYTES_PER_CHUNK = 2;
   FlashConstants.MIN_CHUNK = 1;
   FlashConstants.MAX_CHUNK = 10;
@@ -327,6 +331,8 @@ QUnit.test('size of the append window changes based on timing information', func
   );
   QUnit.equal(sourceBuffer.chunkSize_, 1, 'sourceBuffer.chunkSize_ reduced to 1');
 
+  FlashConstants.TIME_BETWEEN_TICKS = TIME_BETWEEN_TICKS;
+  FlashConstants.TIME_PER_TICK = TIME_PER_TICK;
   FlashConstants.BYTES_PER_CHUNK = BYTES_PER_CHUNK;
   FlashConstants.MIN_CHUNK = MIN_CHUNK;
   FlashConstants.MAX_CHUNK = MAX_CHUNK;
