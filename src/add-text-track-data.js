@@ -63,10 +63,7 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
     }, sourceHandler);
   }
 
-
   if (metadataArray) {
-
-
     metadataArray.forEach(function(metadata) {
       let time = metadata.cueTime + this.timestampOffset;
       let videoDuration = Number.isFinite(this.mediaSource_.duration) ?
@@ -94,8 +91,10 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
     if (sourceHandler.metadataTrack_ && sourceHandler.metadataTrack_.cues) {
       for (let i = 0; i < sourceHandler.metadataTrack_.cues.length - 1; i++) {
 
-        if (sourceHandler.metadataTrack_.cues[i].endTime != sourceHandler.metadataTrack_.cues[i + 1].startTime) {
-          sourceHandler.metadataTrack_.cues[i].endTime = sourceHandler.metadataTrack_.cues[i + 1].startTime;
+        if (sourceHandler.metadataTrack_.cues[i].endTime !==
+          sourceHandler.metadataTrack_.cues[i + 1].startTime) {
+          sourceHandler.metadataTrack_.cues[i].endTime =
+            sourceHandler.metadataTrack_.cues[i + 1].startTime;
         }
       }
     }
