@@ -64,6 +64,8 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
   }
 
   if (metadataArray) {
+    let videoDuration = Math.min(sourceHandler.mediaSource_.duration, Number.MAX_VALUE);
+
     metadataArray.forEach(function(metadata) {
       let time = metadata.cueTime + this.timestampOffset;
       let endTimeCue = 0;
@@ -87,17 +89,21 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
      * the endTime of last cue is the duration of the video
      */
     if (sourceHandler.metadataTrack_ && sourceHandler.metadataTrack_.cues) {
-      for (let i = 0; i < sourceHandler.metadataTrack_.cues.length - 1; i++) {
-        if (sourceHandler.metadataTrack_.cues[i].endTime !==
-          sourceHandler.metadataTrack_.cues[i + 1].startTime) {
+      for (let i = 0; i <= sourceHandler.metadataTrack_.cues.length - 1; i++) {
+        if (i === sourceHandler.metadataTrack_.cues.length - 1) {
+          sourceHandler.metadataTrack_.cues[i].endTime = videoDuration;
+        } else if (sourceHandler.metadataTrack_.cues[i].endTime !==
+          sourceHandler.metadataTrack_.cues[i + 1].startTime &&
+          i < sourceHandler.metadataTrack_.cues.length - 1) {
           sourceHandler.metadataTrack_.cues[i].endTime =
             sourceHandler.metadataTrack_.cues[i + 1].startTime;
         }
       }
     }
     sourceHandler.mediaSource_.on('sourceended', (event) => {
-      let videoDuration = Math.min(sourceHandler.mediaSource_.duration, Number.MAX_VALUE);
-      sourceHandler.metadataTrack_.cues[sourceHandler.metadataTrack_.cues.length - 1].endTime = videoDuration;
+      let numberOfCues = sourceHandler.metadataTrack_.cues.length;
+
+      sourceHandler.metadataTrack_.cues[numberOfCues - 1].endTime = videoDuration;
     });
   }
 };
