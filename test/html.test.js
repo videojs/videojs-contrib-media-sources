@@ -786,13 +786,13 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   QUnit.equal(cues.length, 3, 'created three cues');
   QUnit.equal(cues[0].text, 'This is a url tag', 'included the text');
   QUnit.equal(cues[0].startTime, 12, 'started at twelve');
-  QUnit.equal(cues[0].endTime, Number.MAX_VALUE, 'ended at the duration of the video');
+  QUnit.equal(cues[0].endTime, 12, 'ended at twelve');
   QUnit.equal(cues[1].text, 'This is a text tag', 'included the text');
   QUnit.equal(cues[1].startTime, 12, 'started at twelve');
-  QUnit.equal(cues[1].endTime, Number.MAX_VALUE, 'ended at the duration of the video');
+  QUnit.equal(cues[1].endTime, 12, 'ended at twelve');
   QUnit.equal(cues[2].text, 'This is a priv tag', 'included the text');
   QUnit.equal(cues[2].startTime, 22, 'started at twenty two');
-  QUnit.equal(cues[2].endTime, Number.MAX_VALUE, 'ended at the duration of the video');
+  QUnit.equal(cues[2].endTime, 22, 'ended at twenty two');
 });
 
 QUnit.test('does not wrap mp4 source buffers', function() {

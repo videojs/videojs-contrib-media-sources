@@ -68,12 +68,11 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
 
     metadataArray.forEach(function(metadata) {
       let time = metadata.cueTime + this.timestampOffset;
-      let endTimeCue = 0;
 
       metadata.frames.forEach(function(frame) {
         let cue = new Cue(
           time,
-          endTimeCue,
+          time,
           frame.value || frame.url || frame.data || '');
 
         cue.frame = frame;
