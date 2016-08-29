@@ -743,7 +743,6 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let types = [];
-  let cues = [];
   let metadata = [{
     cueTime: 2,
     frames: [{
@@ -763,8 +762,9 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
     addTextTrack(type) {
       types.push(type);
       return {
+        cues: [],
         addCue(cue) {
-          cues.push(cue);
+          this.cues.push(cue);
         }
       };
     }
@@ -781,18 +781,20 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
     16,
   'in-band metadata track dispatch type correctly set'
   );
+  let cues = sourceBuffer.metadataTrack_.cues;
+
   QUnit.equal(types.length, 1, 'created one text track');
   QUnit.equal(types[0], 'metadata', 'the type was metadata');
   QUnit.equal(cues.length, 3, 'created three cues');
   QUnit.equal(cues[0].text, 'This is a url tag', 'included the text');
   QUnit.equal(cues[0].startTime, 12, 'started at twelve');
-  QUnit.equal(cues[0].endTime, 12, 'ended at twelve');
+  QUnit.equal(cues[0].endTime, 12, 'ended at StartTime of next cue(12)');
   QUnit.equal(cues[1].text, 'This is a text tag', 'included the text');
   QUnit.equal(cues[1].startTime, 12, 'started at twelve');
-  QUnit.equal(cues[1].endTime, 12, 'ended at twelve');
+  QUnit.equal(cues[1].endTime, 22, 'ended at the startTime of next cue(22)');
   QUnit.equal(cues[2].text, 'This is a priv tag', 'included the text');
   QUnit.equal(cues[2].startTime, 22, 'started at twenty two');
-  QUnit.equal(cues[2].endTime, 22, 'ended at twenty two');
+  QUnit.equal(cues[2].endTime, Number.MAX_VALUE, 'ended at duration of the video');
 });
 
 QUnit.test('does not wrap mp4 source buffers', function() {
