@@ -66,13 +66,12 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
   if (metadataArray) {
     let videoDuration;
 
-    if(isNaN(sourceHandler.mediaSource_.duration) || 
-      sourceHandler.mediaSource_.duration === Infinity || 
+    if (isNaN(sourceHandler.mediaSource_.duration) ||
+      sourceHandler.mediaSource_.duration === Infinity ||
       sourceHandler.mediaSource_.duration === -Infinity) {
       videoDuration = Number.MAX_VALUE;
-    }
-    else {
-      videoDuration = Math.min(sourceHandler.mediaSource_.duration, Number.MAX_VALUE);
+    } else {
+      videoDuration = sourceHandler.mediaSource_.duration;
     }
 
     metadataArray.forEach(function(metadata) {
