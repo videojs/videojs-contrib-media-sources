@@ -99,11 +99,9 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
       for (let i = 0; i <= sourceHandler.metadataTrack_.cues.length - 1; i++) {
         if (i === sourceHandler.metadataTrack_.cues.length - 1) {
           sourceHandler.metadataTrack_.cues[i].endTime = videoDuration;
-        } else if (sourceHandler.metadataTrack_.cues[i].endTime !==
-          sourceHandler.metadataTrack_.cues[i + 1].startTime &&
-          i < sourceHandler.metadataTrack_.cues.length - 1) {
+        } else {
           sourceHandler.metadataTrack_.cues[i].endTime =
-            sourceHandler.metadataTrack_.cues[i + 1].startTime;
+          sourceHandler.metadataTrack_.cues[i + 1].startTime;
         }
       }
     }
