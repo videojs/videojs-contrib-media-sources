@@ -96,20 +96,19 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
      * the endTime of last cue is the duration of the video
      */
     if (sourceHandler.metadataTrack_ && sourceHandler.metadataTrack_.cues) {
-      for (let i = 0; i <= sourceHandler.metadataTrack_.cues.length - 1; i++) {
-        if (i === sourceHandler.metadataTrack_.cues.length - 1) {
-          sourceHandler.metadataTrack_.cues[i].endTime = videoDuration;
+      let cues = sourceHandler.metadataTrack_.cues;
+
+      for (let i = 0; i <= cues.length - 1; i++) {
+        if (i === cues.length - 1) {
+          cues[i].endTime = videoDuration;
         } else {
-          sourceHandler.metadataTrack_.cues[i].endTime =
-          sourceHandler.metadataTrack_.cues[i + 1].startTime;
+          cues[i].endTime = cues[i + 1].startTime;
         }
       }
+      sourceHandler.mediaSource_.on('sourceended', (event) => {
+        cues[cues.length - 1].endTime = videoDuration;
+      });
     }
-    sourceHandler.mediaSource_.on('sourceended', (event) => {
-      let numberOfCues = sourceHandler.metadataTrack_.cues.length;
-
-      sourceHandler.metadataTrack_.cues[numberOfCues - 1].endTime = videoDuration;
-    });
   }
 };
 
