@@ -98,13 +98,11 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
     if (sourceHandler.metadataTrack_ && sourceHandler.metadataTrack_.cues) {
       let cues = sourceHandler.metadataTrack_.cues;
 
-      for (let i = 0; i <= cues.length - 1; i++) {
-        if (i === cues.length - 1) {
-          cues[i].endTime = videoDuration;
-        } else {
-          cues[i].endTime = cues[i + 1].startTime;
-        }
+      for (let i = 0; i < cues.length - 1; i++) {
+        cues[i].endTime = cues[i + 1].startTime;
       }
+      cues[cues.length - 1].endTime = videoDuration;
+
       sourceHandler.mediaSource_.on('sourceended', (event) => {
         cues[cues.length - 1].endTime = videoDuration;
       });
