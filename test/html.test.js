@@ -742,6 +742,7 @@ QUnit.test('translates caption events into WebVTT cues', function() {
 QUnit.test('translates metadata events into WebVTT cues', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
   mediaSource.duration = 50;
   mediaSource.nativeMediaSource_.duration = 60;
 
@@ -785,7 +786,7 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   'in-band metadata track dispatch type correctly set'
   );
   let cues = sourceBuffer.metadataTrack_.cues;
-  
+
   QUnit.equal(types.length, 1, 'created one text track');
   QUnit.equal(types[0], 'metadata', 'the type was metadata');
   QUnit.equal(cues.length, 3, 'created three cues');
