@@ -67,8 +67,7 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
     let videoDuration;
 
     if (isNaN(sourceHandler.mediaSource_.duration) ||
-      sourceHandler.mediaSource_.duration === Infinity ||
-      sourceHandler.mediaSource_.duration === -Infinity) {
+       Math.abs(sourceHandler.mediaSource_.duration) === Infinity) {
       videoDuration = Number.MAX_VALUE;
     } else {
       videoDuration = sourceHandler.mediaSource_.duration;
