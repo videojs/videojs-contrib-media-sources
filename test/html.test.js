@@ -250,6 +250,48 @@ function() {
   );
 });
 
+QUnit.test('removing works even with audio disabled', function() {
+  let mediaSource = new videojs.MediaSource();
+  let muxedBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  // creating this audio buffer disables audio in the muxed one
+  let audioBuffer = mediaSource.addSourceBuffer('audio/mp2t; codecs="mp4a.40.2"');
+  let removedCue = [];
+  let removes = 0;
+
+  initializeNativeSourceBuffers(muxedBuffer);
+
+  muxedBuffer.inbandTextTrack_ = {
+    removeCue(cue) {
+      removedCue.push(cue);
+      this.cues.splice(this.cues.indexOf(cue), 1);
+    },
+    cues: [
+      {startTime: 10, endTime: 20, text: 'delete me'},
+      {startTime: 0, endTime: 2, text: 'save me'}
+    ]
+  };
+  mediaSource.videoBuffer_.remove = function(start, end) {
+    if (start === 3 && end === 10) {
+      removes++;
+    }
+  };
+  mediaSource.audioBuffer_.remove = function(start, end) {
+    if (start === 3 && end === 10) {
+      removes++;
+    }
+  };
+
+  muxedBuffer.remove(3, 10);
+
+  QUnit.equal(removes, 2, 'called remove on both muxedBuffers');
+  QUnit.equal(muxedBuffer.inbandTextTrack_.cues.length,
+              1,
+              'one cue remains after remove');
+  QUnit.equal(removedCue[0].text,
+              'delete me',
+              'the cue that overlapped the remove region was removed');
+});
+
 QUnit.test('readyState delegates to the native implementation', function() {
   let mediaSource = new HtmlMediaSource();
 
@@ -623,6 +665,25 @@ function() {
   QUnit.equal(sourceBuffer.buffered.end(0), 7, 'first ends at seven');
   QUnit.equal(sourceBuffer.buffered.start(1), 20, 'second starts at twenty');
   QUnit.equal(sourceBuffer.buffered.end(1), 30, 'second ends at 30');
+});
+
+QUnit.test('disabled audio does not affect buffered property', function() {
+  let mediaSource = new videojs.MediaSource();
+  let muxedBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  // creating a separate audio buffer disables audio on the muxed one
+  let audioBuffer = mediaSource.addSourceBuffer('audio/mp2t; codecs="mp4a.40.2"');
+
+  initializeNativeSourceBuffers(muxedBuffer);
+
+  mediaSource.videoBuffer_.buffered = videojs.createTimeRanges([[1, 10]]);
+  mediaSource.audioBuffer_.buffered = videojs.createTimeRanges([[2, 11]]);
+
+  QUnit.equal(audioBuffer.buffered.length, 1, 'one buffered range');
+  QUnit.equal(audioBuffer.buffered.start(0), 2, 'starts at two');
+  QUnit.equal(audioBuffer.buffered.end(0), 11, 'ends at eleven');
+  QUnit.equal(muxedBuffer.buffered.length, 1, 'one buffered range');
+  QUnit.equal(muxedBuffer.buffered.start(0), 1, 'starts at one');
+  QUnit.equal(muxedBuffer.buffered.end(0), 10, 'ends at ten');
 });
 
 QUnit.test('sets transmuxer baseMediaDecodeTime on appends', function() {

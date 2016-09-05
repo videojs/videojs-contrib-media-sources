@@ -238,7 +238,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
     // Create a VirtualSourceBuffer to transmux MPEG-2 transport
     // stream segments into fragmented MP4s
-    if (parsedType.type === 'video/mp2t') {
+    if ((/^(video|audio)\/mp2t$/i).test(parsedType.type)) {
       let codecs = [];
 
       if (parsedType.parameters && parsedType.parameters.codecs) {
