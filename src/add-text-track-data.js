@@ -40,6 +40,16 @@ const deprecateOldCue = function(cue) {
   });
 };
 
+const durationOfVideo = function(duration) {
+  let dur;
+
+  if (isNaN(duration) || Math.abs(duration) === Infinity) {
+    dur = Number.MAX_VALUE;
+  } else {
+    dur = duration;
+  }
+  return dur;
+};
 /**
  * Add text track data to a source handler given the captions and
  * metadata from the buffer.
@@ -64,14 +74,7 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
   }
 
   if (metadataArray) {
-    let videoDuration;
-
-    if (isNaN(sourceHandler.mediaSource_.duration) ||
-       Math.abs(sourceHandler.mediaSource_.duration) === Infinity) {
-      videoDuration = Number.MAX_VALUE;
-    } else {
-      videoDuration = sourceHandler.mediaSource_.duration;
-    }
+    let videoDuration = durationOfVideo(sourceHandler.mediaSource_.duration);
 
     metadataArray.forEach(function(metadata) {
       let time = metadata.cueTime + this.timestampOffset;
@@ -96,15 +99,20 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
      */
     if (sourceHandler.metadataTrack_ && sourceHandler.metadataTrack_.cues) {
       let cues = sourceHandler.metadataTrack_.cues;
+      let cuesArray = [];
 
-      for (let i = 0; i < cues.length - 1; i++) {
-        cues[i].endTime = cues[i + 1].startTime;
+      for (let j = 0; j < cues.length; j++) {
+        cuesArray.push(cues[j]);
       }
-      cues[cues.length - 1].endTime = videoDuration;
-
-      sourceHandler.mediaSource_.on('sourceended', (event) => {
-        cues[cues.length - 1].endTime = videoDuration;
+      cuesArray.sort(function(first, second) {
+        return first.startTime - second.startTime;
       });
+      for (let i = 0; i < cuesArray.length - 1; i++) {
+        if (cuesArray[i].endTime !== cuesArray[i + 1].startTime) {
+          cuesArray[i].endTime = cuesArray[i + 1].startTime;
+        }
+      }
+      cuesArray[cuesArray.length - 1].endTime = videoDuration;
     }
   }
 };

@@ -180,6 +180,24 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       }
     });
 
+    this.on('sourceended', (event) => {
+      let duration = this.duration;
+
+      for (let i = 0; i < this.sourceBuffers.length; i++) {
+        let sourcebuffer = this.sourceBuffers[i];
+        let cues = sourcebuffer.metadataTrack_.cues;
+
+        if (cues) {
+          if (isNaN(duration) || Math.abs(duration) === Infinity) {
+            duration = Number.MAX_VALUE;
+          } else {
+            duration = this.duration;
+          }
+          cues[cues.length - 1].endTime = duration;
+        }
+      }
+    });
+
     // explicitly terminate any WebWorkers that were created
     // by SourceHandlers
     this.on('sourceclose', function(event) {

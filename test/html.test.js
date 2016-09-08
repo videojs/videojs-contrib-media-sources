@@ -743,7 +743,7 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
-  mediaSource.duration = 50;
+  mediaSource.duration = Infinity;
   mediaSource.nativeMediaSource_.duration = 60;
 
   let types = [];
@@ -796,11 +796,12 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   QUnit.equal(cues[1].text, 'This is a text tag', 'included the text');
   QUnit.equal(cues[1].startTime, 12, 'started at twelve');
   QUnit.equal(cues[1].endTime, 22, 'ended at the startTime of next cue(22)');
-  mediaSource.trigger('sourceended');
   QUnit.equal(cues[2].text, 'This is a priv tag', 'included the text');
   QUnit.equal(cues[2].startTime, 22, 'started at twenty two');
-  QUnit.equal(cues[2].endTime, mediaSource.duration,
-   'sourceended is fired');
+  QUnit.equal(cues[2].endTime, Number.MAX_VALUE, 'ended at the maximum value');
+  mediaSource.duration = 100;
+  mediaSource.trigger('sourceended');
+  QUnit.equal(cues[2].endTime, mediaSource.duration, 'sourceended is fired');
 });
 
 QUnit.test('does not wrap mp4 source buffers', function() {
