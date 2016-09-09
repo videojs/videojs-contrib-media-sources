@@ -115,20 +115,27 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         let extents = [];
         let ranges = [];
 
-        if (!this.videoBuffer_ && (this.audioDisabled_ || !this.audioBuffer_)) {
+        // neither buffer has been created yet
+        if (!this.videoBuffer_ && !this.audioBuffer_) {
           return videojs.createTimeRange();
         }
 
-        // Handle the case where we only have one buffer
+        // only one buffer is configured
         if (!this.videoBuffer_) {
           return this.audioBuffer_.buffered;
-        } else if (this.audioDisabled_ || !this.audioBuffer_) {
+        }
+        if (!this.audioBuffer_) {
           return this.videoBuffer_.buffered;
         }
 
-        // Handle the case where there is no buffer data
-        if ((!this.videoBuffer_ || this.videoBuffer_.buffered.length === 0) &&
-            (!this.audioBuffer_ || this.audioBuffer_.buffered.length === 0)) {
+        // both buffers are configured
+        if (this.audioDisabled_) {
+          return this.videoBuffer_.buffered;
+        }
+
+        // both buffers are empty
+        if (this.videoBuffer_.buffered.length === 0 &&
+            this.audioBuffer_.buffered.length === 0) {
           return videojs.createTimeRange();
         }
 
@@ -338,7 +345,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.videoBuffer_.remove(start, end);
     }
-    if (!this.audioDisabled_ && this.audioBuffer_) {
+    if (this.audioBuffer_) {
       this.audioBuffer_.remove(start, end);
     }
 
