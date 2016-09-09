@@ -104,9 +104,8 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
       for (let j = 0; j < cues.length; j++) {
         cuesArray.push(cues[j]);
       }
-      cuesArray.sort(function(first, second) {
-        return first.startTime - second.startTime;
-      });
+      cuesArray.sort((first, second) => first.startTime - second.startTime);
+
       for (let i = 0; i < cuesArray.length - 1; i++) {
         if (cuesArray[i].endTime !== cuesArray[i + 1].startTime) {
           cuesArray[i].endTime = cuesArray[i + 1].startTime;
