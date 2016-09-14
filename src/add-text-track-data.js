@@ -116,4 +116,7 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
   }
 };
 
-export default addTextTrackData;
+export default {
+  addTextTrackData,
+  durationOfVideo
+};

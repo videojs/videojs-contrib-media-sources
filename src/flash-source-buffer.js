@@ -6,7 +6,7 @@ import videojs from 'video.js';
 import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
-import addTextTrackData from './add-text-track-data';
+import {addTextTrackData} from './add-text-track-data';
 import FlashConstants from './flash-constants';
 
 /**
