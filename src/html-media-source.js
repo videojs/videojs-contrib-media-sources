@@ -132,6 +132,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         //      what stream is the video stream, rather than relying on videoTracks
         /* eslinst-enable */
 
+        sourceBuffer.appendInitSegment_ = true;
+
         if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // combined
           sourceBuffer.audioDisabled_ = combined;
