@@ -214,6 +214,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       event.data.byteLength
     );
 
+    segment.initSegment = new Uint8Array(
+      segment.initSegment.data,
+      segment.initSegment.byteOffset,
+      segment.initSegment.byteLength
+    );
+
     createTextTracksIfNecessary(this, this.mediaSource_, segment);
 
     // Add the segments to the pendingBuffers array
@@ -369,7 +375,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     let sortedSegments = {
       video: {
         segments: [],
-        bytes: 0,
+        bytes: 0
       },
       audio: {
         segments: [],
