@@ -456,7 +456,9 @@ function() {
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
 
   sourceBuffer.concatAndAppendSegments_ = function(segmentObj, destinationBuffer) {
-    let segment = segmentObj.segments.reduce((seg, arr) => seg.concat(Array.from(arr)),[]);
+    let segment = segmentObj.segments.reduce((seg, arr) => seg.concat(Array.from(arr)),
+      []);
+
     mp4Segments.push(segment);
   };
 
