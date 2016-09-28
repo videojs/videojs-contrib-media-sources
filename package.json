@@ -37,7 +37,10 @@
     "watch:js": "npm-run-all -p watch:js:babel watch:js:browserify",
     "watch:js:babel": "babel src --watch -d es5",
     "watch:js:browserify": "watchify . -t browserify-shim -v -o dist/videojs-contrib-media-sources.js",
-    "watch:test": "node scripts/watch-test.js",
+    "watch:test:browserify": "watchify test/browserify.test.js -o dist-test/browserify.test.js",
+    "watch:test:webpack": "watchify test/webpack.test.js -o dist-test/webpack.test.js",
+    "watch:test": "npm-run-all watch:test:js watch:test:browserify watch:test:webpack",
+    "watch:test:js": "node scripts/watch-test.js",
     "prepublish": "npm run build"
   },
   "keywords": [
