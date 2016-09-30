@@ -10,8 +10,8 @@ var DEFAULTS = {
     'node_modules/video.js/dist/video.js',
     'node_modules/video.js/dist/video-js.css',
     'test/**/*.js',
-    'dist-test/browserify.test.js',
-    'dist-test/webpack.test.js'
+    'dist-test/browserify-test.js',
+    'dist-test/webpack-test.js'
   ],
 
   exclude: [
