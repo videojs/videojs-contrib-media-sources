@@ -5,6 +5,7 @@ import window from 'global/window';
 import document from 'global/document';
 import videojs from 'video.js';
 import VirtualSourceBuffer from './virtual-source-buffer';
+import {durationOfVideo} from './add-text-track-data';
 import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';
 
 /**
@@ -177,6 +178,19 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_);
         this.player_.audioTracks().on('addtrack', this.updateActiveSourceBuffers_);
         this.player_.audioTracks().on('removetrack', this.updateActiveSourceBuffers_);
+      }
+    });
+
+    this.on('sourceended', (event) => {
+      let duration = durationOfVideo(this.duration);
+
+      for (let i = 0; i < this.sourceBuffers.length; i++) {
+        let sourcebuffer = this.sourceBuffers[i];
+        let cues = sourcebuffer.metadataTrack_.cues;
+
+        if (cues) {
+          cues[cues.length - 1].endTime = duration;
+        }
       }
     });
 
