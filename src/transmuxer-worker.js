@@ -12,7 +12,6 @@
  * transmuxer running inside of a WebWorker by exposing a simple
  * message-based interface to a Transmuxer object.
  */
-import window from 'global/window';
 import mp4 from 'mux.js/lib/mp4';
 
 /**
@@ -31,7 +30,7 @@ const wireTransmuxerEvents = function(transmuxer) {
     let typedArray = segment.data;
 
     segment.data = typedArray.buffer;
-    window.postMessage({
+    postMessage({
       action: 'data',
       segment,
       byteOffset: typedArray.byteOffset,
@@ -41,7 +40,7 @@ const wireTransmuxerEvents = function(transmuxer) {
 
   if (transmuxer.captionStream) {
     transmuxer.captionStream.on('data', function(caption) {
-      window.postMessage({
+      postMessage({
         action: 'caption',
         data: caption
       });
@@ -49,7 +48,7 @@ const wireTransmuxerEvents = function(transmuxer) {
   }
 
   transmuxer.on('done', function(data) {
-    window.postMessage({ action: 'done' });
+    postMessage({ action: 'done' });
   });
 };
 
