@@ -444,7 +444,7 @@ function() {
 });
 
 QUnit.test(
-'only appends init segment for first segment or on audio changes',
+'only appends init segment for first segment or on audio/media changes',
 function() {
   let mp4Segments = [];
   let initBuffer = new Uint8Array([0, 1]);
@@ -454,6 +454,9 @@ function() {
 
   mediaSource = new videojs.MediaSource();
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  mediaSource.player_ = this.player;
+  mediaSource.url_ = this.url;
+  mediaSource.trigger('sourceopen');
 
   sourceBuffer.concatAndAppendSegments_ = function(segmentObj, destinationBuffer) {
     let segment = segmentObj.segments.reduce((seg, arr) => seg.concat(Array.from(arr)),
@@ -483,6 +486,7 @@ function() {
 
   // Segments are concatenated
   QUnit.equal(mp4Segments.length, 1, 'emitted the fragment');
+  // Contains init segment on first segment
   QUnit.equal(mp4Segments[0][0], 0, 'fragment contains the correct first byte');
   QUnit.equal(mp4Segments[0][1], 1, 'fragment contains the correct second byte');
   QUnit.equal(mp4Segments[0][2], 2, 'fragment contains the correct third byte');
@@ -492,10 +496,12 @@ function() {
   sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
   QUnit.equal(mp4Segments.length, 2, 'emitted the fragment');
+  // does not contain init segment on next segment
   QUnit.equal(mp4Segments[1][0], 4, 'fragment contains the correct first byte');
   QUnit.equal(mp4Segments[1][1], 5, 'fragment contains the correct second byte');
 
-  sourceBuffer.appendInitSegment_ = true;
+  // audio track change
+  this.player.audioTracks().trigger('change');
   dataBuffer = new Uint8Array([6, 7]);
   sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer, {
     initSegment: {
@@ -506,10 +512,37 @@ function() {
   }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
   QUnit.equal(mp4Segments.length, 3, 'emitted the fragment');
+  // contains init segment after audio track change
   QUnit.equal(mp4Segments[2][0], 0, 'fragment contains the correct first byte');
   QUnit.equal(mp4Segments[2][1], 1, 'fragment contains the correct second byte');
   QUnit.equal(mp4Segments[2][2], 6, 'fragment contains the correct third byte');
   QUnit.equal(mp4Segments[2][3], 7, 'fragment contains the correct fourth byte');
+
+  dataBuffer = new Uint8Array([8, 9]);
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+  QUnit.equal(mp4Segments.length, 4, 'emitted the fragment');
+  // does not contain init segment in next segment
+  QUnit.equal(mp4Segments[3][0], 8, 'fragment contains the correct first byte');
+  QUnit.equal(mp4Segments[3][1], 9, 'fragment contains the correct second byte');
+
+  // rendition switch
+  this.player.trigger('mediachange');
+  dataBuffer = new Uint8Array([10, 11]);
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer, {
+    initSegment: {
+      data: initBuffer.buffer,
+      byteOffset: initBuffer.byteOffset,
+      byteLength: initBuffer.byteLength
+    }
+  }));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+  QUnit.equal(mp4Segments.length, 5, 'emitted the fragment');
+  // contains init segment after audio track change
+  QUnit.equal(mp4Segments[4][0], 0, 'fragment contains the correct first byte');
+  QUnit.equal(mp4Segments[4][1], 1, 'fragment contains the correct second byte');
+  QUnit.equal(mp4Segments[4][2], 10, 'fragment contains the correct third byte');
+  QUnit.equal(mp4Segments[4][3], 11, 'fragment contains the correct fourth byte');
 });
 
 QUnit.test('handles empty codec string value', function() {
