@@ -132,6 +132,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         //      what stream is the video stream, rather than relying on videoTracks
         /* eslinst-enable */
 
+        sourceBuffer.appendInitSegment_ = true;
+
         if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // combined
           sourceBuffer.audioDisabled_ = combined;
@@ -150,6 +152,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         }
 
         this.activeSourceBuffers_.push(sourceBuffer);
+      });
+    };
+
+    this.onPlayerMediachange_ = () => {
+      this.sourceBuffers.forEach((sourceBuffer) => {
+        sourceBuffer.appendInitSegment_ = true;
       });
     };
 
@@ -179,6 +187,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         this.player_.audioTracks().on('addtrack', this.updateActiveSourceBuffers_);
         this.player_.audioTracks().on('removetrack', this.updateActiveSourceBuffers_);
       }
+
+      this.player_.on('mediachange', this.onPlayerMediachange_);
     });
 
     this.on('sourceended', (event) => {
@@ -212,6 +222,8 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         this.player_.audioTracks().off('addtrack', this.updateActiveSourceBuffers_);
         this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
       }
+
+      this.player_.off('mediachange', this.onPlayerMediachange_);
     });
   }
 

@@ -28,6 +28,14 @@ const wireTransmuxerEvents = function(transmuxer) {
     // instead of doing a copy to save memory
     // ArrayBuffers are transferable but generic TypedArrays are not
     // @link https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
+    let initArray = segment.initSegment;
+
+    segment.initSegment = {
+      data: initArray.buffer,
+      byteOffset: initArray.byteOffset,
+      byteLength: initArray.byteLength
+    };
+
     let typedArray = segment.data;
 
     segment.data = typedArray.buffer;
