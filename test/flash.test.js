@@ -527,7 +527,7 @@ QUnit.test('calling endOfStream sets mediaSource readyState to ended', function(
 
   timers.runAll();
 
-  QUnit.strictEqual(sourceBuffer.mediaSource.readyState,
+  QUnit.strictEqual(sourceBuffer.mediaSource_.readyState,
     'ended',
     'readyState is \'ended\'');
   QUnit.strictEqual(this.swfCalls.length, 2, 'made two calls to swf');
@@ -583,7 +583,7 @@ QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', fu
             [3],
             'contains the fourth byte');
   QUnit.strictEqual(
-    sourceBuffer.mediaSource.readyState,
+    sourceBuffer.mediaSource_.readyState,
     'open',
     'The streams should be open if more bytes are appended to an "ended" stream'
   );
