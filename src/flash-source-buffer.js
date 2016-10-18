@@ -69,7 +69,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     // media timeline and PTS values
     this.basePtsOffset_ = NaN;
 
-    this.mediaSource = mediaSource;
+    this.mediaSource_ = mediaSource;
 
     // indicates whether the asynchronous continuation of an operation
     // is still being processed
@@ -88,10 +88,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
         )
       )
     );
-    this.mediaSource.swfObj.vjs_appendBuffer(encodedHeader);
+    this.mediaSource_.swfObj.vjs_appendBuffer(encodedHeader);
 
     this.one('updateend', () => {
-      this.mediaSource.tech_.trigger('loadedmetadata');
+      this.mediaSource_.tech_.trigger('loadedmetadata');
     });
 
     Object.defineProperty(this, 'timestampOffset', {
@@ -104,7 +104,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
           this.segmentParser_ = new flv.Transmuxer();
           this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
           // We have to tell flash to expect a discontinuity
-          this.mediaSource.swfObj.vjs_discontinuity();
+          this.mediaSource_.swfObj.vjs_discontinuity();
           // the media <-> PTS mapping must be re-established after
           // the discontinuity
           this.basePtsOffset_ = NaN;
@@ -114,13 +114,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     Object.defineProperty(this, 'buffered', {
       get() {
-        if (!this.mediaSource ||
-            !this.mediaSource.swfObj ||
-            !('vjs_getProperty' in this.mediaSource.swfObj)) {
+        if (!this.mediaSource_ ||
+            !this.mediaSource_.swfObj ||
+            !('vjs_getProperty' in this.mediaSource_.swfObj)) {
           return videojs.createTimeRange();
         }
 
-        let buffered = this.mediaSource.swfObj.vjs_getProperty('buffered');
+        let buffered = this.mediaSource_.swfObj.vjs_getProperty('buffered');
 
         if (buffered && buffered.length) {
           buffered[0][0] = toDecimalPlaces(buffered[0][0], 3);
@@ -132,7 +132,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     // On a seek we remove all text track data since flash has no concept
     // of a buffered-range and everything else is reset on seek
-    this.mediaSource.player_.on('seeked', () => {
+    this.mediaSource_.player_.on('seeked', () => {
       removeCuesFromTrack(0, Infinity, this.metadataTrack_);
       removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
     });
@@ -159,7 +159,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
 
     this.updating = true;
-    this.mediaSource.readyState = 'open';
+    this.mediaSource_.readyState = 'open';
     this.trigger({ type: 'update' });
 
     // this is here to use recursion
@@ -184,7 +184,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   abort() {
     this.buffer_ = [];
     this.bufferSize_ = 0;
-    this.mediaSource.swfObj.vjs_abort();
+    this.mediaSource_.swfObj.vjs_abort();
 
     // report any outstanding updates have ended
     if (this.updating) {
@@ -217,7 +217,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    */
   receiveBuffer_(segment) {
     // create an in-band caption track if one is present in the segment
-    createTextTracksIfNecessary(this, this.mediaSource, segment);
+    createTextTracksIfNecessary(this, this.mediaSource_, segment);
     addTextTrackData(this, segment.captions, segment.metadata);
 
     // Do this asynchronously since convertTagsToData_ can be time consuming
@@ -286,7 +286,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
       // bypass normal ExternalInterface calls and pass xml directly
       // IE can be slow by default
-      this.mediaSource.swfObj.CallFunction(
+      this.mediaSource_.swfObj.CallFunction(
         '<invoke name="vjs_appendBuffer"' +
         'returntype="javascript"><arguments><string>' +
         b64str +
@@ -334,7 +334,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    */
   convertTagsToData_(segmentData) {
     let segmentByteLength = 0;
-    let tech = this.mediaSource.tech_;
+    let tech = this.mediaSource_.tech_;
     let targetPts = 0;
     let i;
     let j;
