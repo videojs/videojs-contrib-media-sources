@@ -348,13 +348,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       this.basePtsOffset_ = tags[0].pts;
     }
 
-    // Trim any tags that are before the end of the end of
-    // the current buffer
-    if (tech.buffered().length) {
-      targetPts = tech.buffered().end(0) - this.timestampOffset;
-    }
     // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
-    targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
+    if (tech.seeking()) {
+      targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
+    }
 
     // PTS values are represented in milliseconds
     targetPts *= 1e3;
