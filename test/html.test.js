@@ -454,6 +454,7 @@ function() {
 
   mediaSource = new videojs.MediaSource();
   sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  sourceBuffer.audioDisabled_ = false;
   mediaSource.player_ = this.player;
   mediaSource.url_ = this.url;
   mediaSource.trigger('sourceopen');
@@ -465,8 +466,10 @@ function() {
     mp4Segments.push(segment);
   };
 
+  QUnit.ok(sourceBuffer.appendInitSegment_, 'will append init segment next');
+
   // an init segment
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer, {
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', dataBuffer, {
     initSegment: {
       data: initBuffer.buffer,
       byteOffset: initBuffer.byteOffset,
@@ -491,9 +494,16 @@ function() {
   QUnit.equal(mp4Segments[0][1], 1, 'fragment contains the correct second byte');
   QUnit.equal(mp4Segments[0][2], 2, 'fragment contains the correct third byte');
   QUnit.equal(mp4Segments[0][3], 3, 'fragment contains the correct fourth byte');
+  QUnit.ok(!sourceBuffer.appendInitSegment_, 'will not append init segment next');
 
   dataBuffer = new Uint8Array([4, 5]);
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', dataBuffer, {
+    initSegment: {
+      data: initBuffer.buffer,
+      byteOffset: initBuffer.byteOffset,
+      byteLength: initBuffer.byteLength
+    }
+  }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
   QUnit.equal(mp4Segments.length, 2, 'emitted the fragment');
   // does not contain init segment on next segment
@@ -502,8 +512,10 @@ function() {
 
   // audio track change
   this.player.audioTracks().trigger('change');
+  sourceBuffer.audioDisabled_ = false;
+  QUnit.ok(sourceBuffer.appendInitSegment_, 'audio change sets appendInitSegment_');
   dataBuffer = new Uint8Array([6, 7]);
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer, {
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', dataBuffer, {
     initSegment: {
       data: initBuffer.buffer,
       byteOffset: initBuffer.byteOffset,
@@ -517,19 +529,28 @@ function() {
   QUnit.equal(mp4Segments[2][1], 1, 'fragment contains the correct second byte');
   QUnit.equal(mp4Segments[2][2], 6, 'fragment contains the correct third byte');
   QUnit.equal(mp4Segments[2][3], 7, 'fragment contains the correct fourth byte');
+  QUnit.ok(!sourceBuffer.appendInitSegment_, 'will not append init segment next');
 
   dataBuffer = new Uint8Array([8, 9]);
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer));
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', dataBuffer, {
+    initSegment: {
+      data: initBuffer.buffer,
+      byteOffset: initBuffer.byteOffset,
+      byteLength: initBuffer.byteLength
+    }
+  }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
   QUnit.equal(mp4Segments.length, 4, 'emitted the fragment');
   // does not contain init segment in next segment
   QUnit.equal(mp4Segments[3][0], 8, 'fragment contains the correct first byte');
   QUnit.equal(mp4Segments[3][1], 9, 'fragment contains the correct second byte');
+  QUnit.ok(!sourceBuffer.appendInitSegment_, 'will not append init segment next');
 
   // rendition switch
   this.player.trigger('mediachange');
+  QUnit.ok(sourceBuffer.appendInitSegment_, 'media change sets appendInitSegment_');
   dataBuffer = new Uint8Array([10, 11]);
-  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', dataBuffer, {
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('audio', dataBuffer, {
     initSegment: {
       data: initBuffer.buffer,
       byteOffset: initBuffer.byteOffset,
@@ -543,6 +564,7 @@ function() {
   QUnit.equal(mp4Segments[4][1], 1, 'fragment contains the correct second byte');
   QUnit.equal(mp4Segments[4][2], 10, 'fragment contains the correct third byte');
   QUnit.equal(mp4Segments[4][3], 11, 'fragment contains the correct fourth byte');
+  QUnit.ok(!sourceBuffer.appendInitSegment_, 'will not append init segment next');
 });
 
 QUnit.test('handles empty codec string value', function() {
@@ -842,8 +864,6 @@ QUnit.test('aggregates source buffer update events', function() {
   QUnit.equal(updatestarts, 0, 'no updatestarts before a `done` message is received');
   QUnit.equal(updates, 0, 'no updates before a `done` message is received');
   QUnit.equal(updateends, 0, 'no updateends before a `done` message is received');
-
-  sourceBuffer.transmuxer_.onmessage(doneMessage);
 
   // the video buffer begins updating first:
   sourceBuffer.videoBuffer_.updating = true;

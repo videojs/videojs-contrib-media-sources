@@ -437,10 +437,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
 
     if (this.appendInitSegment_) {
-      if (this.videoBuffer_) {
-        sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
-        sortedSegments.video.bytes += sortedSegments.video.initSegment.byteLength;
-      }
       if (!this.audioDisabled_ && this.audioBuffer_) {
         sortedSegments.audio.segments.unshift(sortedSegments.audio.initSegment);
         sortedSegments.audio.bytes += sortedSegments.audio.initSegment.byteLength;
@@ -450,6 +446,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
     // Merge multiple video and audio segments into one and append
     if (this.videoBuffer_) {
+      sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
+      sortedSegments.video.bytes += sortedSegments.video.initSegment.byteLength;
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
       // TODO: are video tracks the only ones with text tracks?
       addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
