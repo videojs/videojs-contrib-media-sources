@@ -132,7 +132,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         //      what stream is the video stream, rather than relying on videoTracks
         /* eslinst-enable */
 
-        sourceBuffer.appendInitSegment_ = true;
+        sourceBuffer.appendAudioInitSegment_ = true;
 
         if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // combined
@@ -157,7 +157,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
     this.onPlayerMediachange_ = () => {
       this.sourceBuffers.forEach((sourceBuffer) => {
-        sourceBuffer.appendInitSegment_ = true;
+        sourceBuffer.appendAudioInitSegment_ = true;
       });
     };
 
