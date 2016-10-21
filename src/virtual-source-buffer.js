@@ -33,7 +33,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.audioCodec_ = null;
     this.videoCodec_ = null;
     this.audioDisabled_ = false;
-    this.appendInitSegment_ = true;
+    this.appendAudioInitSegment_ = true;
 
     let options = {
       remux: false
@@ -71,7 +71,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       set(val) {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
-          this.appendInitSegment_ = true;
+          this.appendAudioInitSegment_ = true;
 
           // We have to tell the transmuxer to set the baseMediaDecodeTime to
           // the desired timestampOffset for the next segment
@@ -436,12 +436,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       this.mediaSource_.trigger({type: 'videoinfo', info: sortedSegments.video.info});
     }
 
-    if (this.appendInitSegment_) {
+    if (this.appendAudioInitSegment_) {
       if (!this.audioDisabled_ && this.audioBuffer_) {
         sortedSegments.audio.segments.unshift(sortedSegments.audio.initSegment);
         sortedSegments.audio.bytes += sortedSegments.audio.initSegment.byteLength;
       }
-      this.appendInitSegment_ = false;
+      this.appendAudioInitSegment_ = false;
     }
 
     // Merge multiple video and audio segments into one and append
