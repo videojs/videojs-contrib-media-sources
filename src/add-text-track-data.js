@@ -93,11 +93,12 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
       }, this);
     }, sourceHandler);
 
-    /** Updating the metadeta cues so that
-     * the endTime of each cue is the startTime of the next cue
-     * the endTime of last cue is the duration of the video
-     */
-    if (sourceHandler.metadataTrack_ && sourceHandler.metadataTrack_.cues) {
+    // Updating the metadeta cues so that
+    // the endTime of each cue is the startTime of the next cue
+    // the endTime of last cue is the duration of the video
+    if (sourceHandler.metadataTrack_ &&
+        sourceHandler.metadataTrack_.cues &&
+        sourceHandler.metadataTrack_.cues.length) {
       let cues = sourceHandler.metadataTrack_.cues;
       let cuesArray = [];
 
