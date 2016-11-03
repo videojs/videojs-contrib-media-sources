@@ -198,7 +198,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         let sourcebuffer = this.sourceBuffers[i];
         let cues = sourcebuffer.metadataTrack_ && sourcebuffer.metadataTrack_.cues;
 
-        if (cues) {
+        if (cues && cues.length) {
           cues[cues.length - 1].endTime = duration;
         }
       }
