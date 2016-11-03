@@ -255,6 +255,35 @@ function() {
   );
 });
 
+QUnit.test(
+'calling remove property handles absence of cues (null)',
+function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+  initializeNativeSourceBuffers(sourceBuffer);
+
+  sourceBuffer.inbandTextTrack_ = {
+    cues: null
+  };
+
+  mediaSource.videoBuffer_.remove = function(start, end) {
+    // pass
+  };
+  mediaSource.audioBuffer_.remove = function(start, end) {
+    // pass
+  };
+
+  // this call should not raise an exception
+  sourceBuffer.remove(3, 10);
+
+  QUnit.equal(
+    sourceBuffer.inbandTextTrack_.cues,
+    null,
+    'cues are still null'
+  );
+});
+
 QUnit.test('removing works even with audio disabled', function() {
   let mediaSource = new videojs.MediaSource();
   let muxedBuffer = mediaSource.addSourceBuffer('video/mp2t');
