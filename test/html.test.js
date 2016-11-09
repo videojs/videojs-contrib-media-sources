@@ -978,16 +978,22 @@ QUnit.test('translates caption events into WebVTT cues', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let types = [];
-  let cues = [];
 
   mediaSource.player_ = {
-    addTextTrack(type) {
-      types.push(type);
+    addRemoteTextTrack(options) {
+      types.push(options.kind);
       return {
-        addCue(cue) {
-          cues.push(cue);
+        track: {
+          kind: options.kind,
+          label: options.label,
+          cues: [],
+          addCue(cue) {
+            this.cues.push(cue);
+          }
         }
       };
+    },
+    remoteTextTracks() {
     }
   };
   sourceBuffer.timestampOffset = 10;
@@ -999,6 +1005,7 @@ QUnit.test('translates caption events into WebVTT cues', function() {
     }]
   }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
+  let cues = sourceBuffer.inbandTextTrack_.cues;
 
   QUnit.equal(types.length, 1, 'created one text track');
   QUnit.equal(types[0], 'captions', 'the type was captions');
@@ -1032,14 +1039,20 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
 
   metadata.dispatchType = 0x10;
   mediaSource.player_ = {
-    addTextTrack(type) {
-      types.push(type);
+    addRemoteTextTrack(options) {
+      types.push(options.kind);
       return {
-        cues: [],
-        addCue(cue) {
-          this.cues.push(cue);
+        track: {
+          kind: options.kind,
+          label: options.label,
+          cues: [],
+          addCue(cue) {
+            this.cues.push(cue);
+          }
         }
       };
+    },
+    remoteTextTracks() {
     }
   };
   sourceBuffer.timestampOffset = 10;

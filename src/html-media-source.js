@@ -7,6 +7,7 @@ import videojs from 'video.js';
 import VirtualSourceBuffer from './virtual-source-buffer';
 import {durationOfVideo} from './add-text-track-data';
 import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';
+import {cleanupTextTracks} from './cleanup-text-tracks';
 
 /**
  * Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
@@ -212,10 +213,13 @@ export default class HtmlMediaSource extends videojs.EventTarget {
           sourceBuffer.transmuxer_.terminate();
         }
       });
+
       this.sourceBuffers.length = 0;
       if (!this.player_) {
         return;
       }
+
+      cleanupTextTracks(this.player_);
 
       if (this.player_.audioTracks && this.player_.audioTracks()) {
         this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
@@ -223,7 +227,13 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         this.player_.audioTracks().off('removetrack', this.updateActiveSourceBuffers_);
       }
 
-      this.player_.off('mediachange', this.onPlayerMediachange_);
+      // We can only change this if the player hasn't been disposed of yet
+      // because `off` eventually tries to use the el_ property. If it has
+      // been disposed of, then don't worry about it because there are no
+      // event handlers left to unbind anyway
+      if (this.player_.el_) {
+        this.player_.off('mediachange', this.onPlayerMediachange_);
+      }
     });
   }
 
