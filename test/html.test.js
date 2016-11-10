@@ -351,9 +351,12 @@ QUnit.test('appendBuffer error triggers on the player', function() {
 
   this.player.on('error', () => error = true);
 
-  // A second call to this acts as an append, since the appendBuffer we are testing is
-  // the native one, we need to skip past the virtual source buffer's appendBuffer
-  initializeNativeSourceBuffers(sourceBuffer);
+  // send fake data to the source buffer from the transmuxer to append to native buffer
+  // initializeNativeSourceBuffers does the same thing to trigger the creation of
+  // native source buffers.
+  let fakeTransmuxerMessage = initializeNativeSourceBuffers;
+
+  fakeTransmuxerMessage(sourceBuffer);
 
   this.clock.tick(1);
 
