@@ -336,6 +336,33 @@ QUnit.test('addSeekableRange_ adds to the native MediaSource duration', function
   QUnit.equal(mediaSource.duration, Infinity, 'emulated duration');
 });
 
+QUnit.test('appendBuffer error triggers on the player', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+  let error = false;
+
+  mediaSource.player_ = this.player;
+
+  initializeNativeSourceBuffers(sourceBuffer);
+
+  sourceBuffer.videoBuffer_.appendBuffer = () => {
+    throw new Error();
+  };
+
+  this.player.on('error', () => error = true);
+
+  // send fake data to the source buffer from the transmuxer to append to native buffer
+  // initializeNativeSourceBuffers does the same thing to trigger the creation of
+  // native source buffers.
+  let fakeTransmuxerMessage = initializeNativeSourceBuffers;
+
+  fakeTransmuxerMessage(sourceBuffer);
+
+  this.clock.tick(1);
+
+  QUnit.ok(error, 'error triggered on player');
+});
+
 QUnit.test('transmuxes mp2t segments', function() {
   let mp2tSegments = [];
   let mp4Segments = [];

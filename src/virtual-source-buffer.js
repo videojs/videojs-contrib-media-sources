@@ -483,7 +483,16 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         offset += segment.byteLength;
       });
 
-      destinationBuffer.appendBuffer(tempBuffer);
+      try {
+        destinationBuffer.appendBuffer(tempBuffer);
+      } catch (error) {
+        if (this.mediaSource_.player_) {
+          this.mediaSource_.player_.error({
+            code: -3,
+            type: 'APPEND_BUFFER_ERR'
+          });
+        }
+      }
     }
   }
 
