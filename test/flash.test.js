@@ -4,7 +4,6 @@ import QUnit from 'qunit';
 import sinon from 'sinon';
 import videojs from 'video.js';
 import muxjs from 'mux.js';
-import FlashMediaSource from '../src/flash-media-source';
 import FlashSourceBuffer from '../src/flash-source-buffer';
 import FlashConstants from '../src/flash-constants';
 
@@ -132,7 +131,6 @@ QUnit.module('Flash MediaSource', {
       return true;
     };
 
-    this.oldBPS = FlashMediaSource.BYTES_PER_SECOND_GOAL;
     this.oldFlashTransmuxer = muxjs.flv.Transmuxer;
     muxjs.flv.Transmuxer = MockSegmentParser;
 
@@ -202,7 +200,6 @@ QUnit.module('Flash MediaSource', {
     window.WebKitMediaSource = window.MediaSource;
     this.Flash.isSupported = this.oldFlashSupport;
     this.Flash.canPlaySource = this.oldCanPlay;
-    FlashMediaSource.BYTES_PER_SECOND_GOAL = this.oldBPS;
     muxjs.flv.Transmuxer = this.oldFlashTransmuxer;
     this.player.dispose();
     this.clock.restore();
@@ -251,96 +248,31 @@ QUnit.test('passes bytes to Flash', function() {
             'passed the base64 encoded data');
 });
 
-QUnit.test('size of the append window changes based on timing information', function() {
+QUnit.test('passes chunked bytes to Flash', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-  let time = 0;
-  let oldDate = Date;
-  let swfObj = this.mediaSource.swfObj;
-  let callFunction = swfObj.CallFunction;
-  // Set some easy-to-test values
-  let TIME_BETWEEN_TICKS = FlashConstants.TIME_BETWEEN_TICKS;
-  let TIME_PER_TICK = FlashConstants.TIME_PER_TICK;
-  let BYTES_PER_CHUNK = FlashConstants.BYTES_PER_CHUNK;
-  let MIN_CHUNK = FlashConstants.MIN_CHUNK;
-  let MAX_CHUNK = FlashConstants.MAX_CHUNK;
+  let oldChunkSize = FlashConstants.BYTES_PER_CHUNK;
 
-  FlashConstants.TIME_BETWEEN_TICKS = 2;
-  FlashConstants.TIME_PER_TICK = 4;
   FlashConstants.BYTES_PER_CHUNK = 2;
-  FlashConstants.MIN_CHUNK = 1;
-  FlashConstants.MAX_CHUNK = 10;
-
-  sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-  time = 0;
-  /* eslint-disable no-native-reassign */
-  /* eslint-disable no-undef */
-  oldDate = Date;
-  Date = function() {
-    return {
-      getTime() {
-        return oldDate.now();
-      },
-      valueOf() {
-        return time;
-      }
-    };
-  };
-  /* eslint-enable no-native-reassign */
-  /* eslint-enable no-undef */
-
-  // Replace the CallFunction so that we can increment "time" in response
-  // to appends
-  swfObj.CallFunction = function(xml) {
-    // Take just half a millisecond per append
-    time += 0.5;
-    return callFunction(xml);
-  };
-
-  sourceBuffer.appendBuffer(new Uint8Array(16));
-  timers.runAll();
-
-  QUnit.equal(this.swfCalls.shift().indexOf('load'), 0, 'swf load called');
-  QUnit.equal(this.swfCalls.length, 8, 'called swf once per two-bytes');
-  QUnit.equal(sourceBuffer.chunkSize_, 4, 'sourceBuffer.chunkSize_ doubled');
 
   this.swfCalls.length = 0;
-
-  // Replace the CallFunction so that we can increment "time" in response
-  // to appends
-  swfObj.CallFunction = function(xml) {
-    // Take 2 millisecond per append
-    time += 2;
-    return callFunction(xml);
-  };
-
-  sourceBuffer.appendBuffer(new Uint8Array(16));
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3, 4]));
   timers.runAll();
 
-  QUnit.equal(this.swfCalls.length, 8, 'called swf once per byte');
-  QUnit.equal(this.swfCalls[0].arguments[0].length, 4, 'swf called with 4 bytes');
-  QUnit.equal(this.swfCalls[1].arguments[0].length, 4, 'swf called with 4 bytes twice');
-  QUnit.equal(this.swfCalls[2].arguments[0].length, 2, 'swf called with 2 bytes');
-  QUnit.equal(this.swfCalls[3].arguments[0].length, 2, 'swf called with 2 bytes twice');
-  QUnit.equal(this.swfCalls[4].arguments[0].length, 1, 'swf called with 1 bytes');
-  QUnit.equal(this.swfCalls[5].arguments[0].length, 1, 'swf called with 1 bytes twice');
-  QUnit.equal(this.swfCalls[6].arguments[0].length, 1, 'swf called with 1 bytes thrice');
-  QUnit.equal(
-    this.swfCalls[7].arguments[0].length,
-    1,
-    'swf called with 1 bytes four times'
-  );
-  QUnit.equal(sourceBuffer.chunkSize_, 1, 'sourceBuffer.chunkSize_ reduced to 1');
+  QUnit.ok(this.swfCalls.length, 'the SWF was called');
+  this.swfCalls = appendCalls(this.swfCalls);
+  QUnit.equal(this.swfCalls.length, 3, 'the SWF received 3 chunks');
+  QUnit.strictEqual(this.swfCalls[0].callee, 'vjs_appendBuffer', 'called appendBuffer');
+  QUnit.deepEqual(this.swfCalls[0].arguments[0],
+            [0, 1],
+            'passed the base64 encoded data');
+  QUnit.deepEqual(this.swfCalls[1].arguments[0],
+            [2, 3],
+            'passed the base64 encoded data');
+  QUnit.deepEqual(this.swfCalls[2].arguments[0],
+            [4],
+            'passed the base64 encoded data');
 
-  FlashConstants.TIME_BETWEEN_TICKS = TIME_BETWEEN_TICKS;
-  FlashConstants.TIME_PER_TICK = TIME_PER_TICK;
-  FlashConstants.BYTES_PER_CHUNK = BYTES_PER_CHUNK;
-  FlashConstants.MIN_CHUNK = MIN_CHUNK;
-  FlashConstants.MAX_CHUNK = MAX_CHUNK;
-  /* eslint-disable no-native-reassign */
-  /* eslint-disable no-undef */
-  Date = oldDate;
-  /* eslint-disable no-native-reassign */
-  /* eslint-disable no-undef */
+  FlashConstants.BYTES_PER_CHUNK = oldChunkSize;
 });
 
 QUnit.test('clears the SWF on seeking', function() {
@@ -522,19 +454,13 @@ QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', fu
         'endOfStream',
         'the second call should be for the updateend');
 
-  sourceBuffer.appendBuffer(new Uint8Array([2]));
-  timers.run(2);
-
-  sourceBuffer.buffer_.push(new Uint8Array([3]));
+  sourceBuffer.appendBuffer(new Uint8Array([2, 3]));
   timers.runAll();
 
-  QUnit.strictEqual(this.swfCalls.length, 2, 'made two appends');
+  QUnit.strictEqual(this.swfCalls.length, 1, 'made one more append');
   QUnit.deepEqual(this.swfCalls.shift().arguments[0],
-            [2],
-            'contains the third byte');
-  QUnit.deepEqual(this.swfCalls.shift().arguments[0],
-            [3],
-            'contains the fourth byte');
+            [2, 3],
+            'contains the third and fourth bytes');
   QUnit.strictEqual(
     sourceBuffer.mediaSource_.readyState,
     'open',
