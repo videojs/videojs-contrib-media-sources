@@ -5,6 +5,7 @@ import sinon from 'sinon';
 import videojs from 'video.js';
 import muxjs from 'mux.js';
 import FlashSourceBuffer from '../src/flash-source-buffer';
+import FlashConstants from '../src/flash-constants';
 
 // we disable this because browserify needs to include these files
 // but the exports are not important
@@ -245,6 +246,33 @@ QUnit.test('passes bytes to Flash', function() {
   QUnit.deepEqual(this.swfCalls[0].arguments[0],
             [0, 1],
             'passed the base64 encoded data');
+});
+
+QUnit.test('passes chunked bytes to Flash', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let oldChunkSize = FlashConstants.BYTES_PER_CHUNK;
+
+  FlashConstants.BYTES_PER_CHUNK = 2;
+
+  this.swfCalls.length = 0;
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3, 4]));
+  timers.runAll();
+
+  QUnit.ok(this.swfCalls.length, 'the SWF was called');
+  this.swfCalls = appendCalls(this.swfCalls);
+  QUnit.equal(this.swfCalls.length, 3, 'the SWF received 3 chunks');
+  QUnit.strictEqual(this.swfCalls[0].callee, 'vjs_appendBuffer', 'called appendBuffer');
+  QUnit.deepEqual(this.swfCalls[0].arguments[0],
+            [0, 1],
+            'passed the base64 encoded data');
+  QUnit.deepEqual(this.swfCalls[1].arguments[0],
+            [2, 3],
+            'passed the base64 encoded data');
+  QUnit.deepEqual(this.swfCalls[2].arguments[0],
+            [4],
+            'passed the base64 encoded data');
+
+  FlashConstants.BYTES_PER_CHUNK = oldChunkSize;
 });
 
 QUnit.test('clears the SWF on seeking', function() {
