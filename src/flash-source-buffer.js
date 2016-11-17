@@ -19,7 +19,7 @@ import FlashConstants from './flash-constants';
 const scheduleTick = function(func) {
   // Chrome doesn't invoke requestAnimationFrame callbacks
   // in background tabs, so use setTimeout.
-  window.setTimeout(func, FlashConstants.TIME_BETWEEN_TICKS);
+  window.setTimeout(func, FlashConstants.TIME_BETWEEN_CHUNKS);
 };
 
 /**
@@ -241,15 +241,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    * @private
    */
   processBuffer_() {
-    let chunk;
-    let i;
-    let length;
-    let binary;
-    let b64str;
-    let startByte = 0;
-    let appendIterations = 0;
-    let startTime = +(new Date());
-    let appendTime;
+    let chunkSize = FlashConstants.BYTES_PER_CHUNK;
 
     if (!this.buffer_.length) {
       if (this.updating !== false) {
@@ -260,58 +252,35 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       return;
     }
 
-    do {
-      appendIterations++;
-      // concatenate appends up to the max append size
-      chunk = this.buffer_[0].subarray(startByte, startByte + this.chunkSize_);
+    // concatenate appends up to the max append size
+    let chunk = this.buffer_[0].subarray(0, chunkSize);
 
-      // requeue any bytes that won't make it this round
-      if (chunk.byteLength < this.chunkSize_ ||
-          this.buffer_[0].byteLength === startByte + this.chunkSize_) {
-        startByte = 0;
-        this.buffer_.shift();
-      } else {
-        startByte += this.chunkSize_;
-      }
-
-      this.bufferSize_ -= chunk.byteLength;
-
-      // base64 encode the bytes
-      binary = '';
-      length = chunk.byteLength;
-      for (i = 0; i < length; i++) {
-        binary += String.fromCharCode(chunk[i]);
-      }
-      b64str = window.btoa(binary);
-
-      // bypass normal ExternalInterface calls and pass xml directly
-      // IE can be slow by default
-      this.mediaSource_.swfObj.CallFunction(
-        '<invoke name="vjs_appendBuffer"' +
-        'returntype="javascript"><arguments><string>' +
-        b64str +
-        '</string></arguments></invoke>'
-      );
-      appendTime = (new Date()) - startTime;
-    } while (this.buffer_.length &&
-        appendTime < FlashConstants.TIME_PER_TICK);
-
-    if (this.buffer_.length && startByte) {
-      this.buffer_[0] = this.buffer_[0].subarray(startByte);
+    // requeue any bytes that won't make it this round
+    if (chunk.byteLength < chunkSize ||
+        this.buffer_[0].byteLength === chunkSize) {
+      this.buffer_.shift();
+    } else {
+      this.buffer_[0] = this.buffer_[0].subarray(chunkSize);
     }
 
-    if (appendTime >= FlashConstants.TIME_PER_TICK) {
-      // We want to target 4 iterations per time-slot so that gives us
-      // room to adjust to changes in Flash load and other externalities
-      // such as garbage collection while still maximizing throughput
-      this.chunkSize_ = Math.floor(this.chunkSize_ * (appendIterations / 4));
-    }
+    this.bufferSize_ -= chunk.byteLength;
 
-    // We also make sure that the chunk-size doesn't drop below 1KB or
-    // go above 1MB as a sanity check
-    this.chunkSize_ = Math.max(
-      FlashConstants.MIN_CHUNK,
-      Math.min(this.chunkSize_, FlashConstants.MAX_CHUNK));
+    // base64 encode the bytes
+    let binary = '';
+    let length = chunk.byteLength;
+
+    for (let i = 0; i < length; i++) {
+      binary += String.fromCharCode(chunk[i]);
+    }
+    let b64str = window.btoa(binary);
+
+    // bypass normal ExternalInterface calls and pass xml directly
+    // IE can be slow by default
+    this.mediaSource_.swfObj.CallFunction(
+      '<invoke name="vjs_appendBuffer"' +
+      'returntype="javascript"><arguments><string>' +
+      b64str +
+      '</string></arguments></invoke>');
 
     // schedule another append if necessary
     if (this.bufferSize_ !== 0) {
