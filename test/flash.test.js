@@ -143,6 +143,7 @@ QUnit.module('Flash MediaSource', {
     swfObj = document.createElement('fake-object');
     swfObj.id = 'fake-swf-' + assert.test.testId;
     this.player.el().replaceChild(swfObj, this.player.tech_.el());
+    this.player.tech_.hls = new videojs.EventTarget();
     this.player.tech_.el_ = swfObj;
     swfObj.tech = this.player.tech_;
     swfObj.CallFunction = (xml) => {
@@ -664,4 +665,73 @@ QUnit.test('fires loadedmetadata after first segment append', function() {
   sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
   timers.runAll();
   QUnit.equal(loadedmetadataCount, 1, 'loadedmetadata does not fire after second append');
+});
+
+QUnit.test('cleans up WebVTT cues on hls dispose', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+
+  let addedTracks = [];
+  let removedTracks = [];
+  let metadata = [{
+    cueTime: 2,
+    frames: [{
+      url: 'This is a url tag'
+    }, {
+      value: 'This is a text tag'
+    }]
+  }, {
+    cueTime: 12,
+    frames: [{
+      data: 'This is a priv tag'
+    }]
+  }];
+  let captions = [{
+    startTime: 1,
+    endTime: 3,
+    text: 'This is an in-band caption'
+  }];
+
+  metadata.dispatchType = 0x10;
+  this.mediaSource.player_ = {
+    addRemoteTextTrack(options) {
+      let trackEl = {
+        track: {
+          kind: options.kind,
+          label: options.label,
+          addCue(cue) {}
+        }
+      };
+
+      addedTracks.push(trackEl.track);
+      return trackEl;
+    },
+    remoteTextTracks() {
+      return addedTracks;
+    },
+    removeRemoteTextTrack(track) {
+      removedTracks.push(track);
+    }
+  };
+
+  sourceBuffer.segmentParser_.trigger('data', {
+    tags: {
+      videoTags: [],
+      audioTags: []
+    },
+    metadata,
+    captions
+  });
+  sourceBuffer.segmentParser_.trigger('done');
+
+  QUnit.equal(addedTracks.length, 2, 'created two text tracks');
+  QUnit.equal(addedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'created only the expected two remote TextTracks');
+
+  this.player.tech_.hls.trigger('dispose');
+
+  QUnit.equal(removedTracks.length, 2, 'removed two text tracks');
+  QUnit.equal(removedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'removed only the expected two remote TextTracks');
 });

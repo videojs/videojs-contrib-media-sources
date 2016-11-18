@@ -1005,16 +1005,22 @@ QUnit.test('translates caption events into WebVTT cues', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let types = [];
-  let cues = [];
 
   mediaSource.player_ = {
-    addTextTrack(type) {
-      types.push(type);
+    addRemoteTextTrack(options) {
+      types.push(options.kind);
       return {
-        addCue(cue) {
-          cues.push(cue);
+        track: {
+          kind: options.kind,
+          label: options.label,
+          cues: [],
+          addCue(cue) {
+            this.cues.push(cue);
+          }
         }
       };
+    },
+    remoteTextTracks() {
     }
   };
   sourceBuffer.timestampOffset = 10;
@@ -1026,6 +1032,7 @@ QUnit.test('translates caption events into WebVTT cues', function() {
     }]
   }));
   sourceBuffer.transmuxer_.onmessage(doneMessage);
+  let cues = sourceBuffer.inbandTextTrack_.cues;
 
   QUnit.equal(types.length, 1, 'created one text track');
   QUnit.equal(types[0], 'captions', 'the type was captions');
@@ -1059,14 +1066,20 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
 
   metadata.dispatchType = 0x10;
   mediaSource.player_ = {
-    addTextTrack(type) {
-      types.push(type);
+    addRemoteTextTrack(options) {
+      types.push(options.kind);
       return {
-        cues: [],
-        addCue(cue) {
-          this.cues.push(cue);
+        track: {
+          kind: options.kind,
+          label: options.label,
+          cues: [],
+          addCue(cue) {
+            this.cues.push(cue);
+          }
         }
       };
+    },
+    remoteTextTracks() {
     }
   };
   sourceBuffer.timestampOffset = 10;
@@ -1098,6 +1111,147 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   mediaSource.duration = 100;
   mediaSource.trigger('sourceended');
   QUnit.equal(cues[2].endTime, mediaSource.duration, 'sourceended is fired');
+});
+
+QUnit.test('removes existing metadata and caption tracks that exist on the player', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+  mediaSource.duration = Infinity;
+  mediaSource.nativeMediaSource_.duration = 60;
+
+  let addedTracks = [{
+    kind: 'metadata',
+    label: 'Timed Metadata'
+  }, {
+    kind: 'captions',
+    label: 'cc1'
+  }];
+  let removedTracks = [];
+  let metadata = [{
+    cueTime: 2,
+    frames: [{
+      url: 'This is a url tag'
+    }, {
+      value: 'This is a text tag'
+    }]
+  }, {
+    cueTime: 12,
+    frames: [{
+      data: 'This is a priv tag'
+    }]
+  }];
+
+  metadata.dispatchType = 0x10;
+  mediaSource.player_ = {
+    addRemoteTextTrack(options) {
+      let trackEl = {
+        track: {
+          kind: options.kind,
+          label: options.label,
+          addCue(cue) {}
+        }
+      };
+
+      addedTracks.push(trackEl.track);
+      return trackEl;
+    },
+    remoteTextTracks() {
+      return addedTracks;
+    },
+    removeRemoteTextTrack(track) {
+      removedTracks.push(track);
+      addedTracks.splice(addedTracks.indexOf(track), 1);
+    }
+  };
+
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
+    metadata,
+    captions: [{
+      startTime: 1,
+      endTime: 3,
+      text: 'This is an in-band caption'
+    }]
+  }));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(removedTracks.length, 2, 'removed two text tracks');
+  QUnit.equal(removedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'removed only the expected two remote TextTracks');
+
+  QUnit.equal(addedTracks.length, 2, 'created two text tracks');
+  QUnit.equal(addedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'created only the expected two remote TextTracks');
+});
+
+QUnit.test('cleans up WebVTT cues on sourceclose', function() {
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+  mediaSource.duration = Infinity;
+  mediaSource.nativeMediaSource_.duration = 60;
+
+  let addedTracks = [];
+  let removedTracks = [];
+  let metadata = [{
+    cueTime: 2,
+    frames: [{
+      url: 'This is a url tag'
+    }, {
+      value: 'This is a text tag'
+    }]
+  }, {
+    cueTime: 12,
+    frames: [{
+      data: 'This is a priv tag'
+    }]
+  }];
+
+  metadata.dispatchType = 0x10;
+  mediaSource.player_ = {
+    addRemoteTextTrack(options) {
+      let trackEl = {
+        track: {
+          kind: options.kind,
+          label: options.label,
+          addCue(cue) {}
+        }
+      };
+
+      addedTracks.push(trackEl.track);
+      return trackEl;
+    },
+    remoteTextTracks() {
+      return addedTracks;
+    },
+    removeRemoteTextTrack(track) {
+      removedTracks.push(track);
+    }
+  };
+
+  sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
+    metadata,
+    captions: [{
+      startTime: 1,
+      endTime: 3,
+      text: 'This is an in-band caption'
+    }]
+  }));
+  sourceBuffer.transmuxer_.onmessage(doneMessage);
+
+  QUnit.equal(addedTracks.length, 2, 'created two text tracks');
+  QUnit.equal(addedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'created only the expected two remote TextTracks');
+
+  mediaSource.trigger('sourceclose');
+
+  QUnit.equal(removedTracks.length, 2, 'removed two text tracks');
+  QUnit.equal(removedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'removed only the expected two remote TextTracks');
 });
 
 QUnit.test('does not wrap mp4 source buffers', function() {

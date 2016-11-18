@@ -1,6 +1,7 @@
 /**
  * @file create-text-tracks-if-necessary.js
  */
+import {removeExistingTrack} from './cleanup-text-tracks';
 
 /**
  * Create text tracks on video.js if they exist on a segment.
@@ -11,18 +12,27 @@
  * @private
  */
 const createTextTracksIfNecessary = function(sourceBuffer, mediaSource, segment) {
+  const player = mediaSource.player_;
+
   // create an in-band caption track if one is present in the segment
   if (segment.captions &&
       segment.captions.length &&
       !sourceBuffer.inbandTextTrack_) {
-    sourceBuffer.inbandTextTrack_ = mediaSource.player_.addTextTrack('captions', 'cc1');
+    removeExistingTrack(player, 'captions', 'cc1');
+    sourceBuffer.inbandTextTrack_ = player.addRemoteTextTrack({
+      kind: 'captions',
+      label: 'cc1'
+    }, false).track;
   }
 
   if (segment.metadata &&
       segment.metadata.length &&
       !sourceBuffer.metadataTrack_) {
-    sourceBuffer.metadataTrack_ =
-      mediaSource.player_.addTextTrack('metadata', 'Timed Metadata');
+    removeExistingTrack(player, 'metadata', 'Timed Metadata', true);
+    sourceBuffer.metadataTrack_ = player.addRemoteTextTrack({
+      kind: 'metadata',
+      label: 'Timed Metadata'
+    }, false).track;
     sourceBuffer.metadataTrack_.inBandMetadataTrackDispatchType =
       segment.metadata.dispatchType;
   }
