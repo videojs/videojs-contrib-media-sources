@@ -783,7 +783,7 @@ QUnit.test('cleans up WebVTT cues on hls dispose', function() {
       return addedTracks;
     },
     removeRemoteTextTrack(track) {
-      removedTracks.push(track.kind);
+      removedTracks.push(track);
     }
   };
 
@@ -797,7 +797,15 @@ QUnit.test('cleans up WebVTT cues on hls dispose', function() {
   });
   sourceBuffer.segmentParser_.trigger('done');
 
-  QUnit.equal(addedTracks.length, 2, 'created two remote TextTracks');
+  QUnit.equal(addedTracks.length, 2, 'created two text tracks');
+  QUnit.equal(addedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'created only the expected two remote TextTracks');
+
   this.player.tech_.hls.trigger('dispose');
-  QUnit.equal(removedTracks.length, 2, 'removed both TextTracks');
+
+  QUnit.equal(removedTracks.length, 2, 'removed two text tracks');
+  QUnit.equal(removedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
+              0,
+              'removed only the expected two remote TextTracks');
 });
