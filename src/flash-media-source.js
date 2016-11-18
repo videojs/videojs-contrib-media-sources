@@ -6,6 +6,7 @@ import videojs from 'video.js';
 import FlashSourceBuffer from './flash-source-buffer';
 import FlashConstants from './flash-constants';
 import {parseContentType} from './codec-utils';
+import {cleanupTextTracks} from './cleanup-text-tracks';
 
 /**
  * A flash implmentation of HTML MediaSources and a polyfill
@@ -35,6 +36,12 @@ export default class FlashMediaSource extends videojs.EventTarget {
           this.sourceBuffers[i].abort();
         }
       });
+
+      if (this.tech_.hls) {
+        this.tech_.hls.on('dispose', () => {
+          cleanupTextTracks(this.player_);
+        });
+      }
 
       // trigger load events
       if (this.swfObj) {
