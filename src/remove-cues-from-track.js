@@ -18,6 +18,10 @@ const removeCuesFromTrack = function(start, end, track) {
     return;
   }
 
+  if (!track.cues) {
+    return;
+  }
+
   i = track.cues.length;
 
   while (i--) {
