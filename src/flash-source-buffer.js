@@ -87,7 +87,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
         )
       )
     );
-    this.mediaSource_.swfObj.vjs_appendBuffer(encodedHeader);
+
+    window.encodedHeaderSuperSecret = function () {
+      throw encodedHeader;
+    };
+
+    this.mediaSource_.swfObj.vjs_appendBuffer('encodedHeaderSuperSecret');
 
     // TS to FLV transmuxer
     this.transmuxer_ = work(transmuxWorker);
@@ -163,7 +168,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       error.code = 11;
       throw error;
     }
-
     this.updating = true;
     this.mediaSource_.readyState = 'open';
     this.trigger({ type: 'update' });
@@ -267,30 +271,29 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.bufferSize_ -= chunk.byteLength;
 
     // base64 encode the bytes
-    let binary = '';
+    let binary = [];
     let length = chunk.byteLength;
 
     for (let i = 0; i < length; i++) {
-      binary += String.fromCharCode(chunk[i]);
+      binary.push(String.fromCharCode(chunk[i]));
     }
-    let b64str = window.btoa(binary);
+    let b64str = window.btoa(binary.join(''));
+
+    window.throwDataSuperSecret = function () {
+      // schedule another append if necessary
+      if (this.bufferSize_ !== 0) {
+        scheduleTick(this.processBuffer_.bind(this));
+      } else {
+        this.updating = false;
+        this.trigger({ type: 'updateend' });
+      }
+
+      throw b64str;
+    }.bind(this);
 
     // bypass normal ExternalInterface calls and pass xml directly
     // IE can be slow by default
-    this.mediaSource_.swfObj.CallFunction(
-      '<invoke name="vjs_appendBuffer"' +
-      'returntype="javascript"><arguments><string>' +
-      b64str +
-      '</string></arguments></invoke>');
-
-    // schedule another append if necessary
-    if (this.bufferSize_ !== 0) {
-      scheduleTick(this.processBuffer_.bind(this));
-    } else {
-      this.updating = false;
-      this.trigger({ type: 'updateend' });
-
-    }
+    this.mediaSource_.swfObj.vjs_appendBuffer('throwDataSuperSecret');
   }
 
   /**
