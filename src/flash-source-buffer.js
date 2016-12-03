@@ -7,6 +7,8 @@ import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import {addTextTrackData} from './add-text-track-data';
+import transmuxWorker from './flash-transmuxer-worker';
+import work from 'webworkify';
 import FlashConstants from './flash-constants';
 
 /**
@@ -77,18 +79,24 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.updating = false;
     this.timestampOffset_ = 0;
 
-    // TS to FLV transmuxer
-    this.segmentParser_ = new flv.Transmuxer();
-    this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
     encodedHeader = window.btoa(
       String.fromCharCode.apply(
         null,
         Array.prototype.slice.call(
-          this.segmentParser_.getFlvHeader()
+          flv.getFlvHeader()
         )
       )
     );
     this.mediaSource_.swfObj.vjs_appendBuffer(encodedHeader);
+
+    // TS to FLV transmuxer
+    this.transmuxer_ = work(transmuxWorker);
+    this.transmuxer_.postMessage({ action: 'init', options: {} });
+    this.transmuxer_.onmessage = (event) => {
+      if (event.data.action === 'data') {
+        this.receiveBuffer_(event.data.segment);
+      }
+    };
 
     this.one('updateend', () => {
       this.mediaSource_.tech_.trigger('loadedmetadata');
@@ -101,13 +109,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       set(val) {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
-          this.segmentParser_ = new flv.Transmuxer();
-          this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
           // We have to tell flash to expect a discontinuity
           this.mediaSource_.swfObj.vjs_discontinuity();
           // the media <-> PTS mapping must be re-established after
           // the discontinuity
           this.basePtsOffset_ = NaN;
+
+          this.transmuxer_.postMessage({ action: 'reset' });
         }
       }
     });
@@ -147,8 +155,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    */
   appendBuffer(bytes) {
     let error;
-    let chunk = 512 * 1024;
-    let i = 0;
 
     if (this.updating) {
       error = new Error('SourceBuffer.append() cannot be called ' +
@@ -162,18 +168,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.mediaSource_.readyState = 'open';
     this.trigger({ type: 'update' });
 
-    // this is here to use recursion
-    let chunkInData = () => {
-      this.segmentParser_.push(bytes.subarray(i, i + chunk));
-      i += chunk;
-      if (i < bytes.byteLength) {
-        scheduleTick(chunkInData);
-      } else {
-        scheduleTick(this.segmentParser_.flush.bind(this.segmentParser_));
-      }
-    };
-
-    chunkInData();
+    this.transmuxer_.postMessage({
+      action: 'push',
+      data: bytes.buffer,
+      byteOffset: bytes.byteOffset,
+      byteLength: bytes.byteLength
+    }, [bytes.buffer]);
+    this.transmuxer_.postMessage({action: 'flush'});
   }
 
   /**
@@ -309,7 +310,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let j;
     let segment;
     let filteredTags = [];
-    let tags = this.getOrderedTags_(segmentData);
+    let tags = segmentData.tags;
 
     // Establish the media timeline to PTS translation if we don't
     // have one already
@@ -348,38 +349,5 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
 
     return segment;
-  }
-
-  /**
-   * Assemble the FLV tags in decoder order.
-   *
-   * @private
-   * @param {Object} segmentData object of segment data
-   */
-  getOrderedTags_(segmentData) {
-    let videoTags = segmentData.tags.videoTags;
-    let audioTags = segmentData.tags.audioTags;
-    let tag;
-    let tags = [];
-
-    while (videoTags.length || audioTags.length) {
-      if (!videoTags.length) {
-        // only audio tags remain
-        tag = audioTags.shift();
-      } else if (!audioTags.length) {
-        // only video tags remain
-        tag = videoTags.shift();
-      } else if (audioTags[0].dts < videoTags[0].dts) {
-        // audio should be decoded next
-        tag = audioTags.shift();
-      } else {
-        // video should be decoded next
-        tag = videoTags.shift();
-      }
-
-      tags.push(tag.finalize());
-    }
-
-    return tags;
   }
 }
