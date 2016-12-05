@@ -89,10 +89,11 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     );
 
     window.encodedHeaderSuperSecret = function () {
+      delete window.encodedHeaderSuperSecret;
       throw encodedHeader;
     };
 
-    this.mediaSource_.swfObj.vjs_appendBuffer('encodedHeaderSuperSecret');
+    this.mediaSource_.swfObj.vjs_appendChunkReady('encodedHeaderSuperSecret');
 
     // TS to FLV transmuxer
     this.transmuxer_ = work(transmuxWorker);
@@ -284,6 +285,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       if (this.bufferSize_ !== 0) {
         scheduleTick(this.processBuffer_.bind(this));
       } else {
+        delete window.throwDataSuperSecret;
         this.updating = false;
         this.trigger({ type: 'updateend' });
       }
@@ -293,7 +295,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     // bypass normal ExternalInterface calls and pass xml directly
     // IE can be slow by default
-    this.mediaSource_.swfObj.vjs_appendBuffer('throwDataSuperSecret');
+    this.mediaSource_.swfObj.vjs_appendChunkReady('throwDataSuperSecret');
   }
 
   /**
