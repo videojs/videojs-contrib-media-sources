@@ -6,27 +6,13 @@ import document from 'global/document';
 import videojs from 'video.js';
 import VirtualSourceBuffer from './virtual-source-buffer';
 import {durationOfVideo} from './add-text-track-data';
-import {isAudioCodec, isVideoCodec, parseContentType} from './codec-utils';
+import {
+  isAudioCodec,
+  isVideoCodec,
+  parseContentType,
+  translateLegacyCodecs
+} from './codec-utils';
 import {cleanupTextTracks} from './cleanup-text-tracks';
-
-/**
- * Replace the old apple-style `avc1.<dd>.<dd>` codec string with the standard
- * `avc1.<hhhhhh>`
- *
- * @param {Array} codecs an array of codec strings to fix
- * @return {Array} the translated codec array
- * @private
- */
-const translateLegacyCodecs = function(codecs) {
-  return codecs.map((codec) => {
-    return codec.replace(/avc1\.(\d+)\.(\d+)/i, function(orig, profile, avcLevel) {
-      let profileHex = ('00' + Number(profile).toString(16)).slice(-2);
-      let avcLevelHex = ('00' + Number(avcLevel).toString(16)).slice(-2);
-
-      return 'avc1.' + profileHex + '00' + avcLevelHex;
-    });
-  });
-};
 
 /**
  * Our MediaSource implementation in HTML, mimics native
