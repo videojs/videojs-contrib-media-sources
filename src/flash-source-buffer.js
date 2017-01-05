@@ -304,47 +304,68 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   convertTagsToData_(segmentData) {
     let segmentByteLength = 0;
     let tech = this.mediaSource_.tech_;
-    let targetPts = 0;
+    let targetVideoPts = 0;
+    let targetAudioPts = 0;
     let i;
     let j;
     let segment;
-    let filteredTags = [];
-    let tags = this.getOrderedTags_(segmentData);
+    let filteredAudioTags = [];
+    let filteredVideoTags = [];
+    let videoTags = segmentData.tags.videoTags;
+    let audioTags = segmentData.tags.audioTags;
 
     // Establish the media timeline to PTS translation if we don't
     // have one already
-    if (isNaN(this.basePtsOffset_) && tags.length) {
-      this.basePtsOffset_ = tags[0].pts;
+    if (isNaN(this.basePtsOffset_) && (videoTags.length || audioTags.length)) {
+      const firstVideoTag = videoTags[0] || { pts: Infinity };
+      const firstAudioTag = audioTags[0] || { pts: Infinity };
+
+      this.basePtsOffset_ = Math.min(firstAudioTag.pts, firstVideoTag.pts);
+    }
+
+    if (tech.buffered().length) {
+      targetAudioPts = tech.buffered().end(0) - this.timestampOffset;
     }
 
     // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
     if (tech.seeking()) {
-      targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
+      targetVideoPts = Math.max(targetVideoPts, tech.currentTime() - this.timestampOffset);
+      targetAudioPts = Math.max(targetAudioPts, tech.currentTime() - this.timestampOffset);
     }
 
     // PTS values are represented in milliseconds
-    targetPts *= 1e3;
-    targetPts += this.basePtsOffset_;
+    targetVideoPts *= 1e3;
+    targetVideoPts += this.basePtsOffset_;
+    targetAudioPts *= 1e3;
+    targetAudioPts += this.basePtsOffset_;
 
     // skip tags with a presentation time less than the seek target
-    for (i = 0; i < tags.length; i++) {
-      if (tags[i].pts >= targetPts) {
-        filteredTags.push(tags[i]);
+    for (i = 0; i < videoTags.length; i++) {
+      if (videoTags[i].pts >= targetVideoPts) {
+        filteredVideoTags.push(videoTags[i]);
       }
     }
 
-    if (filteredTags.length === 0) {
+    for (i = 0; i < audioTags.length; i++) {
+      if (audioTags[i].pts >= targetAudioPts) {
+        filteredAudioTags.push(audioTags[i]);
+      }
+    }
+
+    let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
+
+    if (tags.length === 0) {
       return;
     }
 
     // concatenate the bytes into a single segment
-    for (i = 0; i < filteredTags.length; i++) {
-      segmentByteLength += filteredTags[i].bytes.byteLength;
+    for (i = 0; i < tags.length; i++) {
+      segmentByteLength += tags[i].bytes.byteLength;
     }
     segment = new Uint8Array(segmentByteLength);
-    for (i = 0, j = 0; i < filteredTags.length; i++) {
-      segment.set(filteredTags[i].bytes, j);
-      j += filteredTags[i].bytes.byteLength;
+    for (i = 0, j = 0; i < tags.length; i++) {
+      segment.set(tags[i].bytes, j);
+      j += tags[i].bytes.byteLength;
     }
 
     return segment;
@@ -354,11 +375,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    * Assemble the FLV tags in decoder order.
    *
    * @private
-   * @param {Object} segmentData object of segment data
+   * @param {Array} videoTags list of video tags
+   * @param {Array} audioTags list of audio tags
    */
-  getOrderedTags_(segmentData) {
-    let videoTags = segmentData.tags.videoTags;
-    let audioTags = segmentData.tags.audioTags;
+  getOrderedTags_(videoTags, audioTags) {
     let tag;
     let tags = [];
 

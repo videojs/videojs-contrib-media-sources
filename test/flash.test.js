@@ -343,6 +343,54 @@ QUnit.test('drops tags before currentTime when seeking', function() {
             'three tags are appended');
 });
 
+QUnit.test('drops audio tags before the buffered end always', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let i = 10;
+  let endTime;
+  let tags_ = [];
+
+  this.mediaSource.tech_.buffered = function() {
+    return videojs.createTimeRange([[0, endTime]]);
+  };
+
+  // push a tag into the buffer to establish the starting PTS value
+  endTime = 0;
+  sourceBuffer.segmentParser_.trigger('data', {
+    tags: {
+      videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
+      audioTags: [makeFlvTag(19 * 1000, new Uint8Array(1))]
+    }
+  });
+  timers.runAll();
+
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  timers.runAll();
+
+  // mock out a new segment of FLV tags, starting 10s after the
+  // starting PTS value
+  while (i--) {
+    tags_.unshift(
+      makeFlvTag((i * 1000) + (29 * 1000),
+        new Uint8Array([i])));
+  }
+  sourceBuffer.segmentParser_.trigger('data', {
+    tags: {
+      videoTags: tags_,
+      audioTags: tags_
+    }
+  });
+
+  endTime = 10 + 7;
+  this.mediaSource.tech_.trigger('seeking');
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  this.swfCalls.length = 0;
+  timers.runAll();
+
+  // 0 - 9 for video tags not droped, 7 - 9 for audio tags (0 - 6 dropped for being before buffered end)
+  QUnit.deepEqual(this.swfCalls[0].arguments[0], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9],
+            'three tags are appended');
+});
+
 QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let i = 10;
