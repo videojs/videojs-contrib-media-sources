@@ -23,6 +23,7 @@ const appendCalls = function(calls) {
 const makeFlvTag = function(pts, data) {
   return {
     pts,
+    dts: pts,
     bytes: data,
     finalize() {
       return this;
@@ -343,11 +344,12 @@ QUnit.test('drops tags before currentTime when seeking', function() {
             'three tags are appended');
 });
 
-QUnit.test('drops audio tags before the buffered end always', function() {
+QUnit.test('drops audio and video (complete gops) tags before the buffered end always', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let i = 10;
   let endTime;
-  let tags_ = [];
+  let videoTags_ = [];
+  let audioTags_ = [];
 
   this.mediaSource.tech_.buffered = function() {
     return videojs.createTimeRange([[0, endTime]]);
@@ -369,14 +371,27 @@ QUnit.test('drops audio tags before the buffered end always', function() {
   // mock out a new segment of FLV tags, starting 10s after the
   // starting PTS value
   while (i--) {
-    tags_.unshift(
+    videoTags_.unshift(
       makeFlvTag((i * 1000) + (29 * 1000),
         new Uint8Array([i])));
   }
+
+  i = 10;
+  while (i--) {
+    audioTags_.unshift(
+      makeFlvTag((i * 1000) + (29 * 1000),
+        new Uint8Array([i + 100])));
+  }
+
+  videoTags_[0].keyFrame = true;
+  videoTags_[3].keyFrame = true;
+  videoTags_[6].keyFrame = true;
+  videoTags_[8].keyFrame = true;
+
   sourceBuffer.segmentParser_.trigger('data', {
     tags: {
-      videoTags: tags_,
-      audioTags: tags_
+      videoTags: videoTags_,
+      audioTags: audioTags_
     }
   });
 
@@ -386,9 +401,15 @@ QUnit.test('drops audio tags before the buffered end always', function() {
   this.swfCalls.length = 0;
   timers.runAll();
 
-  // 0 - 9 for video tags not droped, 7 - 9 for audio tags (0 - 6 dropped for being before buffered end)
-  QUnit.deepEqual(this.swfCalls[0].arguments[0], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9],
-            'three tags are appended');
+  // end of buffer is 17 seconds
+  // frames 0-6 for video have pts values less than 17 seconds
+  // since frame 6 is a key frame, it should still be appended to preserve the entire gop
+  // so we should have appeneded frames 6 - 9
+  // frames 100-106 for audio have pts values less than 17 seconds
+  // so we should have appended frames 107-109
+  // Append order is 6, 7, 107, 8, 108, 9, 109 since we order tags based on dts value
+  QUnit.deepEqual(this.swfCalls[0].arguments[0], [6, 7, 107, 8, 108, 9, 109],
+            'audio and video tags properly dropped');
 });
 
 QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
