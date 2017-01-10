@@ -13,7 +13,7 @@
  */
 const flashConstants = {
   // times in milliseconds
-  TIME_BETWEEN_CHUNKS: 2,
+  TIME_BETWEEN_CHUNKS: 4,
   BYTES_PER_CHUNK: 4096
 };
 
