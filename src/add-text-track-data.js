@@ -127,7 +127,7 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
       // Map each cue group's endTime to the next group's startTime
       sortedStartTimes.forEach((startTime, idx) => {
         let cueGroup = cuesGroupedByStartTime[startTime];
-        let nextTime = sortedStartTimes[idx + 1] || videoDuration;
+        let nextTime = Number(sortedStartTimes[idx + 1]) || videoDuration;
 
         // Map each cue's endTime the next group's startTime
         cueGroup.forEach((cue) => {
