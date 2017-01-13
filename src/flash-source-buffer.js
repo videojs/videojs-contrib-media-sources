@@ -305,16 +305,26 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let segmentByteLength = 0;
     let tech = this.mediaSource_.tech_;
     let targetPts = 0;
-    let i;
-    let j;
     let segment;
-    let filteredTags = [];
-    let tags = this.getOrderedTags_(segmentData);
+    let filteredAudioTags = [];
+    let filteredVideoTags = [];
+    let videoTags = segmentData.tags.videoTags;
+    let audioTags = segmentData.tags.audioTags;
 
     // Establish the media timeline to PTS translation if we don't
     // have one already
-    if (isNaN(this.basePtsOffset_) && tags.length) {
-      this.basePtsOffset_ = tags[0].pts;
+    if (isNaN(this.basePtsOffset_) && (videoTags.length || audioTags.length)) {
+      // We know there is at least one video or audio tag, but since we may not have both,
+      // we use pts: Infinity for the missing tag. The will force the following Math.min
+      // call will to use the proper pts value since it will always be less than Infinity
+      const firstVideoTag = videoTags[0] || { pts: Infinity };
+      const firstAudioTag = audioTags[0] || { pts: Infinity };
+
+      this.basePtsOffset_ = Math.min(firstAudioTag.pts, firstVideoTag.pts);
+    }
+
+    if (tech.buffered().length) {
+      targetPts = tech.buffered().end(0) - this.timestampOffset;
     }
 
     // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
@@ -326,25 +336,70 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts *= 1e3;
     targetPts += this.basePtsOffset_;
 
-    // skip tags with a presentation time less than the seek target
-    for (i = 0; i < tags.length; i++) {
-      if (tags[i].pts >= targetPts) {
-        filteredTags.push(tags[i]);
+    // skip tags with a presentation time less than the seek target/end of buffer
+    for (let i = 0; i < audioTags.length; i++) {
+      if (audioTags[i].pts >= targetPts) {
+        filteredAudioTags.push(audioTags[i]);
       }
     }
 
-    if (filteredTags.length === 0) {
+    // filter complete GOPs with a presentation time less than the seek target/end of buffer
+    let startIndex = 0;
+
+    while (startIndex < videoTags.length) {
+      let startTag = videoTags[startIndex];
+
+      if (startTag.pts >= targetPts) {
+        filteredVideoTags.push(startTag);
+      } else if (startTag.keyFrame) {
+        let nextIndex = startIndex + 1;
+        let foundNextKeyFrame = false;
+
+        while (nextIndex < videoTags.length) {
+          let nextTag = videoTags[nextIndex];
+
+          if (nextTag.pts >= targetPts) {
+            break;
+          } else if (nextTag.keyFrame) {
+            foundNextKeyFrame = true;
+            break;
+          } else {
+            nextIndex++;
+          }
+        }
+
+        if (foundNextKeyFrame) {
+          // we found another key frame before the targetPts. This means it is safe
+          // to drop this entire GOP
+          startIndex = nextIndex;
+        } else {
+          // we reached the target pts or the end of the tag list before finding the
+          // next key frame. We want to append all the tags from the current key frame
+          // startTag to the targetPts to prevent trimming part of a GOP
+          while (startIndex < nextIndex) {
+            filteredVideoTags.push(videoTags[startIndex]);
+            startIndex++;
+          }
+        }
+        continue;
+      }
+      startIndex++;
+    }
+
+    let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
+
+    if (tags.length === 0) {
       return;
     }
 
     // concatenate the bytes into a single segment
-    for (i = 0; i < filteredTags.length; i++) {
-      segmentByteLength += filteredTags[i].bytes.byteLength;
+    for (let i = 0; i < tags.length; i++) {
+      segmentByteLength += tags[i].bytes.byteLength;
     }
     segment = new Uint8Array(segmentByteLength);
-    for (i = 0, j = 0; i < filteredTags.length; i++) {
-      segment.set(filteredTags[i].bytes, j);
-      j += filteredTags[i].bytes.byteLength;
+    for (let i = 0, j = 0; i < tags.length; i++) {
+      segment.set(tags[i].bytes, j);
+      j += tags[i].bytes.byteLength;
     }
 
     return segment;
@@ -354,11 +409,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    * Assemble the FLV tags in decoder order.
    *
    * @private
-   * @param {Object} segmentData object of segment data
+   * @param {Array} videoTags list of video tags
+   * @param {Array} audioTags list of audio tags
    */
-  getOrderedTags_(segmentData) {
-    let videoTags = segmentData.tags.videoTags;
-    let audioTags = segmentData.tags.audioTags;
+  getOrderedTags_(videoTags, audioTags) {
     let tag;
     let tags = [];
 
