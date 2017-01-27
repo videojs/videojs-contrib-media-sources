@@ -173,6 +173,7 @@ QUnit.module('Flash MediaSource', {
     swfObj.vjs_appendChunkReady = (method) => {
       window.setTimeout(() => {
         let chunk = window[method]();
+
         // only care about the segment data, not the flv header
         if (method === 'vjs_flashEncodedData_') {
           let call = {
