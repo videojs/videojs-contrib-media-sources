@@ -88,12 +88,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       )
     );
 
-    window.encodedHeaderSuperSecret = function () {
-      delete window.encodedHeaderSuperSecret;
+    window.vjs_flashEncodedHeader_ = function () {
+      delete window.vjs_flashEncodedHeader_;
       throw encodedHeader;
     };
 
-    this.mediaSource_.swfObj.vjs_appendChunkReady('encodedHeaderSuperSecret');
+    this.mediaSource_.swfObj.vjs_appendChunkReady('vjs_flashEncodedHeader_');
 
     // TS to FLV transmuxer
     this.transmuxer_ = work(transmuxWorker);
@@ -280,12 +280,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
     let b64str = window.btoa(binary.join(''));
 
-    window.throwDataSuperSecret = function () {
+    window.vjs_flashEncodedData_ = function () {
       // schedule another append if necessary
       if (this.bufferSize_ !== 0) {
         scheduleTick(this.processBuffer_.bind(this));
       } else {
-        delete window.throwDataSuperSecret;
+        delete window.vjs_flashEncodedData_;
         this.updating = false;
         this.trigger({ type: 'updateend' });
       }
@@ -295,7 +295,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     // bypass normal ExternalInterface calls and pass xml directly
     // IE can be slow by default
-    this.mediaSource_.swfObj.vjs_appendChunkReady('throwDataSuperSecret');
+    this.mediaSource_.swfObj.vjs_appendChunkReady('vjs_flashEncodedData_');
   }
 
   /**
@@ -437,7 +437,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
         tag = videoTags.shift();
       }
 
-      tags.push(tag.finalize());
+      tags.push(tag);
     }
 
     return tags;

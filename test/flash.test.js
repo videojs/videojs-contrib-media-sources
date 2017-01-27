@@ -16,23 +16,26 @@ import {MediaSource, URL} from '../src/videojs-contrib-media-sources.js';
 // return the sequence of calls to append to the SWF
 const appendCalls = function(calls) {
   return calls.filter(function(call) {
-    return call.callee && call.callee === 'vjs_appendBuffer';
+    return call.callee && call.callee === 'vjs_appendChunkReady';
   });
+};
+
+const getFlvHeader = function() {
+  return new Uint8Array([1, 2, 3]);
 };
 
 const makeFlvTag = function(pts, data) {
   return {
     pts,
     dts: pts,
-    bytes: data,
-    finalize() {
-      return this;
-    }
+    bytes: data
   };
 };
 
 let timers;
 let oldSTO;
+
+let datas = [];
 
 const fakeSTO = function() {
   oldSTO = window.setTimeout;
@@ -66,45 +69,42 @@ const unfakeSTO = function() {
   window.setTimeout = oldSTO;
 };
 
-const MockSegmentParser = function() {
-  let ons = {};
-  let datas = [];
-
-  this.on = function(type, fn) {
-    if (!ons[type]) {
-      ons[type] = [fn];
-    } else {
-      ons[type].push(fn);
-    }
-  };
-  this.trigger = function(type, data) {
-    if (ons[type]) {
-      ons[type].forEach(function(fn) {
-        fn(data);
-      });
-    }
-  };
-  this.getFlvHeader = function() {
-    return new Uint8Array([1, 2, 3]);
-  };
-
-  this.push = function(data) {
-    datas.push(data);
-  };
-  this.flush = function() {
-    let tags = datas.reduce(function(output, data, i) {
-      output.push(makeFlvTag(i, data));
-      return output;
-    }, []);
-
-    datas.length = 0;
-    this.trigger('data', {
-      tags: {
-        videoTags: tags,
-        audioTags: []
+// Create a WebWorker-style message that signals the transmuxer is done
+const createDataMessage = function(datas, audioDatas) {
+  return {
+    data: {
+      action: 'data',
+      segment: {
+        tags: {
+          videoTags: datas.map((data) => {
+            return makeFlvTag(data.pts, data.bytes);
+          }),
+          audioTags: audioDatas ? audioDatas.map((data) => {
+            return makeFlvTag(data.pts, data.bytes);
+          }) : []
+        }
       }
-    });
+    }
   };
+};
+const doneMessage = {
+  data: {
+    action: 'done'
+  }
+};
+const postMessage_ = function(msg) {
+  if (msg.action === 'push') {
+    window.setTimeout(()=> {
+      this.onmessage(createDataMessage([{
+        bytes: new Uint8Array(msg.data, msg.byteOffset, msg.byteLength),
+        pts: 0
+      }]));
+    }, 1);
+  } else if (msg.action === 'flush') {
+    window.setTimeout(() => {
+      this.onmessage(doneMessage);
+    }, 1);
+  }
 };
 
 QUnit.module('Flash MediaSource', {
@@ -132,8 +132,9 @@ QUnit.module('Flash MediaSource', {
       return true;
     };
 
-    this.oldFlashTransmuxer = muxjs.flv.Transmuxer;
-    muxjs.flv.Transmuxer = MockSegmentParser;
+    this.oldFlashTransmuxerPostMessage = muxjs.flv.Transmuxer.postMessage;
+    this.oldGetFlvHeader = muxjs.flv.getFlvHeader;
+    muxjs.flv.getFlvHeader = getFlvHeader;
 
     this.swfCalls = [];
     this.mediaSource = new videojs.MediaSource();
@@ -147,24 +148,7 @@ QUnit.module('Flash MediaSource', {
     this.player.tech_.hls = new videojs.EventTarget();
     this.player.tech_.el_ = swfObj;
     swfObj.tech = this.player.tech_;
-    swfObj.CallFunction = (xml) => {
-      let parser = new window.DOMParser();
-      let call = {};
-      let doc;
 
-      // parse as HTML because it's more forgiving
-      doc = parser.parseFromString(xml, 'text/html');
-      call.callee = doc.querySelector('invoke').getAttribute('name');
-
-      // decode the function arguments
-      call.arguments = Array.prototype.slice.call(doc.querySelectorAll('arguments > *'))
-        .map(function(arg) {
-          return window.atob(arg.textContent).split('').map(function(c) {
-            return c.charCodeAt(0);
-          });
-        });
-      this.swfCalls.push(call);
-    };
     /* eslint-disable camelcase */
     swfObj.vjs_abort = () => {
       this.swfCalls.push('abort');
@@ -186,11 +170,23 @@ QUnit.module('Flash MediaSource', {
     swfObj.vjs_discontinuity = (attr, value) => {
       this.swfCalls.push({ attr, value });
     };
-    swfObj.vjs_appendBuffer = (flvHeader) => {
-      // only the FLV header directly invokes this so we can
-      // ignore it
+    swfObj.vjs_appendChunkReady = (method) => {
+      try {
+        window[method]();
+      } catch(e) {
+        // only care about the segment data, not the flv header
+        if (method === 'vjs_flashEncodedData_') {
+          let call = {
+            callee: 'vjs_appendChunkReady',
+            arguments: [window.atob(e).split('').map((c) => c.charCodeAt(0))]
+          };
+
+          this.swfCalls.push(call);
+        }
+      }
     };
     /* eslint-enable camelcase */
+
     this.mediaSource.trigger({
       type: 'sourceopen',
       swfId: swfObj.id
@@ -202,7 +198,8 @@ QUnit.module('Flash MediaSource', {
     window.WebKitMediaSource = window.MediaSource;
     this.Flash.isSupported = this.oldFlashSupport;
     this.Flash.canPlaySource = this.oldCanPlay;
-    muxjs.flv.Transmuxer = this.oldFlashTransmuxer;
+    muxjs.flv.Transmuxer.postMessage = this.oldFlashTransmuxerPostMessage;
+    muxjs.flv.getFlvHeader = this.oldGetFlvHeader
     this.player.dispose();
     this.clock.restore();
     this.swfCalls = [];
@@ -228,6 +225,8 @@ QUnit.test('creates FlashSourceBuffers for video/mp2t', function() {
 QUnit.test('waits for the next tick to append', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   QUnit.equal(this.swfCalls.length, 1, 'made one call on init');
   QUnit.equal(this.swfCalls[0], 'load', 'called load');
   sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
@@ -238,13 +237,16 @@ QUnit.test('waits for the next tick to append', function() {
 QUnit.test('passes bytes to Flash', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   this.swfCalls.length = 0;
   sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  timers.runAll();
   timers.runAll();
 
   QUnit.ok(this.swfCalls.length, 'the SWF was called');
   this.swfCalls = appendCalls(this.swfCalls);
-  QUnit.strictEqual(this.swfCalls[0].callee, 'vjs_appendBuffer', 'called appendBuffer');
+  QUnit.strictEqual(this.swfCalls[0].callee, 'vjs_appendChunkReady', 'called vjs_appendChunkReady');
   QUnit.deepEqual(this.swfCalls[0].arguments[0],
             [0, 1],
             'passed the base64 encoded data');
@@ -253,6 +255,8 @@ QUnit.test('passes bytes to Flash', function() {
 QUnit.test('passes chunked bytes to Flash', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let oldChunkSize = FlashConstants.BYTES_PER_CHUNK;
+
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   FlashConstants.BYTES_PER_CHUNK = 2;
 
@@ -263,7 +267,7 @@ QUnit.test('passes chunked bytes to Flash', function() {
   QUnit.ok(this.swfCalls.length, 'the SWF was called');
   this.swfCalls = appendCalls(this.swfCalls);
   QUnit.equal(this.swfCalls.length, 3, 'the SWF received 3 chunks');
-  QUnit.strictEqual(this.swfCalls[0].callee, 'vjs_appendBuffer', 'called appendBuffer');
+  QUnit.strictEqual(this.swfCalls[0].callee, 'vjs_appendChunkReady', 'called vjs_appendChunkReady');
   QUnit.deepEqual(this.swfCalls[0].arguments[0],
             [0, 1],
             'passed the base64 encoded data');
@@ -299,18 +303,20 @@ QUnit.test('drops tags before currentTime when seeking', function() {
   let currentTime;
   let tags_ = [];
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   this.mediaSource.tech_.currentTime = function() {
     return currentTime;
   };
 
   // push a tag into the buffer to establish the starting PTS value
   currentTime = 0;
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
-      audioTags: []
-    }
-  });
+
+  sourceBuffer.transmuxer_.onmessage(createDataMessage([{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }]));
+
   timers.runAll();
 
   sourceBuffer.appendBuffer(new Uint8Array(10));
@@ -320,15 +326,13 @@ QUnit.test('drops tags before currentTime when seeking', function() {
   // starting PTS value
   while (i--) {
     tags_.unshift(
-      makeFlvTag((i * 1000) + (29 * 1000),
-        new Uint8Array([i])));
+      {
+        pts: (i * 1000) + (29 * 1000),
+        bytes: new Uint8Array([i])
+      }
+    );
   }
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: tags_,
-      audioTags: []
-    }
-  });
+  sourceBuffer.transmuxer_.onmessage(createDataMessage(tags_));
 
   // seek to 7 seconds into the new swegment
   this.mediaSource.tech_.seeking = function() {
@@ -351,18 +355,23 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
   let videoTags_ = [];
   let audioTags_ = [];
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   this.mediaSource.tech_.buffered = function() {
     return videojs.createTimeRange([[0, endTime]]);
   };
 
   // push a tag into the buffer to establish the starting PTS value
   endTime = 0;
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
-      audioTags: [makeFlvTag(19 * 1000, new Uint8Array(1))]
-    }
-  });
+
+  sourceBuffer.transmuxer_.onmessage(createDataMessage([{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }], [{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }]));
+
   timers.runAll();
 
   sourceBuffer.appendBuffer(new Uint8Array(10));
@@ -371,29 +380,28 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
   // mock out a new segment of FLV tags, starting 10s after the
   // starting PTS value
   while (i--) {
-    videoTags_.unshift(
-      makeFlvTag((i * 1000) + (29 * 1000),
-        new Uint8Array([i])));
+    videoTags_.unshift({
+      pts: (i * 1000) + (29 * 1000),
+      bytes: new Uint8Array([i])
+    });
   }
 
   i = 10;
   while (i--) {
-    audioTags_.unshift(
-      makeFlvTag((i * 1000) + (29 * 1000),
-        new Uint8Array([i + 100])));
+    audioTags_.unshift({
+      pts: (i * 1000) + (29 * 1000),
+      bytes: new Uint8Array([i + 100])
+    });
   }
 
-  videoTags_[0].keyFrame = true;
-  videoTags_[3].keyFrame = true;
-  videoTags_[6].keyFrame = true;
-  videoTags_[8].keyFrame = true;
+  let dataMessage = createDataMessage(videoTags_, audioTags_);
 
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: videoTags_,
-      audioTags: audioTags_
-    }
-  });
+  dataMessage.data.segment.tags.videoTags[0].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[3].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[6].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[8].keyFrame = true;
+
+  sourceBuffer.transmuxer_.onmessage(dataMessage);
 
   endTime = 10 + 7;
   this.mediaSource.tech_.trigger('seeking');
@@ -418,18 +426,18 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
   let tags_ = [];
   let currentTime;
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   this.mediaSource.tech_.currentTime = function() {
     return currentTime;
   };
 
   // push a tag into the buffer to establish the starting PTS value
   currentTime = 0;
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: [makeFlvTag(19 * 1000, new Uint8Array(1))],
-      audioTags: []
-    }
-  });
+  sourceBuffer.transmuxer_.onmessage(createDataMessage([{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }]));
   timers.runAll();
 
   // to seek across a discontinuity:
@@ -444,17 +452,13 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
 
   // the new segment FLV tags are at disjoint PTS positions
   while (i--) {
-    tags_.unshift(
-        // (101 * 1000) !== the old PTS offset
-      makeFlvTag((i * 1000) + (101 * 1000),
-        new Uint8Array([i + sourceBuffer.timestampOffset])));
+    tags_.unshift({
+      // (101 * 1000) !== the old PTS offset
+      pts: (i * 1000) + (101 * 1000),
+      bytes: new Uint8Array([i + sourceBuffer.timestampOffset])
+    });
   }
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: tags_,
-      audioTags: []
-    }
-  });
+  sourceBuffer.transmuxer_.onmessage(createDataMessage(tags_));
 
   this.mediaSource.tech_.trigger('seeking');
   this.swfCalls.length = 0;
@@ -467,6 +471,8 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
 
 QUnit.test('calling endOfStream sets mediaSource readyState to ended', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   /* eslint-disable camelcase */
   this.mediaSource.swfObj.vjs_endOfStream = () => {
@@ -502,6 +508,8 @@ QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', fu
     this.mediaSource.endOfStream();
     sourceBuffer.removeEventListener('updateend', foo);
   };
+
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   /* eslint-disable camelcase */
   this.mediaSource.swfObj.vjs_endOfStream = () => {
@@ -542,6 +550,8 @@ QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', fu
 QUnit.test('abort() clears any buffered input', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   this.swfCalls.length = 0;
   sourceBuffer.appendBuffer(new Uint8Array([0]));
   sourceBuffer.abort();
@@ -564,6 +574,7 @@ QUnit.test('does not use requestAnimationFrame', function() {
   };
 
   sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
   sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3]));
   while (timers.length) {
     timers.pop()();
@@ -574,6 +585,8 @@ QUnit.test('does not use requestAnimationFrame', function() {
 QUnit.test('updating is true while an append is in progress', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let ended = false;
+
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   sourceBuffer.addEventListener('updateend', function() {
     ended = true;
@@ -593,6 +606,7 @@ QUnit.test('throws an error if append is called while updating', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
 
   sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   QUnit.throws(function() {
     sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
@@ -605,6 +619,7 @@ QUnit.test('throws an error if append is called while updating', function() {
 QUnit.test('stops updating if abort is called', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let updateEnds = 0;
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   sourceBuffer.addEventListener('updateend', function() {
     updateEnds++;
@@ -644,6 +659,7 @@ QUnit.test('returns NaN for duration before the SWF is ready', function() {
 QUnit.test('calculates the base PTS for the media', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let tags_ = [];
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   // seek to 15 seconds
   this.player.tech_.seeking = function() {

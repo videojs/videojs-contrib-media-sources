@@ -24,7 +24,7 @@
     "prestart": "npm-run-all docs build",
     "start": "npm-run-all -p start:* watch:*",
     "start:serve": "babel-node scripts/server.js",
-    "pretest": "npm-run-all lint build",
+    "pretest": "npm-run-all build",
     "test": "karma start test/karma/detected.js",
     "test:chrome": "npm run pretest && karma start test/karma/chrome.js",
     "test:firefox": "npm run pretest && karma start test/karma/firefox.js",

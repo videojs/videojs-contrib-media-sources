@@ -52,7 +52,7 @@ const orderTags = function(tags) {
 const wireTransmuxerEvents = function(transmuxer) {
   transmuxer.on('data', function(segment) {
 
-    segment.tags = orderTags(segment.tags);
+    // segment.tags = orderTags(segment.tags);
 
     window.postMessage({
       action: 'data',
