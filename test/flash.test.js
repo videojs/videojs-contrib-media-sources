@@ -35,8 +35,6 @@ const makeFlvTag = function(pts, data) {
 let timers;
 let oldSTO;
 
-let datas = [];
-
 const fakeSTO = function() {
   oldSTO = window.setTimeout;
   timers = [];
@@ -70,7 +68,7 @@ const unfakeSTO = function() {
 };
 
 // Create a WebWorker-style message that signals the transmuxer is done
-const createDataMessage = function(datas, audioDatas) {
+const createDataMessage = function(datas, audioDatas, metadata, captions) {
   return {
     data: {
       action: 'data',
@@ -82,7 +80,9 @@ const createDataMessage = function(datas, audioDatas) {
           audioTags: audioDatas ? audioDatas.map((data) => {
             return makeFlvTag(data.pts, data.bytes);
           }) : []
-        }
+        },
+        metadata,
+        captions
       }
     }
   };
@@ -171,19 +171,18 @@ QUnit.module('Flash MediaSource', {
       this.swfCalls.push({ attr, value });
     };
     swfObj.vjs_appendChunkReady = (method) => {
-      try {
-        window[method]();
-      } catch(e) {
+      window.setTimeout(() => {
+        let chunk = window[method]();
         // only care about the segment data, not the flv header
         if (method === 'vjs_flashEncodedData_') {
           let call = {
             callee: 'vjs_appendChunkReady',
-            arguments: [window.atob(e).split('').map((c) => c.charCodeAt(0))]
+            arguments: [window.atob(chunk).split('').map((c) => c.charCodeAt(0))]
           };
 
           this.swfCalls.push(call);
         }
-      }
+      }, 1);
     };
     /* eslint-enable camelcase */
 
@@ -199,7 +198,7 @@ QUnit.module('Flash MediaSource', {
     this.Flash.isSupported = this.oldFlashSupport;
     this.Flash.canPlaySource = this.oldCanPlay;
     muxjs.flv.Transmuxer.postMessage = this.oldFlashTransmuxerPostMessage;
-    muxjs.flv.getFlvHeader = this.oldGetFlvHeader
+    muxjs.flv.getFlvHeader = this.oldGetFlvHeader;
     this.player.dispose();
     this.clock.restore();
     this.swfCalls = [];
@@ -619,6 +618,7 @@ QUnit.test('throws an error if append is called while updating', function() {
 QUnit.test('stops updating if abort is called', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let updateEnds = 0;
+
   sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   sourceBuffer.addEventListener('updateend', function() {
@@ -659,6 +659,7 @@ QUnit.test('returns NaN for duration before the SWF is ready', function() {
 QUnit.test('calculates the base PTS for the media', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let tags_ = [];
+
   sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   // seek to 15 seconds
@@ -672,16 +673,11 @@ QUnit.test('calculates the base PTS for the media', function() {
   // timeline
   tags_.push(
     // zero in the media timeline is PTS 3
-    makeFlvTag((10 + 3) * 90000, new Uint8Array([10])),
-    makeFlvTag((15 + 3) * 90000, new Uint8Array([15]))
+    { pts: (10 + 3) * 90000, bytes: new Uint8Array([10]) },
+    { pts: (15 + 3) * 90000, bytes: new Uint8Array([15]) }
   );
 
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: tags_,
-      audioTags: []
-    }
-  });
+  sourceBuffer.transmuxer_.onmessage(createDataMessage(tags_));
 
   // let the source buffer know the segment start time
   sourceBuffer.timestampOffset = 10;
@@ -693,22 +689,11 @@ QUnit.test('calculates the base PTS for the media', function() {
   QUnit.deepEqual(this.swfCalls[0].arguments[0], [15], 'dropped the early tag');
 });
 
-QUnit.test('flushes the transmuxer after each append', function() {
-  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-  let flushes = 0;
-
-  sourceBuffer.segmentParser_.flush = function() {
-    flushes++;
-  };
-  sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
-  timers.pop()();
-  QUnit.equal(flushes, 1, 'flushed the transmuxer');
-});
-
 QUnit.test('remove fires update events', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let events = [];
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
   sourceBuffer.on(['update', 'updateend'], function(event) {
     events.push(event.type);
   });
@@ -742,6 +727,8 @@ QUnit.test('fires loadedmetadata after first segment append', function() {
 
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
 
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
+
   QUnit.equal(loadedmetadataCount, 0, 'loadedmetadata not called on buffer creation');
   sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
   QUnit.equal(loadedmetadataCount, 0, 'loadedmetadata not called on segment append');
@@ -754,6 +741,8 @@ QUnit.test('fires loadedmetadata after first segment append', function() {
 
 QUnit.test('cleans up WebVTT cues on hls dispose', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+
+  sourceBuffer.transmuxer_.postMessage = postMessage_;
 
   let addedTracks = [];
   let removedTracks = [];
@@ -798,15 +787,7 @@ QUnit.test('cleans up WebVTT cues on hls dispose', function() {
     }
   };
 
-  sourceBuffer.segmentParser_.trigger('data', {
-    tags: {
-      videoTags: [],
-      audioTags: []
-    },
-    metadata,
-    captions
-  });
-  sourceBuffer.segmentParser_.trigger('done');
+  sourceBuffer.transmuxer_.onmessage(createDataMessage([], [], metadata, captions));
 
   QUnit.equal(addedTracks.length, 2, 'created two text tracks');
   QUnit.equal(addedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,

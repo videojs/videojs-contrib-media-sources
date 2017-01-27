@@ -15,33 +15,6 @@
 import window from 'global/window';
 import flv from 'mux.js/lib/flv';
 
-const orderTags = function(tags) {
-  let videoTags = tags.videoTags;
-  let audioTags = tags.audioTags;
-  let ordered = [];
-  let tag;
-
-  while (videoTags.length || audioTags.length) {
-    if (!videoTags.length) {
-      // only audio tags remain
-      tag = audioTags.shift();
-    } else if (!audioTags.length) {
-      // only video tags remain
-      tag = videoTags.shift();
-    } else if (audioTags[0].dts < videoTags[0].dts) {
-      // audio should be decoded next
-      tag = audioTags.shift();
-    } else {
-      // video should be decoded next
-      tag = videoTags.shift();
-    }
-
-    ordered.push(tag);
-  }
-
-  return ordered;
-}
-
 /**
  * Re-emits tranmsuxer events by converting them into messages to the
  * world outside the worker.
@@ -51,9 +24,6 @@ const orderTags = function(tags) {
  */
 const wireTransmuxerEvents = function(transmuxer) {
   transmuxer.on('data', function(segment) {
-
-    // segment.tags = orderTags(segment.tags);
-
     window.postMessage({
       action: 'data',
       segment

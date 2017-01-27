@@ -88,10 +88,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       )
     );
 
-    window.vjs_flashEncodedHeader_ = function () {
+    /* eslint-disable camelcase */
+    window.vjs_flashEncodedHeader_ = function() {
       delete window.vjs_flashEncodedHeader_;
-      throw encodedHeader;
+      return encodedHeader;
     };
+    /* eslint-enable camelcase */
 
     this.mediaSource_.swfObj.vjs_appendChunkReady('vjs_flashEncodedHeader_');
 
@@ -280,18 +282,15 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
     let b64str = window.btoa(binary.join(''));
 
-    window.vjs_flashEncodedData_ = function () {
-      // schedule another append if necessary
-      if (this.bufferSize_ !== 0) {
-        scheduleTick(this.processBuffer_.bind(this));
-      } else {
-        delete window.vjs_flashEncodedData_;
-        this.updating = false;
-        this.trigger({ type: 'updateend' });
-      }
-
-      throw b64str;
+    /* eslint-disable camelcase */
+    window.vjs_flashEncodedData_ = function() {
+      // schedule another processBuffer to process any left over data or to
+      // trigger updateend
+      scheduleTick(this.processBuffer_.bind(this));
+      delete window.vjs_flashEncodedData_;
+      return b64str;
     }.bind(this);
+    /* eslint-enable camelcase */
 
     // bypass normal ExternalInterface calls and pass xml directly
     // IE can be slow by default
