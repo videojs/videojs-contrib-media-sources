@@ -120,7 +120,7 @@ class MessageHandlers {
   }
 
   setAudioAppendStart(data) {
-    this.transmuxer.setAudioAppendStart(Math.round(data.appendStart * 90000));
+    this.transmuxer.setAudioAppendStart(Math.ceil(data.appendStart * 90000));
   }
 
   /**
