@@ -119,6 +119,10 @@ class MessageHandlers {
     this.transmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
   }
 
+  setAudioAppendStart(data) {
+    this.transmuxer.setAudioAppendStart(Math.ceil(data.appendStart * 90000));
+  }
+
   /**
    * Forces the pipeline to finish processing the last segment and emit it's
    * results.

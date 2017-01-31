@@ -325,6 +325,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     // Start the internal "updating" state
     this.bufferUpdating_ = true;
 
+    if (this.audioBuffer_ && this.audioBuffer_.buffered.length) {
+      let audioBuffered = this.audioBuffer_.buffered;
+
+      this.transmuxer_.postMessage({
+        action: 'setAudioAppendStart',
+        appendStart: audioBuffered.end(audioBuffered.length - 1)
+      });
+    }
+
     this.transmuxer_.postMessage({
       action: 'push',
       // Send the typed-array of data as an ArrayBuffer so that
