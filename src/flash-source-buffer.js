@@ -25,14 +25,14 @@ const scheduleTick = function(func) {
 };
 
 /**
- * Generates a random string of length 10
+ * Generates a random string of max length 6
  *
  * @return {String} the randomly generated string
  * @function generateRandomString
  * @private
  */
 const generateRandomString = function() {
-  return (Math.random().toString(36) + '00000000000000000').slice(2, 8);
+  return (Math.random().toString(36)).slice(2, 8);
 };
 
 /**
