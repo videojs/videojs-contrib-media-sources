@@ -25,6 +25,17 @@ const scheduleTick = function(func) {
 };
 
 /**
+ * Generates a random string of length 10
+ *
+ * @return {String} the randomly generated string
+ * @function generateRandomString
+ * @private
+ */
+const generateRandomString = function() {
+  return (Math.random().toString(36) + '00000000000000000').slice(2, 8);
+};
+
+/**
  * Round a number to a specified number of places much like
  * toFixed but return a number instead of a string representation.
  *
@@ -88,14 +99,25 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       )
     );
 
+    // create function names with added randomness for the global callbacks flash will use
+    // to get data from javascript into the swf. Random strings are added as a safety
+    // measure for pages with multiple players since these functions will be global
+    // instead of per instance.
+    this.flashEncodedHeaderName_ = 'vjs_flashEncodedHeader_' +
+                                   this.mediaSource_.player_.id() +
+                                   generateRandomString();
+    this.flashEncodedDataName_ = 'vjs_flashEncodedData_' +
+                                   this.mediaSource_.player_.id() +
+                                   generateRandomString();
+
     /* eslint-disable camelcase */
-    window.vjs_flashEncodedHeader_ = function() {
-      delete window.vjs_flashEncodedHeader_;
+    window[this.flashEncodedHeaderName_] = () => {
+      delete window[this.flashEncodedHeaderName_];
       return encodedHeader;
     };
     /* eslint-enable camelcase */
 
-    this.mediaSource_.swfObj.vjs_appendChunkReady('vjs_flashEncodedHeader_');
+    this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
 
     // TS to FLV transmuxer
     this.transmuxer_ = work(transmuxWorker);
@@ -151,6 +173,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.mediaSource_.player_.on('seeked', () => {
       removeCuesFromTrack(0, Infinity, this.metadataTrack_);
       removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
+    });
+
+    this.mediaSource_.player_.tech_.hls.on('dispose', () => {
+      this.transmuxer_.terminate();
     });
   }
 
@@ -283,18 +309,17 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let b64str = window.btoa(binary.join(''));
 
     /* eslint-disable camelcase */
-    window.vjs_flashEncodedData_ = function() {
+    window[this.flashEncodedDataName_] = () => {
       // schedule another processBuffer to process any left over data or to
       // trigger updateend
       scheduleTick(this.processBuffer_.bind(this));
-      delete window.vjs_flashEncodedData_;
+      delete window[this.flashEncodedDataName_];
       return b64str;
-    }.bind(this);
+    };
     /* eslint-enable camelcase */
 
-    // bypass normal ExternalInterface calls and pass xml directly
-    // IE can be slow by default
-    this.mediaSource_.swfObj.vjs_appendChunkReady('vjs_flashEncodedData_');
+    // Notify the swf that segment data is ready to be appended
+    this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedDataName_);
   }
 
   /**

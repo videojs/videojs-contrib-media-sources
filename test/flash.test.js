@@ -175,7 +175,7 @@ QUnit.module('Flash MediaSource', {
         let chunk = window[method]();
 
         // only care about the segment data, not the flv header
-        if (method === 'vjs_flashEncodedData_') {
+        if (method.substr(0, 21) === 'vjs_flashEncodedData_') {
           let call = {
             callee: 'vjs_appendChunkReady',
             arguments: [window.atob(chunk).split('').map((c) => c.charCodeAt(0))]
