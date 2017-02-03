@@ -68,17 +68,17 @@ const unfakeSTO = function() {
 };
 
 // Create a WebWorker-style message that signals the transmuxer is done
-const createDataMessage = function(datas, audioDatas, metadata, captions) {
+const createDataMessage = function(data, audioData, metadata, captions) {
   return {
     data: {
       action: 'data',
       segment: {
         tags: {
-          videoTags: datas.map((data) => {
-            return makeFlvTag(data.pts, data.bytes);
+          videoTags: data.map((tag) => {
+            return makeFlvTag(tag.pts, tag.bytes);
           }),
-          audioTags: audioDatas ? audioDatas.map((data) => {
-            return makeFlvTag(data.pts, data.bytes);
+          audioTags: audioData ? audioData.map((tag) => {
+            return makeFlvTag(tag.pts, tag.bytes);
           }) : []
         },
         metadata,

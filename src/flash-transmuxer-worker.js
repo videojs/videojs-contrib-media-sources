@@ -1,22 +1,11 @@
 /**
- * @file flash-worker.js
- */
-
-/**
- * videojs-contrib-media-sources
- *
- * Copyright (c) 2015 Brightcove
- * All rights reserved.
- *
- * Handles communication between the browser-world and the mux.js
- * transmuxer running inside of a WebWorker by exposing a simple
- * message-based interface to a Transmuxer object.
+ * @file flash-transmuxer-worker.js
  */
 import window from 'global/window';
 import flv from 'mux.js/lib/flv';
 
 /**
- * Re-emits tranmsuxer events by converting them into messages to the
+ * Re-emits transmuxer events by converting them into messages to the
  * world outside the worker.
  *
  * @param {Object} transmuxer the transmuxer to wire events on
@@ -81,19 +70,17 @@ class MessageHandlers {
   }
 
   /**
-   * Forces the pipeline to finish processing the last segment and emit it's
+   * Forces the pipeline to finish processing the last segment and emit its
    * results.
-   *
-   * @param {Object} data event data, not really used
    */
-  flush(data) {
+  flush() {
     this.transmuxer.flush();
   }
 }
 
 /**
  * Our web wroker interface so that things can talk to mux.js
- * that will be running in a web worker. the scope is passed to this by
+ * that will be running in a web worker. The scope is passed to this by
  * webworkify.
  *
  * @param {Object} self the scope for the web worker

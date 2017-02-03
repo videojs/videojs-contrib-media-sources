@@ -110,12 +110,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
                                    this.mediaSource_.player_.id() +
                                    generateRandomString();
 
-    /* eslint-disable camelcase */
     window[this.flashEncodedHeaderName_] = () => {
       delete window[this.flashEncodedHeaderName_];
       return encodedHeader;
     };
-    /* eslint-enable camelcase */
 
     this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
 
@@ -308,7 +306,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
     let b64str = window.btoa(binary.join(''));
 
-    /* eslint-disable camelcase */
     window[this.flashEncodedDataName_] = () => {
       // schedule another processBuffer to process any left over data or to
       // trigger updateend
@@ -316,7 +313,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       delete window[this.flashEncodedDataName_];
       return b64str;
     };
-    /* eslint-enable camelcase */
 
     // Notify the swf that segment data is ready to be appended
     this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedDataName_);

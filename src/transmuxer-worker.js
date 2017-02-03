@@ -16,7 +16,7 @@ import window from 'global/window';
 import mp4 from 'mux.js/lib/mp4';
 
 /**
- * Re-emits tranmsuxer events by converting them into messages to the
+ * Re-emits transmuxer events by converting them into messages to the
  * world outside the worker.
  *
  * @param {Object} transmuxer the transmuxer to wire events on
