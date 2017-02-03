@@ -102,12 +102,17 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     // create function names with added randomness for the global callbacks flash will use
     // to get data from javascript into the swf. Random strings are added as a safety
     // measure for pages with multiple players since these functions will be global
-    // instead of per instance.
+    // instead of per instance. When making a call to the swf, the browser generates a
+    // try catch code snippet, but just takes the function name and writes out an unquoted
+    // call to that function. If the player id has any special characters, this will result
+    // in an error, so safePlayerId replaces all special characters to '_'
+    const safePlayerId = this.mediaSource_.player_.id().replace(/[^a-zA-Z0-9]/g, '_');
+
     this.flashEncodedHeaderName_ = 'vjs_flashEncodedHeader_' +
-                                   this.mediaSource_.player_.id() +
+                                   safePlayerId +
                                    generateRandomString();
     this.flashEncodedDataName_ = 'vjs_flashEncodedData_' +
-                                   this.mediaSource_.player_.id() +
+                                   safePlayerId +
                                    generateRandomString();
 
     window[this.flashEncodedHeaderName_] = () => {
