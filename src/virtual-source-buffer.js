@@ -498,7 +498,9 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         if (this.mediaSource_.player_) {
           this.mediaSource_.player_.error({
             code: -3,
-            type: 'APPEND_BUFFER_ERR'
+            type: 'APPEND_BUFFER_ERR',
+            message: error.message,
+            originalError: error
           });
         }
       }
