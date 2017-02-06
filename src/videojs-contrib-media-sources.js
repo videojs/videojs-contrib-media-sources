@@ -76,10 +76,11 @@ export const MediaSource = function(options) {
   if (settings.mode === 'html5' ||
       (settings.mode === 'auto' && supportsNativeMediaSources())) {
     return new HtmlMediaSource();
+  } else if (videojs.getTech('Flash')) {
+    return new FlashMediaSource();
   }
 
-  // otherwise, emulate them through the SWF
-  return new FlashMediaSource();
+  throw new Error('Cannot use Flash or Html5 to create a MediaSource for this video');
 };
 
 MediaSource.open = open;
