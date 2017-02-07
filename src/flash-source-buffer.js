@@ -174,6 +174,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     };
 
     chunkInData();
+
+    // fire loaded metadata on first segment append
+    if (!this.firstAppendHappened) {
+      this.firstAppendHappened = true;
+      this.mediaSource.tech_.trigger('loadedmetadata');
+    }
   }
 
   /**
