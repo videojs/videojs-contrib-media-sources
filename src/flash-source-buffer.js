@@ -7,6 +7,8 @@ import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import {addTextTrackData} from './add-text-track-data';
+import transmuxWorker from './flash-transmuxer-worker';
+import work from 'webworkify';
 import FlashConstants from './flash-constants';
 
 /**
@@ -20,6 +22,17 @@ const scheduleTick = function(func) {
   // Chrome doesn't invoke requestAnimationFrame callbacks
   // in background tabs, so use setTimeout.
   window.setTimeout(func, FlashConstants.TIME_BETWEEN_CHUNKS);
+};
+
+/**
+ * Generates a random string of max length 6
+ *
+ * @return {String} the randomly generated string
+ * @function generateRandomString
+ * @private
+ */
+const generateRandomString = function() {
+  return (Math.random().toString(36)).slice(2, 8);
 };
 
 /**
@@ -77,18 +90,46 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.updating = false;
     this.timestampOffset_ = 0;
 
-    // TS to FLV transmuxer
-    this.segmentParser_ = new flv.Transmuxer();
-    this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
     encodedHeader = window.btoa(
       String.fromCharCode.apply(
         null,
         Array.prototype.slice.call(
-          this.segmentParser_.getFlvHeader()
+          flv.getFlvHeader()
         )
       )
     );
-    this.mediaSource_.swfObj.vjs_appendBuffer(encodedHeader);
+
+    // create function names with added randomness for the global callbacks flash will use
+    // to get data from javascript into the swf. Random strings are added as a safety
+    // measure for pages with multiple players since these functions will be global
+    // instead of per instance. When making a call to the swf, the browser generates a
+    // try catch code snippet, but just takes the function name and writes out an unquoted
+    // call to that function. If the player id has any special characters, this will result
+    // in an error, so safePlayerId replaces all special characters to '_'
+    const safePlayerId = this.mediaSource_.player_.id().replace(/[^a-zA-Z0-9]/g, '_');
+
+    this.flashEncodedHeaderName_ = 'vjs_flashEncodedHeader_' +
+                                   safePlayerId +
+                                   generateRandomString();
+    this.flashEncodedDataName_ = 'vjs_flashEncodedData_' +
+                                   safePlayerId +
+                                   generateRandomString();
+
+    window[this.flashEncodedHeaderName_] = () => {
+      delete window[this.flashEncodedHeaderName_];
+      return encodedHeader;
+    };
+
+    this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
+
+    // TS to FLV transmuxer
+    this.transmuxer_ = work(transmuxWorker);
+    this.transmuxer_.postMessage({ action: 'init', options: {} });
+    this.transmuxer_.onmessage = (event) => {
+      if (event.data.action === 'data') {
+        this.receiveBuffer_(event.data.segment);
+      }
+    };
 
     this.one('updateend', () => {
       this.mediaSource_.tech_.trigger('loadedmetadata');
@@ -101,13 +142,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       set(val) {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
-          this.segmentParser_ = new flv.Transmuxer();
-          this.segmentParser_.on('data', this.receiveBuffer_.bind(this));
           // We have to tell flash to expect a discontinuity
           this.mediaSource_.swfObj.vjs_discontinuity();
           // the media <-> PTS mapping must be re-established after
           // the discontinuity
           this.basePtsOffset_ = NaN;
+
+          this.transmuxer_.postMessage({ action: 'reset' });
         }
       }
     });
@@ -136,6 +177,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       removeCuesFromTrack(0, Infinity, this.metadataTrack_);
       removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
     });
+
+    this.mediaSource_.player_.tech_.hls.on('dispose', () => {
+      this.transmuxer_.terminate();
+    });
   }
 
   /**
@@ -147,8 +192,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    */
   appendBuffer(bytes) {
     let error;
-    let chunk = 512 * 1024;
-    let i = 0;
 
     if (this.updating) {
       error = new Error('SourceBuffer.append() cannot be called ' +
@@ -157,23 +200,17 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       error.code = 11;
       throw error;
     }
-
     this.updating = true;
     this.mediaSource_.readyState = 'open';
     this.trigger({ type: 'update' });
 
-    // this is here to use recursion
-    let chunkInData = () => {
-      this.segmentParser_.push(bytes.subarray(i, i + chunk));
-      i += chunk;
-      if (i < bytes.byteLength) {
-        scheduleTick(chunkInData);
-      } else {
-        scheduleTick(this.segmentParser_.flush.bind(this.segmentParser_));
-      }
-    };
-
-    chunkInData();
+    this.transmuxer_.postMessage({
+      action: 'push',
+      data: bytes.buffer,
+      byteOffset: bytes.byteOffset,
+      byteLength: bytes.byteLength
+    }, [bytes.buffer]);
+    this.transmuxer_.postMessage({action: 'flush'});
   }
 
   /**
@@ -266,30 +303,24 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.bufferSize_ -= chunk.byteLength;
 
     // base64 encode the bytes
-    let binary = '';
+    let binary = [];
     let length = chunk.byteLength;
 
     for (let i = 0; i < length; i++) {
-      binary += String.fromCharCode(chunk[i]);
+      binary.push(String.fromCharCode(chunk[i]));
     }
-    let b64str = window.btoa(binary);
+    let b64str = window.btoa(binary.join(''));
 
-    // bypass normal ExternalInterface calls and pass xml directly
-    // IE can be slow by default
-    this.mediaSource_.swfObj.CallFunction(
-      '<invoke name="vjs_appendBuffer"' +
-      'returntype="javascript"><arguments><string>' +
-      b64str +
-      '</string></arguments></invoke>');
-
-    // schedule another append if necessary
-    if (this.bufferSize_ !== 0) {
+    window[this.flashEncodedDataName_] = () => {
+      // schedule another processBuffer to process any left over data or to
+      // trigger updateend
       scheduleTick(this.processBuffer_.bind(this));
-    } else {
-      this.updating = false;
-      this.trigger({ type: 'updateend' });
+      delete window[this.flashEncodedDataName_];
+      return b64str;
+    };
 
-    }
+    // Notify the swf that segment data is ready to be appended
+    this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedDataName_);
   }
 
   /**
@@ -431,7 +462,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
         tag = videoTags.shift();
       }
 
-      tags.push(tag.finalize());
+      tags.push(tag);
     }
 
     return tags;
