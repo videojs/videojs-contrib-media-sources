@@ -4,6 +4,7 @@ module.exports = function(config) {
     usePhantomJS: false,
     postDetection: function(availableBrowsers) {
       var safariIndex = availableBrowsers.indexOf('Safari');
+
       if(safariIndex !== -1) {
         availableBrowsers.splice(safariIndex, 1);
         console.log("Disabled Safari as it was/is not supported");
@@ -32,6 +33,7 @@ module.exports = function(config) {
       'node_modules/sinon/pkg/sinon-ie.js',
       'node_modules/video.js/dist/video.js',
       'node_modules/video.js/dist/video-js.css',
+      'node_modules/videojs-flash/dist/videojs-flash.js',
       'test/**/*.js',
       'dist-test/browserify-test.js',
       'dist-test/webpack-test.js'
