@@ -172,10 +172,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       removeCuesFromTrack(0, Infinity, this.metadataTrack_);
       removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
     });
-
-    this.mediaSource_.player_.tech_.hls.on('dispose', () => {
-      this.transmuxer_.terminate();
-    });
   }
 
   /**
@@ -379,15 +375,14 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     const getKeyFrameIndex = (tag, index) => {
       if (tag.metaDataTag) {
         return index + 2;
-      } else {
-        return index;
       }
+      return index;
     };
 
     // verifies the given index is valid index and points to a key frame
     const verifyKeyFrameIndex = (tags, index) => {
       return (tags[index] && tags[index].keyFrame);
-    }
+    };
 
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
     let startIndex = 0;
