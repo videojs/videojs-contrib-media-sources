@@ -343,8 +343,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let videoTags = segmentData.tags.videoTags;
     let audioTags = segmentData.tags.audioTags;
 
-    console.log('*** CONVERT TAGS TO DATA ***');
-
     // Establish the media timeline to PTS translation if we don't
     // have one already
     if (isNaN(this.basePtsOffset_) && (videoTags.length || audioTags.length)) {
@@ -357,14 +355,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       this.basePtsOffset_ = Math.min(firstAudioTag.pts, firstVideoTag.pts);
     }
 
-    console.log('>> BASEPTS OFFSET', this.basePtsOffset_);
-    console.log('>> TIMESTAMP OFFSET', this.timestampOffset);
-    console.log('>> CURRENT TIME', tech.currentTime());
-    console.log('>> SEEKING', tech.seeking());
-
     if (tech.buffered().length) {
       targetPts = tech.buffered().end(0) - this.timestampOffset;
-      console.log('>> BUFFERED END', tech.buffered().end(0));
     }
 
     // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
@@ -376,19 +368,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts *= 1e3;
     targetPts += this.basePtsOffset_;
 
-    console.log('>> TARGET PTS', targetPts);
-
     // skip tags with a presentation time less than the seek target/end of buffer
     for (let i = 0; i < audioTags.length; i++) {
       if (audioTags[i].pts >= targetPts) {
         filteredAudioTags.push(audioTags[i]);
       }
     }
-
-    if (audioTags.length) {
-      console.log('>> Audio PTS', audioTags[0].pts, '-->', audioTags[audioTags.length - 1].pts);
-    }
-    console.log('>> FILTERED', audioTags.length - filteredAudioTags.length, 'AUDIO TAGS OF', audioTags.length);
 
     // gets the index of the key frame based on whether the tag is a metadata tag or not
     const getKeyFrameIndex = (tag, index) => {
@@ -459,12 +444,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       }
       startIndex++;
     }
-
-    if (videoTags.length) {
-      console.log('>> VIDEO PTS', videoTags[0].pts, '-->', videoTags[videoTags.length - 1].pts);
-    }
-    console.log('>> FILTERED', videoTags.length - filteredVideoTags.length, 'VIDEO TAGS OF', videoTags.length);
-
 
     let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
 
