@@ -7,8 +7,6 @@ import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import {addTextTrackData} from './add-text-track-data';
-import transmuxWorker from './flash-transmuxer-worker';
-import work from 'webworkify';
 import FlashConstants from './flash-constants';
 
 /**
@@ -123,13 +121,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
 
     // TS to FLV transmuxer
-    this.transmuxer_ = work(transmuxWorker);
-    this.transmuxer_.postMessage({ action: 'init', options: {} });
-    this.transmuxer_.onmessage = (event) => {
-      if (event.data.action === 'data') {
-        this.receiveBuffer_(event.data.segment);
-      }
-    };
+    this.transmuxer_ = new flv.Transmuxer();
+    this.transmuxer_.on('data', this.receiveBuffer_.bind(this));
 
     this.one('updateend', () => {
       this.mediaSource_.tech_.trigger('loadedmetadata');
@@ -142,13 +135,15 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       set(val) {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
+
+          this.transmuxer_ = new flv.Transmuxer();
+          this.transmuxer_.on('data', this.receiveBuffer_.bind(this));
+
           // We have to tell flash to expect a discontinuity
           this.mediaSource_.swfObj.vjs_discontinuity();
           // the media <-> PTS mapping must be re-established after
           // the discontinuity
           this.basePtsOffset_ = NaN;
-
-          this.transmuxer_.postMessage({ action: 'reset' });
         }
       }
     });
@@ -204,13 +199,19 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.mediaSource_.readyState = 'open';
     this.trigger({ type: 'update' });
 
-    this.transmuxer_.postMessage({
-      action: 'push',
-      data: bytes.buffer,
-      byteOffset: bytes.byteOffset,
-      byteLength: bytes.byteLength
-    }, [bytes.buffer]);
-    this.transmuxer_.postMessage({action: 'flush'});
+    let chunk = 512 * 1024;
+    let i = 0;
+    let chunkInData = () => {
+      this.transmuxer_.push(bytes.subarray(i, i + chunk));
+      i += chunk;
+      if (i < bytes.byteLength) {
+        scheduleTick(chunkInData);
+      } else {
+        scheduleTick(this.transmuxer_.flush.bind(this.transmuxer_));
+      }
+    };
+
+    chunkInData();
   }
 
   /**
@@ -342,6 +343,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let videoTags = segmentData.tags.videoTags;
     let audioTags = segmentData.tags.audioTags;
 
+    console.log('*** CONVERT TAGS TO DATA ***');
+
     // Establish the media timeline to PTS translation if we don't
     // have one already
     if (isNaN(this.basePtsOffset_) && (videoTags.length || audioTags.length)) {
@@ -354,8 +357,14 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       this.basePtsOffset_ = Math.min(firstAudioTag.pts, firstVideoTag.pts);
     }
 
+    console.log('>> BASEPTS OFFSET', this.basePtsOffset_);
+    console.log('>> TIMESTAMP OFFSET', this.timestampOffset);
+    console.log('>> CURRENT TIME', tech.currentTime());
+    console.log('>> SEEKING', tech.seeking());
+
     if (tech.buffered().length) {
       targetPts = tech.buffered().end(0) - this.timestampOffset;
+      console.log('>> BUFFERED END', tech.buffered().end(0));
     }
 
     // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
@@ -367,11 +376,32 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts *= 1e3;
     targetPts += this.basePtsOffset_;
 
+    console.log('>> TARGET PTS', targetPts);
+
     // skip tags with a presentation time less than the seek target/end of buffer
     for (let i = 0; i < audioTags.length; i++) {
       if (audioTags[i].pts >= targetPts) {
         filteredAudioTags.push(audioTags[i]);
       }
+    }
+
+    if (audioTags.length) {
+      console.log('>> Audio PTS', audioTags[0].pts, '-->', audioTags[audioTags.length - 1].pts);
+    }
+    console.log('>> FILTERED', audioTags.length - filteredAudioTags.length, 'AUDIO TAGS OF', audioTags.length);
+
+    // gets the index of the key frame based on whether the tag is a metadata tag or not
+    const getKeyFrameIndex = (tag, index) => {
+      if (tag.metaDataTag) {
+        return index + 2;
+      } else {
+        return index;
+      }
+    };
+
+    // verifies the given index is valid index and points to a key frame
+    const verifyKeyFrameIndex = (tags, index) => {
+      return (tags[index] && tags[index].keyFrame);
     }
 
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
@@ -382,8 +412,15 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
       if (startTag.pts >= targetPts) {
         filteredVideoTags.push(startTag);
-      } else if (startTag.keyFrame) {
-        let nextIndex = startIndex + 1;
+      } else if (startTag.metaDataTag || startTag.keyFrame) {
+        let keyFrameIndex = getKeyFrameIndex(startTag, startIndex);
+
+        if (!verifyKeyFrameIndex(videoTags, keyFrameIndex)) {
+          startIndex++;
+          continue;
+        }
+
+        let nextIndex = keyFrameIndex + 1;
         let foundNextKeyFrame = false;
 
         while (nextIndex < videoTags.length) {
@@ -391,7 +428,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
           if (nextTag.pts >= targetPts) {
             break;
-          } else if (nextTag.keyFrame) {
+          } else if (nextTag.metaDataTag || nextTag.keyFrame) {
+            let nextKeyFrameIndex = getKeyFrameIndex(nextTag, nextIndex);
+
+            if (!verifyKeyFrameIndex(videoTags, nextKeyFrameIndex)) {
+              break;
+            }
+
             foundNextKeyFrame = true;
             break;
           } else {
@@ -416,6 +459,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       }
       startIndex++;
     }
+
+    if (videoTags.length) {
+      console.log('>> VIDEO PTS', videoTags[0].pts, '-->', videoTags[videoTags.length - 1].pts);
+    }
+    console.log('>> FILTERED', videoTags.length - filteredVideoTags.length, 'VIDEO TAGS OF', videoTags.length);
+
 
     let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
 
