@@ -379,7 +379,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       return index;
     };
 
-    // verifies the given index is valid index and points to a key frame
+    // verifies the given index is valid and points to a key frame
     const verifyKeyFrameIndex = (tags, index) => {
       return (tags[index] && tags[index].keyFrame);
     };
@@ -411,11 +411,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
           } else if (nextTag.metaDataTag || nextTag.keyFrame) {
             let nextKeyFrameIndex = getKeyFrameIndex(nextTag, nextIndex);
 
-            if (!verifyKeyFrameIndex(videoTags, nextKeyFrameIndex)) {
-              break;
-            }
-
-            foundNextKeyFrame = true;
+            foundNextKeyFrame = verifyKeyFrameIndex(videoTags, nextKeyFrameIndex);
             break;
           } else {
             nextIndex++;
