@@ -699,6 +699,18 @@ QUnit.test('calculates the base PTS for the media', function() {
   QUnit.deepEqual(this.swfCalls[0].arguments[0], [15], 'dropped the early tag');
 });
 
+QUnit.test('flushes the transmuxer after each append', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let flushes = 0;
+
+  sourceBuffer.transmuxer_.flush = function() {
+    flushes++;
+  };
+  sourceBuffer.appendBuffer(new Uint8Array([0, 1]));
+  timers.pop()();
+  QUnit.equal(flushes, 1, 'flushed the transmuxer');
+});
+
 QUnit.test('remove fires update events', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
   let events = [];
