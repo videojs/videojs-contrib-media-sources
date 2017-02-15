@@ -53,6 +53,41 @@ const toDecimalPlaces = function(num, places) {
 };
 
 /**
+ * Gets the index of the key frame based on whether the tag is a metadata tag or not
+ *
+ * @param {Object} tag
+ *        simple tag object
+ * @param {Number} index
+ *        index of the tag within it's list
+ * @return {Number}
+ *         the index of where the key frame should be in relation to the tag
+ * @function getKeyFrameIndex
+ * @private
+ */
+const getKeyFrameIndex = function(tag, index) {
+  if (tag.metaDataTag) {
+    return index + 2;
+  }
+  return index;
+};
+
+/**
+ * Verifies the given index is valid and points to a key frame
+ *
+ * @param {Array} tags
+ *        List of tags
+ * @param {Number} index
+ *        Position to check for key frame
+ * @return {Boolean}
+ *         True if the tag at position index is a key frame, false otherwise
+ * @function verifyKeyFrameIndex
+ * @private
+ */
+const verifyKeyFrameIndex = function(tags, index) {
+  return (tags[index] && tags[index].keyFrame);
+};
+
+/**
  * A SourceBuffer implementation for Flash rather than HTML.
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
@@ -364,19 +399,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts *= 1e3;
     targetPts += this.basePtsOffset_;
 
-    // gets the index of the key frame based on whether the tag is a metadata tag or not
-    const getKeyFrameIndex = (tag, index) => {
-      if (tag.metaDataTag) {
-        return index + 2;
-      }
-      return index;
-    };
-
-    // verifies the given index is valid and points to a key frame
-    const verifyKeyFrameIndex = (tags, index) => {
-      return (tags[index] && tags[index].keyFrame);
-    };
-
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
     let startIndex = 0;
 
@@ -460,16 +482,16 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     // the swf to adjust its notion of current time to account for the extra tags
     // we are appending to complete the GOP that intersects with targetPts
     if (tags[0].pts < targetPts && tech.seeking()) {
-      let currentTime = tech.currentTime();
-      let diff = (targetPts - tags[0].pts) / 1e3;
-      let adjustment = currentTime - diff;
-      let fudgeFactor = 1 / 30;
+      const fudgeFactor = 1 / 30;
+      const currentTime = tech.currentTime();
+      const diff = (targetPts - tags[0].pts) / 1e3;
+      let adjustedTime = currentTime - diff;
 
-      if (adjustment < fudgeFactor) {
-        adjustment = 0;
+      if (adjustedTime < fudgeFactor) {
+        adjustedTime = 0;
       }
 
-      this.mediaSource_.swfObj.vjs_adjustCurrentTime(adjustment);
+      this.mediaSource_.swfObj.vjs_adjustCurrentTime(adjustedTime);
     }
 
     // concatenate the bytes into a single segment
