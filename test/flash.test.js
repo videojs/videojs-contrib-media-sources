@@ -205,6 +205,9 @@ QUnit.module('Flash MediaSource', {
         }
       }, 1);
     };
+    swfObj.vjs_adjustCurrentTime = (value) => {
+      this.swfCalls.push({ call: 'adjustCurrentTime', value });
+    };
     /* eslint-enable camelcase */
 
     this.mediaSource.trigger({
@@ -431,10 +434,180 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
   // since frame 6 is a key frame, it should still be appended to preserve the entire gop
   // so we should have appeneded frames 6 - 9
   // frames 100-106 for audio have pts values less than 17 seconds
-  // so we should have appended frames 107-109
+  // but since we appended an extra video frame, we should also append audio frames
+  // to fill in the gap in audio. This means we should be appending audio frames
+  // 106, 107, 108, 109
   // Append order is 6, 7, 107, 8, 108, 9, 109 since we order tags based on dts value
-  QUnit.deepEqual(this.swfCalls[0].arguments[0], [6, 7, 107, 8, 108, 9, 109],
+  QUnit.deepEqual(this.swfCalls[0].arguments[0], [6, 106, 7, 107, 8, 108, 9, 109],
             'audio and video tags properly dropped');
+});
+
+QUnit.test('seeking into the middle of a GOP adjusts currentTime to the start of the GOP', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let i = 10;
+  let currentTime;
+  let tags_ = [];
+
+  this.mediaSource.tech_.currentTime = function() {
+    return currentTime;
+  };
+
+  // push a tag into the buffer to establish the starting PTS value
+  currentTime = 0;
+
+  let dataMessage = createDataMessage([{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }]);
+
+  sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
+
+  timers.runAll();
+
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  timers.runAll();
+
+  // mock out a new segment of FLV tags, starting 10s after the
+  // starting PTS value
+  while (i--) {
+    tags_.unshift(
+      {
+        pts: (i * 1000) + (29 * 1000),
+        bytes: new Uint8Array([i])
+      }
+    );
+  }
+
+  dataMessage = createDataMessage(tags_);
+
+  // mock the GOP structure
+  dataMessage.data.segment.tags.videoTags[0].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[3].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[5].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[8].keyFrame = true;
+
+  sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
+
+  // seek to 7 seconds into the new swegment
+  this.mediaSource.tech_.seeking = function() {
+    return true;
+  };
+  currentTime = 10 + 7;
+  this.mediaSource.tech_.trigger('seeking');
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  this.swfCalls.length = 0;
+  timers.runAll();
+
+  QUnit.deepEqual(this.swfCalls[0], { call: 'adjustCurrentTime', value: 15 });
+  QUnit.deepEqual(this.swfCalls[1].arguments[0], [5, 6, 7, 8, 9],
+            '5 tags are appended');
+});
+
+QUnit.test('GOP trimming accounts for metadata tags prepended to key frames by mux.js', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let i = 10;
+  let currentTime;
+  let tags_ = [];
+
+  this.mediaSource.tech_.currentTime = function() {
+    return currentTime;
+  };
+
+  // push a tag into the buffer to establish the starting PTS value
+  currentTime = 0;
+
+  let dataMessage = createDataMessage([{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }]);
+
+  sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
+
+  timers.runAll();
+
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  timers.runAll();
+
+  // mock out a new segment of FLV tags, starting 10s after the
+  // starting PTS value
+  while (i--) {
+    tags_.unshift(
+      {
+        pts: (i * 1000) + (29 * 1000),
+        bytes: new Uint8Array([i])
+      }
+    );
+  }
+
+  // add in the metadata tags
+  tags_.splice(8, 0, {
+    pts: tags_[8].pts,
+    bytes: new Uint8Array([8])
+  }, {
+    pts: tags_[8].pts,
+    bytes: new Uint8Array([8])
+  });
+
+  tags_.splice(5, 0, {
+    pts: tags_[5].pts,
+    bytes: new Uint8Array([5])
+  }, {
+    pts: tags_[5].pts,
+    bytes: new Uint8Array([5])
+  });
+
+  tags_.splice(0, 0, {
+    pts: tags_[0].pts,
+    bytes: new Uint8Array([0])
+  }, {
+    pts: tags_[0].pts,
+    bytes: new Uint8Array([0])
+  });
+
+
+  dataMessage = createDataMessage(tags_);
+
+  // mock the GOP structure + metadata tags
+  // if we see a metadata tag, that means the next tag will also be a metadata tag with
+  // keyFrame true and the tag after that will be the keyFrame
+  // e.g.
+  // { keyFrame: false, metaDataTag: true},
+  // { keyFrame: true, metaDataTag: true},
+  // { keyFrame: true, metaDataTag: false}
+  dataMessage.data.segment.tags.videoTags[0].metaDataTag = true;
+  dataMessage.data.segment.tags.videoTags[1].metaDataTag = true;
+  dataMessage.data.segment.tags.videoTags[1].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[2].keyFrame = true;
+
+  // no metadata tags in front of this key to test the case where mux.js does not prepend
+  // the metadata tags
+  dataMessage.data.segment.tags.videoTags[5].keyFrame = true;
+
+  dataMessage.data.segment.tags.videoTags[7].metaDataTag = true;
+  dataMessage.data.segment.tags.videoTags[8].metaDataTag = true;
+  dataMessage.data.segment.tags.videoTags[8].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[9].keyFrame = true;
+
+  dataMessage.data.segment.tags.videoTags[12].metaDataTag = true;
+  dataMessage.data.segment.tags.videoTags[13].metaDataTag = true;
+  dataMessage.data.segment.tags.videoTags[13].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[14].keyFrame = true;
+
+  sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
+
+  // seek to 7 seconds into the new swegment
+  this.mediaSource.tech_.seeking = function() {
+    return true;
+  };
+  currentTime = 10 + 7;
+  this.mediaSource.tech_.trigger('seeking');
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  this.swfCalls.length = 0;
+  timers.runAll();
+
+  QUnit.deepEqual(this.swfCalls[0], { call: 'adjustCurrentTime', value: 15 });
+  QUnit.deepEqual(this.swfCalls[1].arguments[0], [5, 5, 5, 6, 7, 8, 8, 8, 9],
+            '10 tags are appended, 4 of which are metadata tags');
 });
 
 QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
