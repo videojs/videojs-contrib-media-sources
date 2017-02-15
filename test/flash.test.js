@@ -106,12 +106,6 @@ const MockSegmentParser = function() {
       });
     }
   };
-<<<<<<< HEAD
-  this.getFlvHeader = function() {
-    return new Uint8Array([1, 2, 3]);
-  };
-=======
->>>>>>> fix tests
 
   this.push = function(data) {
     datas.push(data);
@@ -354,11 +348,8 @@ QUnit.test('drops tags before currentTime when seeking', function() {
   }
 
   dataMessage = createDataMessage(tags_);
-<<<<<<< HEAD
   // mock gop start at seek point
   dataMessage.data.segment.tags.videoTags[7].keyFrame = true;
-=======
->>>>>>> fix tests
 
   sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
 
@@ -466,10 +457,6 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
   // push a tag into the buffer to establish the starting PTS value
   currentTime = 0;
   sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
-<<<<<<< HEAD
-
-=======
->>>>>>> fix tests
   timers.runAll();
 
   // to seek across a discontinuity:
@@ -492,11 +479,8 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
   }
 
   dataMessage = createDataMessage(tags_);
-<<<<<<< HEAD
   // mock gop start at seek point
   dataMessage.data.segment.tags.videoTags[3].keyFrame = true;
-=======
->>>>>>> fix tests
 
   sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
 
@@ -608,10 +592,6 @@ QUnit.test('does not use requestAnimationFrame', function() {
   };
 
   sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-<<<<<<< HEAD
-=======
-
->>>>>>> fix tests
   sourceBuffer.appendBuffer(new Uint8Array([0, 1, 2, 3]));
   while (timers.length) {
     timers.pop()();
@@ -710,12 +690,8 @@ QUnit.test('calculates the base PTS for the media', function() {
 
   let dataMessage = createDataMessage(tags_);
 
-<<<<<<< HEAD
   // mock gop start at seek point
   dataMessage.data.segment.tags.videoTags[1].keyFrame = true;
-
-=======
->>>>>>> fix tests
   sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
 
   // let the source buffer know the segment start time

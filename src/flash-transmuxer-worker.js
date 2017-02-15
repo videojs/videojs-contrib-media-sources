@@ -1,19 +1,8 @@
 /**
- * @file transmuxer-worker.js
- */
-
-/**
- * videojs-contrib-media-sources
- *
- * Copyright (c) 2015 Brightcove
- * All rights reserved.
- *
- * Handles communication between the browser-world and the mux.js
- * transmuxer running inside of a WebWorker by exposing a simple
- * message-based interface to a Transmuxer object.
+ * @file flash-transmuxer-worker.js
  */
 import window from 'global/window';
-import mp4 from 'mux.js/lib/mp4';
+import flv from 'mux.js/lib/flv';
 
 /**
  * Re-emits transmuxer events by converting them into messages to the
@@ -24,37 +13,11 @@ import mp4 from 'mux.js/lib/mp4';
  */
 const wireTransmuxerEvents = function(transmuxer) {
   transmuxer.on('data', function(segment) {
-    // transfer ownership of the underlying ArrayBuffer
-    // instead of doing a copy to save memory
-    // ArrayBuffers are transferable but generic TypedArrays are not
-    // @link https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers#Passing_data_by_transferring_ownership_(transferable_objects)
-    let initArray = segment.initSegment;
-
-    segment.initSegment = {
-      data: initArray.buffer,
-      byteOffset: initArray.byteOffset,
-      byteLength: initArray.byteLength
-    };
-
-    let typedArray = segment.data;
-
-    segment.data = typedArray.buffer;
     window.postMessage({
       action: 'data',
-      segment,
-      byteOffset: typedArray.byteOffset,
-      byteLength: typedArray.byteLength
-    }, [segment.data]);
-  });
-
-  if (transmuxer.captionStream) {
-    transmuxer.captionStream.on('data', function(caption) {
-      window.postMessage({
-        action: 'caption',
-        data: caption
-      });
+      segment
     });
-  }
+  });
 
   transmuxer.on('done', function(data) {
     window.postMessage({ action: 'done' });
@@ -81,7 +44,7 @@ class MessageHandlers {
     if (this.transmuxer) {
       this.transmuxer.dispose();
     }
-    this.transmuxer = new mp4.Transmuxer(this.options);
+    this.transmuxer = new flv.Transmuxer(this.options);
     wireTransmuxerEvents(this.transmuxer);
   }
 
@@ -107,41 +70,22 @@ class MessageHandlers {
   }
 
   /**
-   * Set the value that will be used as the `baseMediaDecodeTime` time for the
-   * next segment pushed in. Subsequent segments will have their `baseMediaDecodeTime`
-   * set relative to the first based on the PTS values.
-   *
-   * @param {Object} data used to set the timestamp offset in the muxer
-   */
-  setTimestampOffset(data) {
-    let timestampOffset = data.timestampOffset || 0;
-
-    this.transmuxer.setBaseMediaDecodeTime(Math.round(timestampOffset * 90000));
-  }
-
-  setAudioAppendStart(data) {
-    this.transmuxer.setAudioAppendStart(Math.ceil(data.appendStart * 90000));
-  }
-
-  /**
-   * Forces the pipeline to finish processing the last segment and emit it's
+   * Forces the pipeline to finish processing the last segment and emit its
    * results.
-   *
-   * @param {Object} data event data, not really used
    */
-  flush(data) {
+  flush() {
     this.transmuxer.flush();
   }
 }
 
 /**
  * Our web wroker interface so that things can talk to mux.js
- * that will be running in a web worker. the scope is passed to this by
+ * that will be running in a web worker. The scope is passed to this by
  * webworkify.
  *
  * @param {Object} self the scope for the web worker
  */
-const TransmuxerWorker = function(self) {
+const FlashTransmuxerWorker = function(self) {
   self.onmessage = function(event) {
     if (event.data.action === 'init' && event.data.options) {
       this.messageHandlers = new MessageHandlers(event.data.options);
@@ -161,5 +105,5 @@ const TransmuxerWorker = function(self) {
 };
 
 export default (self) => {
-  return new TransmuxerWorker(self);
+  return new FlashTransmuxerWorker(self);
 };

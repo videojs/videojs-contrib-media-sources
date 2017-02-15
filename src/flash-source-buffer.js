@@ -364,13 +364,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts *= 1e3;
     targetPts += this.basePtsOffset_;
 
-    // skip tags with a presentation time less than the seek target/end of buffer
-    for (let i = 0; i < audioTags.length; i++) {
-      if (audioTags[i].pts >= targetPts) {
-        filteredAudioTags.push(audioTags[i]);
-      }
-    }
-
     // gets the index of the key frame based on whether the tag is a metadata tag or not
     const getKeyFrameIndex = (tag, index) => {
       if (tag.metaDataTag) {
@@ -422,24 +415,61 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
           // we found another key frame before the targetPts. This means it is safe
           // to drop this entire GOP
           startIndex = nextIndex;
-        } else {
-          // we reached the target pts or the end of the tag list before finding the
-          // next key frame. We want to append all the tags from the current key frame
-          // startTag to the targetPts to prevent trimming part of a GOP
+        } else if (nextIndex < videoTags.length) {
+          // we reached the target pts before finding the next key frame. We want to
+          // append all the tags from the current key frame startTag to the targetPts
+          // to prevent trimming part of a GOP
           while (startIndex < nextIndex) {
             filteredVideoTags.push(videoTags[startIndex]);
             startIndex++;
           }
+        } else {
+          // we reached the end of the segment before finding the next key frame, leave
+          // the loop without appending any tags as targetPts is outside the range of
+          // this segment
+          break;
         }
         continue;
       }
       startIndex++;
     }
 
+    let audioTargetPts = targetPts;
+
+    if (filteredVideoTags.length) {
+      // If targetPts intersects a GOP and we appended the tags for the GOP that came
+      // before targetPts, we want to make sure to trim audio tags at the pts
+      // of the first video tag to avoid brief moments of silence
+      audioTargetPts = Math.min(targetPts, filteredVideoTags[0].pts);
+    }
+
+    // skip tags with a presentation time less than the seek target/end of buffer
+    for (let i = 0; i < audioTags.length; i++) {
+      if (audioTags[i].pts >= audioTargetPts) {
+        filteredAudioTags.push(audioTags[i]);
+      }
+    }
+
     let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
 
     if (tags.length === 0) {
       return;
+    }
+
+    // If we are appending data that comes before our target pts, we want to tell
+    // the swf to adjust its notion of current time to account for the extra tags
+    // we are appending to complete the GOP that intersects with targetPts
+    if (tags[0].pts < targetPts && tech.seeking()) {
+      let currentTime = tech.currentTime();
+      let diff = (targetPts - tags[0].pts) / 1e3;
+      let adjustment = currentTime - diff;
+      let fudgeFactor = 1 / 30;
+
+      if (adjustment < fudgeFactor) {
+        adjustment = 0;
+      }
+
+      this.mediaSource_.swfObj.vjs_adjustCurrentTime(adjustment);
     }
 
     // concatenate the bytes into a single segment
