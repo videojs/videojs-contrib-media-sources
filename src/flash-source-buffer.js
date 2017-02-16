@@ -123,14 +123,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     // TS to FLV transmuxer
     this.transmuxer_ = new flv.Transmuxer();
     this.transmuxer_.on('data', this.receiveBuffer_.bind(this));
-    encodedHeader = window.btoa(
-      String.fromCharCode.apply(
-        null,
-        Array.prototype.slice.call(
-          flv.getFlvHeader()
-        )
-      )
-    );
 
     this.one('updateend', () => {
       this.mediaSource_.tech_.trigger('loadedmetadata');
@@ -342,8 +334,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let tech = this.mediaSource_.tech_;
     let targetPts = 0;
     let segment;
-    let filteredAudioTags = [];
-    let filteredVideoTags = [];
     let videoTags = segmentData.tags.videoTags;
     let audioTags = segmentData.tags.audioTags;
 
@@ -363,7 +353,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       targetPts = tech.buffered().end(0) - this.timestampOffset;
     }
 
-    // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
+    // Trim to currentTime if seeking
     if (tech.seeking()) {
       targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
     }
@@ -372,60 +362,95 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts *= 1e3;
     targetPts += this.basePtsOffset_;
 
-    // skip tags with a presentation time less than the seek target/end of buffer
-    for (let i = 0; i < audioTags.length; i++) {
-      if (audioTags[i].pts >= targetPts) {
-        filteredAudioTags.push(audioTags[i]);
-      }
-    }
-
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
-    let startIndex = 0;
+    let currentIndex = videoTags.length;
 
-    while (startIndex < videoTags.length) {
-      let startTag = videoTags[startIndex];
+    // if the last tag is beyond targetPts, then do not search the list for a GOP
+    // since our targetPts lies in a future segment
+    if (currentIndex && videoTags[currentIndex - 1].pts >= targetPts) {
+      // Start by walking backwards from the end of the list until we reach a tag that
+      // is equal to or less than targetPts
+      while (--currentIndex) {
+        const currentTag = videoTags[currentIndex];
 
-      if (startTag.pts >= targetPts) {
-        filteredVideoTags.push(startTag);
-      } else if (startTag.keyFrame) {
-        let nextIndex = startIndex + 1;
-        let foundNextKeyFrame = false;
-
-        while (nextIndex < videoTags.length) {
-          let nextTag = videoTags[nextIndex];
-
-          if (nextTag.pts >= targetPts) {
-            break;
-          } else if (nextTag.keyFrame) {
-            foundNextKeyFrame = true;
-            break;
-          } else {
-            nextIndex++;
-          }
+        if (currentTag.pts > targetPts) {
+          continue;
         }
 
-        if (foundNextKeyFrame) {
-          // we found another key frame before the targetPts. This means it is safe
-          // to drop this entire GOP
-          startIndex = nextIndex;
-        } else {
-          // we reached the target pts or the end of the tag list before finding the
-          // next key frame. We want to append all the tags from the current key frame
-          // startTag to the targetPts to prevent trimming part of a GOP
-          while (startIndex < nextIndex) {
-            filteredVideoTags.push(videoTags[startIndex]);
-            startIndex++;
-          }
+        // if we see a keyFrame or metadata tag once we've gone below targetPts,
+        // exit the loop as this is the start of the GOP that we want to append
+        if (currentTag.keyFrame || currentTag.metaDataTag) {
+          break;
         }
-        continue;
       }
-      startIndex++;
+
+      // We need to check if there are any metadata tags that come before currentIndex
+      // as those will be metadata tags associated with the GOP we are appending
+      // There could be 0 to 2 metadata tags that come before the currentIndex depending
+      // on what targetPts is and whether the transmuxer prepended metadata tags to this
+      // key frame
+      while (currentIndex) {
+        const nextTag = videoTags[currentIndex - 1];
+
+        if (!nextTag.metaDataTag) {
+          break;
+        }
+
+        currentIndex--;
+      }
     }
+
+    const filteredVideoTags = videoTags.slice(currentIndex);
+
+    let audioTargetPts = targetPts;
+
+    if (filteredVideoTags.length) {
+      // If targetPts intersects a GOP and we appended the tags for the GOP that came
+      // before targetPts, we want to make sure to trim audio tags at the pts
+      // of the first video tag to avoid brief moments of silence
+      audioTargetPts = Math.min(targetPts, filteredVideoTags[0].pts);
+    }
+
+    // skip tags with a presentation time less than the seek target/end of buffer
+    currentIndex = 0;
+
+    while (currentIndex < audioTags.length) {
+      if (audioTags[currentIndex].pts >= audioTargetPts) {
+        break;
+      }
+
+      currentIndex++;
+    }
+
+    const filteredAudioTags = audioTags.slice(currentIndex);
 
     let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
 
     if (tags.length === 0) {
       return;
+    }
+
+    // If we are appending data that comes before our target pts, we want to tell
+    // the swf to adjust its notion of current time to account for the extra tags
+    // we are appending to complete the GOP that intersects with targetPts
+    if (tags[0].pts < targetPts && tech.seeking()) {
+      const fudgeFactor = 1 / 30;
+      const currentTime = tech.currentTime();
+      const diff = (targetPts - tags[0].pts) / 1e3;
+      let adjustedTime = currentTime - diff;
+
+      if (adjustedTime < fudgeFactor) {
+        adjustedTime = 0;
+      }
+
+      try {
+        this.mediaSource_.swfObj.vjs_adjustCurrentTime(adjustedTime);
+      } catch (e) {
+        // no-op for backwards compatability of swf. If adjustCurrentTime fails,
+        // the swf may incorrectly report currentTime and buffered ranges
+        // but should not affect playback over than the time displayed on the
+        // progress bar is inaccurate
+      }
     }
 
     // concatenate the bytes into a single segment
