@@ -85,7 +85,7 @@ class MessageHandlers {
  *
  * @param {Object} self the scope for the web worker
  */
-const Worker = function(self) {
+const FlashTransmuxerWorker = function(self) {
   self.onmessage = function(event) {
     if (event.data.action === 'init' && event.data.options) {
       this.messageHandlers = new MessageHandlers(event.data.options);
@@ -105,5 +105,5 @@ const Worker = function(self) {
 };
 
 export default (self) => {
-  return new Worker(self);
+  return new FlashTransmuxerWorker(self);
 };
