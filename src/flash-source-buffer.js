@@ -443,7 +443,14 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
         adjustedTime = 0;
       }
 
-      this.mediaSource_.swfObj.vjs_adjustCurrentTime(adjustedTime);
+      try {
+        this.mediaSource_.swfObj.vjs_adjustCurrentTime(adjustedTime);
+      } catch (e) {
+        // no-op for backwards compatability of swf. If adjustCurrentTime fails,
+        // the swf may incorrectly report currentTime and buffered ranges
+        // but should not affect playback over than the time displayed on the
+        // progress bar is inaccurate
+      }
     }
 
     // concatenate the bytes into a single segment
