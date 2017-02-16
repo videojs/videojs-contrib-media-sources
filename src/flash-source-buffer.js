@@ -53,41 +53,6 @@ const toDecimalPlaces = function(num, places) {
 };
 
 /**
- * Gets the index of the key frame based on whether the tag is a metadata tag or not
- *
- * @param {Object} tag
- *        simple tag object
- * @param {Number} index
- *        index of the tag within it's list
- * @return {Number}
- *         the index of where the key frame should be in relation to the tag
- * @function getKeyFrameIndex
- * @private
- */
-const getKeyFrameIndex = function(tag, index) {
-  if (tag.metaDataTag) {
-    return index + 2;
-  }
-  return index;
-};
-
-/**
- * Verifies the given index is valid and points to a key frame
- *
- * @param {Array} tags
- *        List of tags
- * @param {Number} index
- *        Position to check for key frame
- * @return {Boolean}
- *         True if the tag at position index is a key frame, false otherwise
- * @function verifyKeyFrameIndex
- * @private
- */
-const verifyKeyFrameIndex = function(tags, index) {
-  return (tags[index] && tags[index].keyFrame);
-};
-
-/**
  * A SourceBuffer implementation for Flash rather than HTML.
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource
@@ -369,8 +334,6 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     let tech = this.mediaSource_.tech_;
     let targetPts = 0;
     let segment;
-    let filteredAudioTags = [];
-    let filteredVideoTags = [];
     let videoTags = segmentData.tags.videoTags;
     let audioTags = segmentData.tags.audioTags;
 
@@ -390,7 +353,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       targetPts = tech.buffered().end(0) - this.timestampOffset;
     }
 
-    // Trim to currentTime if it's ahead of buffered or buffered doesn't exist
+    // Trim to currentTime if seeking
     if (tech.seeking()) {
       targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
     }
@@ -400,61 +363,44 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     targetPts += this.basePtsOffset_;
 
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
-    let startIndex = 0;
+    let currentIndex = videoTags.length;
 
-    while (startIndex < videoTags.length) {
-      let startTag = videoTags[startIndex];
+    // if the last tag is beyond targetPts, then do not search the list for a GOP
+    // since our targetPts lies in a future segment
+    if (currentIndex && videoTags[currentIndex - 1].pts >= targetPts) {
+      // Start by walking backwards from the end of the list until we reach a tag that
+      // is equal to or less than targetPts
+      while (--currentIndex) {
+        const currentTag = videoTags[currentIndex];
 
-      if (startTag.pts >= targetPts) {
-        filteredVideoTags.push(startTag);
-      } else if (startTag.metaDataTag || startTag.keyFrame) {
-        let keyFrameIndex = getKeyFrameIndex(startTag, startIndex);
-
-        if (!verifyKeyFrameIndex(videoTags, keyFrameIndex)) {
-          startIndex++;
+        if (currentTag.pts > targetPts) {
           continue;
         }
 
-        let nextIndex = keyFrameIndex + 1;
-        let foundNextKeyFrame = false;
-
-        while (nextIndex < videoTags.length) {
-          let nextTag = videoTags[nextIndex];
-
-          if (nextTag.pts >= targetPts) {
-            break;
-          } else if (nextTag.metaDataTag || nextTag.keyFrame) {
-            let nextKeyFrameIndex = getKeyFrameIndex(nextTag, nextIndex);
-
-            foundNextKeyFrame = verifyKeyFrameIndex(videoTags, nextKeyFrameIndex);
-            break;
-          } else {
-            nextIndex++;
-          }
-        }
-
-        if (foundNextKeyFrame) {
-          // we found another key frame before the targetPts. This means it is safe
-          // to drop this entire GOP
-          startIndex = nextIndex;
-        } else if (nextIndex < videoTags.length) {
-          // we reached the target pts before finding the next key frame. We want to
-          // append all the tags from the current key frame startTag to the targetPts
-          // to prevent trimming part of a GOP
-          while (startIndex < nextIndex) {
-            filteredVideoTags.push(videoTags[startIndex]);
-            startIndex++;
-          }
-        } else {
-          // we reached the end of the segment before finding the next key frame, leave
-          // the loop without appending any tags as targetPts is outside the range of
-          // this segment
+        // if we see a keyFrame or metadata tag once we've gone below targetPts,
+        // exit the loop as this is the start of the GOP that we want to append
+        if (currentTag.keyFrame || currentTag.metaDataTag) {
           break;
         }
-        continue;
       }
-      startIndex++;
+
+      // We need to check if there are any metadata tags that come before currentIndex
+      // as those will be metadata tags associated with the GOP we are appending
+      // There could be 0 to 2 metadata tags that come before the currentIndex depending
+      // on what targetPts is and whether the transmuxer prepended metadata tags to this
+      // key frame
+      while (currentIndex) {
+        const nextTag = videoTags[currentIndex - 1];
+
+        if (!nextTag.metaDataTag) {
+          break;
+        }
+
+        currentIndex--;
+      }
     }
+
+    const filteredVideoTags = videoTags.slice(currentIndex);
 
     let audioTargetPts = targetPts;
 
@@ -466,11 +412,17 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
 
     // skip tags with a presentation time less than the seek target/end of buffer
-    for (let i = 0; i < audioTags.length; i++) {
-      if (audioTags[i].pts >= audioTargetPts) {
-        filteredAudioTags.push(audioTags[i]);
+    currentIndex = 0;
+
+    while (currentIndex < audioTags.length) {
+      if (audioTags[currentIndex].pts >= audioTargetPts) {
+        break;
       }
+
+      currentIndex++;
     }
+
+    const filteredAudioTags = audioTags.slice(currentIndex);
 
     let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
 
