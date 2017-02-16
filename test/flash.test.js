@@ -566,7 +566,6 @@ QUnit.test('GOP trimming accounts for metadata tags prepended to key frames by m
     bytes: new Uint8Array([0])
   });
 
-
   dataMessage = createDataMessage(tags_);
 
   // mock the GOP structure + metadata tags
@@ -610,6 +609,65 @@ QUnit.test('GOP trimming accounts for metadata tags prepended to key frames by m
   QUnit.deepEqual(this.swfCalls[0], { call: 'adjustCurrentTime', value: 15 });
   QUnit.deepEqual(this.swfCalls[1].arguments[0], [5, 5, 5, 6, 7, 8, 8, 8, 9],
             '10 tags are appended, 4 of which are metadata tags');
+});
+
+QUnit.test('drops all tags if target pts append time does not fall within segment', function() {
+  let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let i = 10;
+  let currentTime;
+  let tags_ = [];
+
+  this.mediaSource.tech_.currentTime = function() {
+    return currentTime;
+  };
+
+  // push a tag into the buffer to establish the starting PTS value
+  currentTime = 0;
+
+  let dataMessage = createDataMessage([{
+    pts: 19 * 1000,
+    bytes: new Uint8Array(1)
+  }]);
+
+  sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
+
+  timers.runAll();
+
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  timers.runAll();
+
+  // mock out a new segment of FLV tags, starting 10s after the
+  // starting PTS value
+  while (i--) {
+    tags_.unshift(
+      {
+        pts: (i * 1000) + (19 * 1000),
+        bytes: new Uint8Array([i])
+      }
+    );
+  }
+
+  dataMessage = createDataMessage(tags_);
+
+  // mock the GOP structure
+  dataMessage.data.segment.tags.videoTags[0].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[3].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[5].keyFrame = true;
+  dataMessage.data.segment.tags.videoTags[8].keyFrame = true;
+
+  sourceBuffer.transmuxer_.trigger('data', dataMessage.data.segment);
+
+  // seek to 7 seconds into the new swegment
+  this.mediaSource.tech_.seeking = function() {
+    return true;
+  };
+  currentTime = 10 + 7;
+  this.mediaSource.tech_.trigger('seeking');
+  sourceBuffer.appendBuffer(new Uint8Array(10));
+  this.swfCalls.length = 0;
+  timers.runAll();
+
+  QUnit.equal(this.swfCalls.length, 0, 'dropped all tags and made no swf calls');
 });
 
 QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
@@ -661,7 +719,8 @@ QUnit.test('seek targeting accounts for changing timestampOffsets', function() {
   this.swfCalls.length = 0;
   timers.runAll();
 
-  QUnit.deepEqual(this.swfCalls[0].arguments[0],
+  QUnit.equal(this.swfCalls[0].value, 25, 'adjusted current time');
+  QUnit.deepEqual(this.swfCalls[1].arguments[0],
             [25, 26, 27, 28, 29, 30, 31],
             'filtered the appended tags');
 });
@@ -857,8 +916,8 @@ QUnit.test('calculates the base PTS for the media', function() {
   // timeline
   tags_.push(
     // zero in the media timeline is PTS 3
-    { pts: (10 + 3) * 90000, bytes: new Uint8Array([10]) },
-    { pts: (15 + 3) * 90000, bytes: new Uint8Array([15]) }
+    { pts: (10 + 3) * 1000, bytes: new Uint8Array([10]) },
+    { pts: (15 + 3) * 1000, bytes: new Uint8Array([15]) }
   );
 
   let dataMessage = createDataMessage(tags_);
