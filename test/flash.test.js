@@ -359,7 +359,6 @@ QUnit.test('drops tags before currentTime when seeking', function() {
 
 QUnit.test('drops audio and video (complete gops) tags before the buffered end always', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
-  let i = 10;
   let endTime;
   let videoTags_ = [];
   let audioTags_ = [];
@@ -373,18 +372,38 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
   // push a tag into the buffer to establish the starting PTS value
   endTime = 0;
 
-  sourceBuffer.transmuxer_.onmessage(createDataMessage([{
-    pts: 19 * 1000,
-    bytes: new Uint8Array(1)
-  }], [{
-    pts: 19 * 1000,
-    bytes: new Uint8Array(1)
-  }]));
+  // mock buffering 17 seconds of data so flash source buffer internal end of buffer
+  // tracking is accurate
+  let i = 17;
+
+  while (i--) {
+    videoTags_.unshift({
+      pts: (i * 1000) + (19 * 1000),
+      bytes: new Uint8Array(1)
+    });
+  }
+
+  i = 17;
+
+  while (i--) {
+    audioTags_.unshift({
+      pts: (i * 1000) + (19 * 1000),
+      bytes: new Uint8Array(1)
+    });
+  }
+
+  let dataMessage = createDataMessage(videoTags_, audioTags_);
+
+  sourceBuffer.transmuxer_.onmessage(dataMessage);
 
   timers.runAll();
 
   sourceBuffer.appendBuffer(new Uint8Array(10));
   timers.runAll();
+
+  i = 10;
+  videoTags_ = [];
+  audioTags_ = [];
 
   // mock out a new segment of FLV tags, starting 10s after the
   // starting PTS value
@@ -396,6 +415,7 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
   }
 
   i = 10;
+
   while (i--) {
     audioTags_.unshift({
       pts: (i * 1000) + (29 * 1000),
@@ -403,7 +423,7 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
     });
   }
 
-  let dataMessage = createDataMessage(videoTags_, audioTags_);
+  dataMessage = createDataMessage(videoTags_, audioTags_);
 
   dataMessage.data.segment.tags.videoTags[0].keyFrame = true;
   dataMessage.data.segment.tags.videoTags[3].keyFrame = true;
@@ -413,7 +433,6 @@ QUnit.test('drops audio and video (complete gops) tags before the buffered end a
   sourceBuffer.transmuxer_.onmessage(dataMessage);
 
   endTime = 10 + 7;
-  this.mediaSource.tech_.trigger('seeking');
   sourceBuffer.appendBuffer(new Uint8Array(10));
   this.swfCalls.length = 0;
   timers.runAll();
