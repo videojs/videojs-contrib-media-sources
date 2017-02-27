@@ -7,6 +7,8 @@ import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import {addTextTrackData} from './add-text-track-data';
+import transmuxWorker from './flash-transmuxer-worker';
+import work from 'webworkify';
 import FlashConstants from './flash-constants';
 
 /**
@@ -120,9 +122,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
 
-    // TS to FLV transmuxer
-    this.transmuxer_ = new flv.Transmuxer();
-    this.transmuxer_.on('data', this.receiveBuffer_.bind(this));
+    this.transmuxer_ = work(transmuxWorker);
+    this.transmuxer_.postMessage({ action: 'init', options: {} });
+    this.transmuxer_.onmessage = (event) => {
+      if (event.data.action === 'data') {
+        this.receiveBuffer_(event.data.segment);
+      }
+    };
 
     this.one('updateend', () => {
       this.mediaSource_.tech_.trigger('loadedmetadata');
@@ -135,13 +141,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       set(val) {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
-          this.transmuxer_ = new flv.Transmuxer();
-          this.transmuxer_.on('data', this.receiveBuffer_.bind(this));
           // We have to tell flash to expect a discontinuity
           this.mediaSource_.swfObj.vjs_discontinuity();
           // the media <-> PTS mapping must be re-established after
           // the discontinuity
           this.basePtsOffset_ = NaN;
+
+          this.transmuxer_.postMessage({ action: 'reset' });
         }
       }
     });
@@ -170,6 +176,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       removeCuesFromTrack(0, Infinity, this.metadataTrack_);
       removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
     });
+
+    this.mediaSource_.player_.tech_.hls.on('dispose', () => {
+      this.transmuxer_.terminate();
+    });
   }
 
   /**
@@ -193,21 +203,13 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     this.mediaSource_.readyState = 'open';
     this.trigger({ type: 'update' });
 
-    let chunk = 512 * 1024;
-    let i = 0;
-
-    // this is here to use recursion
-    let chunkInData = () => {
-      this.transmuxer_.push(bytes.subarray(i, i + chunk));
-      i += chunk;
-      if (i < bytes.byteLength) {
-        scheduleTick(chunkInData);
-      } else {
-        scheduleTick(this.transmuxer_.flush.bind(this.transmuxer_));
-      }
-    };
-
-    chunkInData();
+    this.transmuxer_.postMessage({
+      action: 'push',
+      data: bytes.buffer,
+      byteOffset: bytes.byteOffset,
+      byteLength: bytes.byteLength
+    }, [bytes.buffer]);
+    this.transmuxer_.postMessage({action: 'flush'});
   }
 
   /**
