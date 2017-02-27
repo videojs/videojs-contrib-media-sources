@@ -84,6 +84,9 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     this.mediaSource_ = mediaSource;
 
+    this.audioBufferEnd_ = NaN;
+    this.videoBufferEnd_ = NaN;
+
     // indicates whether the asynchronous continuation of an operation
     // is still being processed
     // see https://w3c.github.io/media-source/#widl-SourceBuffer-updating
@@ -146,6 +149,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
           // the media <-> PTS mapping must be re-established after
           // the discontinuity
           this.basePtsOffset_ = NaN;
+          this.audioBufferEnd_ = NaN;
+          this.videoBufferEnd_ = NaN;
 
           this.transmuxer_.postMessage({ action: 'reset' });
         }
@@ -334,7 +339,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
   convertTagsToData_(segmentData) {
     let segmentByteLength = 0;
     let tech = this.mediaSource_.tech_;
-    let targetPts = 0;
+    let videoTargetPts = 0;
     let segment;
     let videoTags = segmentData.tags.videoTags;
     let audioTags = segmentData.tags.audioTags;
@@ -351,35 +356,46 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       this.basePtsOffset_ = Math.min(firstAudioTag.pts, firstVideoTag.pts);
     }
 
-    if (tech.buffered().length) {
-      targetPts = tech.buffered().end(0) - this.timestampOffset;
-    }
-
-    // Trim to currentTime if seeking
     if (tech.seeking()) {
-      targetPts = Math.max(targetPts, tech.currentTime() - this.timestampOffset);
+      // Do not use previously saved buffer end values while seeking since buffer
+      // is cleared on all seeks
+      this.videoBufferEnd_ = NaN;
+      this.audioBufferEnd_ = NaN;
     }
 
-    // PTS values are represented in milliseconds
-    targetPts *= 1e3;
-    targetPts += this.basePtsOffset_;
+    if (isNaN(this.videoBufferEnd_)) {
+      if (tech.buffered().length) {
+        videoTargetPts = tech.buffered().end(0) - this.timestampOffset;
+      }
+
+      // Trim to currentTime if seeking
+      if (tech.seeking()) {
+        videoTargetPts = Math.max(videoTargetPts, tech.currentTime() - this.timestampOffset);
+      }
+
+      // PTS values are represented in milliseconds
+      videoTargetPts *= 1e3;
+      videoTargetPts += this.basePtsOffset_;
+    } else {
+      videoTargetPts = this.videoBufferEnd_;
+    }
 
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
     let currentIndex = videoTags.length;
 
-    // if the last tag is beyond targetPts, then do not search the list for a GOP
-    // since our targetPts lies in a future segment
-    if (currentIndex && videoTags[currentIndex - 1].pts >= targetPts) {
+    // if the last tag is beyond videoTargetPts, then do not search the list for a GOP
+    // since our videoTargetPts lies in a future segment
+    if (currentIndex && videoTags[currentIndex - 1].pts >= videoTargetPts) {
       // Start by walking backwards from the end of the list until we reach a tag that
-      // is equal to or less than targetPts
+      // is equal to or less than videoTargetPts
       while (--currentIndex) {
         const currentTag = videoTags[currentIndex];
 
-        if (currentTag.pts > targetPts) {
+        if (currentTag.pts > videoTargetPts) {
           continue;
         }
 
-        // if we see a keyFrame or metadata tag once we've gone below targetPts,
+        // if we see a keyFrame or metadata tag once we've gone below videoTargetPts,
         // exit the loop as this is the start of the GOP that we want to append
         if (currentTag.keyFrame || currentTag.metaDataTag) {
           break;
@@ -389,7 +405,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       // We need to check if there are any metadata tags that come before currentIndex
       // as those will be metadata tags associated with the GOP we are appending
       // There could be 0 to 2 metadata tags that come before the currentIndex depending
-      // on what targetPts is and whether the transmuxer prepended metadata tags to this
+      // on what videoTargetPts is and whether the transmuxer prepended metadata tags to this
       // key frame
       while (currentIndex) {
         const nextTag = videoTags[currentIndex - 1];
@@ -404,13 +420,19 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     const filteredVideoTags = videoTags.slice(currentIndex);
 
-    let audioTargetPts = targetPts;
+    let audioTargetPts;
+
+    if (isNaN(this.audioBufferEnd_)) {
+      audioTargetPts = videoTargetPts;
+    } else {
+      audioTargetPts = this.audioBufferEnd_;
+    }
 
     if (filteredVideoTags.length) {
       // If targetPts intersects a GOP and we appended the tags for the GOP that came
       // before targetPts, we want to make sure to trim audio tags at the pts
       // of the first video tag to avoid brief moments of silence
-      audioTargetPts = Math.min(targetPts, filteredVideoTags[0].pts);
+      audioTargetPts = Math.min(audioTargetPts, filteredVideoTags[0].pts);
     }
 
     // skip tags with a presentation time less than the seek target/end of buffer
@@ -426,6 +448,14 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     const filteredAudioTags = audioTags.slice(currentIndex);
 
+    // update the audio and video buffer ends
+    if (filteredAudioTags.length) {
+      this.audioBufferEnd_ = filteredAudioTags[filteredAudioTags.length - 1].pts;
+    }
+    if (filteredVideoTags.length) {
+      this.videoBufferEnd_ = filteredVideoTags[filteredVideoTags.length - 1].pts;
+    }
+
     let tags = this.getOrderedTags_(filteredVideoTags, filteredAudioTags);
 
     if (tags.length === 0) {
@@ -435,10 +465,10 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     // If we are appending data that comes before our target pts, we want to tell
     // the swf to adjust its notion of current time to account for the extra tags
     // we are appending to complete the GOP that intersects with targetPts
-    if (tags[0].pts < targetPts && tech.seeking()) {
+    if (tags[0].pts < videoTargetPts && tech.seeking()) {
       const fudgeFactor = 1 / 30;
       const currentTime = tech.currentTime();
-      const diff = (targetPts - tags[0].pts) / 1e3;
+      const diff = (videoTargetPts - tags[0].pts) / 1e3;
       let adjustedTime = currentTime - diff;
 
       if (adjustedTime < fudgeFactor) {
