@@ -102,17 +102,38 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
       let cues = sourceHandler.metadataTrack_.cues;
       let cuesArray = [];
 
-      for (let j = 0; j < cues.length; j++) {
-        cuesArray.push(cues[j]);
-      }
-      cuesArray.sort((first, second) => first.startTime - second.startTime);
-
-      for (let i = 0; i < cuesArray.length - 1; i++) {
-        if (cuesArray[i].endTime !== cuesArray[i + 1].startTime) {
-          cuesArray[i].endTime = cuesArray[i + 1].startTime;
+      // Create a copy of the TextTrackCueList...
+      // ...disregarding cues with a falsey value
+      for (let i = 0; i < cues.length; i++) {
+        if (cues[i]) {
+          cuesArray.push(cues[i]);
         }
       }
-      cuesArray[cuesArray.length - 1].endTime = videoDuration;
+
+      // Group cues by their startTime value
+      let cuesGroupedByStartTime = cuesArray.reduce((obj, cue) => {
+        let timeSlot = obj[cue.startTime] || [];
+
+        timeSlot.push(cue);
+        obj[cue.startTime] = timeSlot;
+
+        return obj;
+      }, {});
+
+      // Sort startTimes by ascending order
+      let sortedStartTimes = Object.keys(cuesGroupedByStartTime)
+                                   .sort((a, b) => Number(a) - Number(b));
+
+      // Map each cue group's endTime to the next group's startTime
+      sortedStartTimes.forEach((startTime, idx) => {
+        let cueGroup = cuesGroupedByStartTime[startTime];
+        let nextTime = Number(sortedStartTimes[idx + 1]) || videoDuration;
+
+        // Map each cue's endTime the next group's startTime
+        cueGroup.forEach((cue) => {
+          cue.endTime = nextTime;
+        });
+      });
     }
   }
 };

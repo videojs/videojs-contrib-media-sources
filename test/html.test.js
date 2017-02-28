@@ -1130,7 +1130,7 @@ QUnit.test('translates metadata events into WebVTT cues', function() {
   QUnit.equal(cues.length, 3, 'created three cues');
   QUnit.equal(cues[0].text, 'This is a url tag', 'included the text');
   QUnit.equal(cues[0].startTime, 12, 'started at twelve');
-  QUnit.equal(cues[0].endTime, 12, 'ended at StartTime of next cue(12)');
+  QUnit.equal(cues[0].endTime, 22, 'ended at StartTime of next cue(22)');
   QUnit.equal(cues[1].text, 'This is a text tag', 'included the text');
   QUnit.equal(cues[1].startTime, 12, 'started at twelve');
   QUnit.equal(cues[1].endTime, 22, 'ended at the startTime of next cue(22)');
