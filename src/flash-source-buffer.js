@@ -377,7 +377,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       videoTargetPts *= 1e3;
       videoTargetPts += this.basePtsOffset_;
     } else {
-      videoTargetPts = this.videoBufferEnd_;
+      // Add a fudge factor of 0.1 to the last video pts appended since a rendition change
+      // could append an overlapping segment, in which case there is a high likelyhood
+      // a tag could have a matching pts to videoBufferEnd_, which would cause
+      // that tag to get appended by the tag.pts >= targetPts check below even though it
+      // is a duplicate of what was previously appended
+      videoTargetPts = this.videoBufferEnd_ + 0.1;
     }
 
     // filter complete GOPs with a presentation time less than the seek target/end of buffer
@@ -425,7 +430,12 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     if (isNaN(this.audioBufferEnd_)) {
       audioTargetPts = videoTargetPts;
     } else {
-      audioTargetPts = this.audioBufferEnd_;
+      // Add a fudge factor of 0.1 to the last video pts appended since a rendition change
+      // could append an overlapping segment, in which case there is a high likelyhood
+      // a tag could have a matching pts to videoBufferEnd_, which would cause
+      // that tag to get appended by the tag.pts >= targetPts check below even though it
+      // is a duplicate of what was previously appended
+      audioTargetPts = this.audioBufferEnd_ + 0.1;
     }
 
     if (filteredVideoTags.length) {

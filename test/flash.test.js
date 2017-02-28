@@ -809,6 +809,8 @@ QUnit.test('opens the stream on sourceBuffer.appendBuffer after endOfStream', fu
         'the second call should be for the updateend');
 
   sourceBuffer.appendBuffer(new Uint8Array([2, 3]));
+  // remove previous video pts save because mock appends don't have actual timing data
+  sourceBuffer.videoBufferEnd_ = NaN;
   timers.runAll();
 
   QUnit.strictEqual(this.swfCalls.length, 1, 'made one more append');
