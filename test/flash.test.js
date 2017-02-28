@@ -125,7 +125,7 @@ QUnit.module('Flash MediaSource', {
     window.MediaSource = null;
     window.WebKitMediaSource = null;
 
-    this.Flash = videojs.getComponent('Flash');
+    this.Flash = videojs.getTech('Flash');
     this.oldFlashSupport = this.Flash.isSupported;
     this.oldCanPlay = this.Flash.canPlaySource;
     this.Flash.canPlaySource = this.Flash.isSupported = function() {
@@ -142,6 +142,8 @@ QUnit.module('Flash MediaSource', {
       src: videojs.URL.createObjectURL(this.mediaSource),
       type: 'video/mp2t'
     });
+    // vjs6 takes 1 tick to set source async
+    this.clock.tick(1);
     swfObj = document.createElement('fake-object');
     swfObj.id = 'fake-swf-' + assert.test.testId;
     this.player.el().replaceChild(swfObj, this.player.tech_.el());
@@ -157,6 +159,9 @@ QUnit.module('Flash MediaSource', {
       if (attr === 'buffered') {
         return [];
       } else if (attr === 'currentTime') {
+        return 0;
+      // ignored for vjs6
+      } else if (attr === 'videoWidth') {
         return 0;
       }
       this.swfCalls.push({ attr });

@@ -25,11 +25,11 @@
     "start": "npm-run-all -p start:* watch:*",
     "start:serve": "babel-node scripts/server.js",
     "pretest": "npm-run-all lint build",
-    "test": "karma start test/karma/detected.js",
-    "test:chrome": "npm run pretest && karma start test/karma/chrome.js",
-    "test:firefox": "npm run pretest && karma start test/karma/firefox.js",
-    "test:ie": "npm run pretest && karma start test/karma/ie.js",
-    "test:safari": "npm run pretest && karma start test/karma/safari.js",
+    "test": "karma start test/karma.conf.js",
+    "test:chrome": "npm run pretest && karma start test/karma.conf.js --browsers Chrome",
+    "test:firefox": "npm run pretest && karma start test/karma.conf.js --browsers Firefox",
+    "test:ie": "npm run pretest && karma start test/karma.conf.js --browsers IE",
+    "test:safari": "npm run pretest && karma start test/karma.conf.js --browsers Safari",
     "preversion": "npm test",
     "version": "npm run build",
     "watch": "npm-run-all -p watch:*",
@@ -61,7 +61,7 @@
       "docs",
       "es5",
       "scripts",
-      "test/karma"
+      "test/karma.conf.js"
     ]
   },
   "files": [
@@ -111,6 +111,7 @@
     "shelljs": "^0.5.3",
     "sinon": "1.14.1",
     "uglify-js": "^2.5.0",
+    "videojs-flash": "^1.0.0-RC.1",
     "videojs-standard": "^4.0.3",
     "watchify": "^3.6.0",
     "webpack": "^1.13.2"
