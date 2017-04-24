@@ -2,6 +2,10 @@ CHANGELOG
 =========
 
 --------------------
+## 4.4.4 (2017-04-24)
+* update mux.js to 4.1.3 [#141](https://github.com/videojs/videojs-contrib-media-sources/pull/141)
+
+--------------------
 ## 4.4.3 (2017-04-10)
 * update mux.js to 4.1.2 [#139](https://github.com/videojs/videojs-contrib-media-sources/pull/139)
 
