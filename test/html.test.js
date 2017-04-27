@@ -905,7 +905,35 @@ QUnit.test('virtual buffers are updating if either native buffer is', function()
   QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
 
   mediaSource.audioBuffer_.updating = false;
+  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
+
+  // The virtual buffer is still updating because both expected updateend events
+  // have not been received..
+
+  mediaSource.videoBuffer_.trigger('updateend');
+  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
+
+  mediaSource.audioBuffer_.trigger('updateend');
   QUnit.equal(sourceBuffer.updating, false, 'virtual buffer is not updating');
+});
+
+QUnit.test('virtual buffers only trigger if all expected updateends have been received', function(assert) {
+  let done = assert.async();
+  let mediaSource = new videojs.MediaSource();
+  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
+
+  assert.expect(1);
+  initializeNativeSourceBuffers(sourceBuffer);
+
+  sourceBuffer.on('updateend', function() {
+    assert.equal(sourceBuffer.pendingUpdateEnds_, 0, 'No pending UpdateEnd events');
+    done();
+  });
+
+  mediaSource.videoBuffer_.updating = false;
+  mediaSource.audioBuffer_.updating = false;
+  mediaSource.videoBuffer_.trigger('updateend');
+  mediaSource.audioBuffer_.trigger('updateend');
 });
 
 QUnit.test(

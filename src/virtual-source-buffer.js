@@ -28,6 +28,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.timestampOffset_ = 0;
     this.pendingBuffers_ = [];
     this.bufferUpdating_ = false;
+    this.pendingUpdateEnds_ = 0;
     this.mediaSource_ = mediaSource;
     this.codecs_ = codecs;
     this.audioCodec_ = null;
@@ -102,6 +103,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     Object.defineProperty(this, 'updating', {
       get() {
         return !!(this.bufferUpdating_ ||
+          this.pendingUpdateEnds_ ||
           (!this.audioDisabled_ && this.audioBuffer_ && this.audioBuffer_.updating) ||
           (this.videoBuffer_ && this.videoBuffer_.updating));
       }
@@ -289,6 +291,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
             return;
           }
 
+          if (event === 'updateend') {
+            // Make sure `pendingUpdateEnds_` can never go below zero
+            this.pendingUpdateEnds_ = Math.max(0, this.pendingUpdateEnds_ - 1);
+            if (this.pendingUpdateEnds_ > 0) {
+              return;
+            }
+          }
+
           let shouldTrigger = types.every((t) => {
             // skip checking audio's updating status if audio
             // is not enabled
@@ -360,9 +370,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
    */
   remove(start, end) {
     if (this.videoBuffer_) {
+      this.pendingUpdateEnds_ += 1;
       this.videoBuffer_.remove(start, end);
     }
     if (this.audioBuffer_) {
+      this.pendingUpdateEnds_ += 1;
       this.audioBuffer_.remove(start, end);
     }
 
@@ -457,11 +469,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
       sortedSegments.video.bytes += sortedSegments.video.initSegment.byteLength;
+      this.pendingUpdateEnds_ += 1;
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
       // TODO: are video tracks the only ones with text tracks?
       addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
     }
+
     if (!this.audioDisabled_ && this.audioBuffer_) {
+      this.pendingUpdateEnds_ += 1;
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
     }
 
