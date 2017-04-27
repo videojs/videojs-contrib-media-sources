@@ -469,14 +469,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
       sortedSegments.video.bytes += sortedSegments.video.initSegment.byteLength;
-      this.pendingUpdateEnds_ += 1;
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
       // TODO: are video tracks the only ones with text tracks?
       addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
     }
 
     if (!this.audioDisabled_ && this.audioBuffer_) {
-      this.pendingUpdateEnds_ += 1;
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
     }
 
@@ -508,8 +506,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       });
 
       try {
+        this.pendingUpdateEnds_ += 1;
         destinationBuffer.appendBuffer(tempBuffer);
       } catch (error) {
+        this.pendingUpdateEnds_ -= 1;
         if (this.mediaSource_.player_) {
           this.mediaSource_.player_.error({
             code: -3,
