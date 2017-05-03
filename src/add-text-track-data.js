@@ -56,7 +56,7 @@ const durationOfVideo = function(duration) {
  *
  * @param {Object} sourceHandler the flash or virtual source buffer
  * @param {Array} captionArray an array of caption data
- * @param {Array} cue an array of meta data
+ * @param {Array} metadataArray an array of meta data
  * @private
  */
 const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
