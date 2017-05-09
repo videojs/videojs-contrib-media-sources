@@ -284,7 +284,7 @@ function() {
   );
 });
 
-QUnit.test('removing works even with audio disabled', function() {
+QUnit.test('removing doesn\'t happen with audio disabled', function() {
   let mediaSource = new videojs.MediaSource();
   let muxedBuffer = mediaSource.addSourceBuffer('video/mp2t');
   // creating this audio buffer disables audio in the muxed one
@@ -317,7 +317,7 @@ QUnit.test('removing works even with audio disabled', function() {
 
   muxedBuffer.remove(3, 10);
 
-  QUnit.equal(removes, 2, 'called remove on both muxedBuffers');
+  QUnit.equal(removes, 1, 'called remove on only one source buffer');
   QUnit.equal(muxedBuffer.inbandTextTrack_.cues.length,
               1,
               'one cue remains after remove');
@@ -905,35 +905,7 @@ QUnit.test('virtual buffers are updating if either native buffer is', function()
   QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
 
   mediaSource.audioBuffer_.updating = false;
-  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-
-  // The virtual buffer is still updating because both expected updateend events
-  // have not been received..
-
-  mediaSource.videoBuffer_.trigger('updateend');
-  QUnit.equal(sourceBuffer.updating, true, 'virtual buffer is updating');
-
-  mediaSource.audioBuffer_.trigger('updateend');
   QUnit.equal(sourceBuffer.updating, false, 'virtual buffer is not updating');
-});
-
-QUnit.test('virtual buffers only trigger if all expected updateends have been received', function(assert) {
-  let done = assert.async();
-  let mediaSource = new videojs.MediaSource();
-  let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
-
-  assert.expect(1);
-  initializeNativeSourceBuffers(sourceBuffer);
-
-  sourceBuffer.on('updateend', function() {
-    assert.equal(sourceBuffer.pendingUpdateEnds_, 0, 'No pending UpdateEnd events');
-    done();
-  });
-
-  mediaSource.videoBuffer_.updating = false;
-  mediaSource.audioBuffer_.updating = false;
-  mediaSource.videoBuffer_.trigger('updateend');
-  mediaSource.audioBuffer_.trigger('updateend');
 });
 
 QUnit.test(

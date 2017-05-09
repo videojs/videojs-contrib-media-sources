@@ -9,6 +9,31 @@ import work from 'webworkify';
 import transmuxWorker from './transmuxer-worker';
 import {isAudioCodec, isVideoCodec} from './codec-utils';
 
+// We create a wrapper around the SourceBuffer so that we can manage the
+// state of the `updating` property manually. We have to do this because
+// Firefox changes `updating` to false long before triggering `updateend`
+// events and that was causing strange problems in videojs-contrib-hls
+const makeWrappedSourceBuffer = function(mediaSource, mimeType) {
+  const sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+  const wrapper = Object.create(null);
+
+  wrapper.updating = false;
+  wrapper.realBuffer_ = sourceBuffer;
+
+  for (let key in sourceBuffer) {
+    if (typeof sourceBuffer[key] === 'function') {
+      wrapper[key] = (...params) => sourceBuffer[key](...params);
+    } else if (typeof wrapper[key] === 'undefined') {
+      Object.defineProperty(wrapper, key, {
+        get: () => sourceBuffer[key],
+        set: (v) => sourceBuffer[key] = v
+      });
+    }
+  }
+
+  return wrapper;
+};
+
 /**
  * VirtualSourceBuffers exist so that we can transmux non native formats
  * into a native format, but keep the same api as a native source buffer.
@@ -28,7 +53,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.timestampOffset_ = 0;
     this.pendingBuffers_ = [];
     this.bufferUpdating_ = false;
-    this.pendingUpdateEnds_ = 0;
+
     this.mediaSource_ = mediaSource;
     this.codecs_ = codecs;
     this.audioCodec_ = null;
@@ -103,7 +128,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     Object.defineProperty(this, 'updating', {
       get() {
         return !!(this.bufferUpdating_ ||
-          this.pendingUpdateEnds_ ||
           (!this.audioDisabled_ && this.audioBuffer_ && this.audioBuffer_.updating) ||
           (this.videoBuffer_ && this.videoBuffer_.updating));
       }
@@ -269,15 +293,29 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       }
 
       let buffer = null;
+      let isSecondary = false;
 
       // If the mediasource already has a SourceBuffer for the codec
       // use that
       if (this.mediaSource_[`${type}Buffer_`]) {
         buffer = this.mediaSource_[`${type}Buffer_`];
+        // In multiple audio track cases, the audio source buffer is disabled
+        // on the main VirtualSourceBuffer by the HTMLMediaSource much earlier
+        // than createRealSourceBuffers_ is called to create the second
+        // VirtualSourceBuffer because that happens as a side-effect of
+        // videojs-contrib-hls starting the audioSegmentLoader. As a result,
+        // the audioBuffer is essentially "ownerless" and no one will toggle
+        // the `updating` state back to false on `updateend` event is received
+        //
+        // Setting to `updating` to false manually will work around this
+        // situation and allow work to continue
+        buffer.updating = false;
       } else {
-        buffer = this.mediaSource_.nativeMediaSource_.addSourceBuffer(
-          type + '/mp4;codecs="' + this[`${type}Codec_`] + '"'
-        );
+        const codecProperty = `${type}Codec_`;
+        const mimeType = `${type}/mp4;codecs="${this[codecProperty]}"`;
+
+        buffer = makeWrappedSourceBuffer(this.mediaSource_.nativeMediaSource_, mimeType);
+
         this.mediaSource_[`${type}Buffer_`] = buffer;
       }
 
@@ -292,11 +330,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
           }
 
           if (event === 'updateend') {
-            // Make sure `pendingUpdateEnds_` can never go below zero
-            this.pendingUpdateEnds_ = Math.max(0, this.pendingUpdateEnds_ - 1);
-            if (this.pendingUpdateEnds_ > 0) {
-              return;
-            }
+            this[`${type}Buffer_`].updating = false;
           }
 
           let shouldTrigger = types.every((t) => {
@@ -370,11 +404,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
    */
   remove(start, end) {
     if (this.videoBuffer_) {
-      this.pendingUpdateEnds_ += 1;
+      this.videoBuffer_.updating = true;
       this.videoBuffer_.remove(start, end);
     }
-    if (this.audioBuffer_) {
-      this.pendingUpdateEnds_ += 1;
+    if (!this.audioDisabled_ && this.audioBuffer_) {
+      this.audioBuffer_.updating = true;
       this.audioBuffer_.remove(start, end);
     }
 
@@ -506,10 +540,9 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       });
 
       try {
-        this.pendingUpdateEnds_ += 1;
+        destinationBuffer.updating = true;
         destinationBuffer.appendBuffer(tempBuffer);
       } catch (error) {
-        this.pendingUpdateEnds_ -= 1;
         if (this.mediaSource_.player_) {
           this.mediaSource_.player_.error({
             code: -3,
@@ -532,7 +565,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.videoBuffer_.abort();
     }
-    if (this.audioBuffer_) {
+    if (!this.audioDisabled_ && this.audioBuffer_) {
       this.audioBuffer_.abort();
     }
     if (this.transmuxer_) {
