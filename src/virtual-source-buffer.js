@@ -293,7 +293,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       }
 
       let buffer = null;
-      let isSecondary = false;
 
       // If the mediasource already has a SourceBuffer for the codec
       // use that
