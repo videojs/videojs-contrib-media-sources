@@ -304,9 +304,9 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         // VirtualSourceBuffer because that happens as a side-effect of
         // videojs-contrib-hls starting the audioSegmentLoader. As a result,
         // the audioBuffer is essentially "ownerless" and no one will toggle
-        // the `updating` state back to false on `updateend` event is received
+        // the `updating` state back to false once the `updateend` event is received
         //
-        // Setting to `updating` to false manually will work around this
+        // Setting `updating` to false manually will work around this
         // situation and allow work to continue
         buffer.updating = false;
       } else {
