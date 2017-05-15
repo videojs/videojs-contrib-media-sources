@@ -284,7 +284,7 @@ function() {
   );
 });
 
-QUnit.test('removing works even with audio disabled', function() {
+QUnit.test('removing doesn\'t happen with audio disabled', function() {
   let mediaSource = new videojs.MediaSource();
   let muxedBuffer = mediaSource.addSourceBuffer('video/mp2t');
   // creating this audio buffer disables audio in the muxed one
@@ -317,7 +317,7 @@ QUnit.test('removing works even with audio disabled', function() {
 
   muxedBuffer.remove(3, 10);
 
-  QUnit.equal(removes, 2, 'called remove on both muxedBuffers');
+  QUnit.equal(removes, 1, 'called remove on only one source buffer');
   QUnit.equal(muxedBuffer.inbandTextTrack_.cues.length,
               1,
               'one cue remains after remove');
