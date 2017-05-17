@@ -14,7 +14,10 @@
  */
 import window from 'global/window';
 import mp4 from 'mux.js/lib/mp4';
-
+selfPostMessage = postMessage;
+if(window.postMessage) {
+  selfPostMessage = window.postMessage;
+}
 /**
  * Re-emits transmuxer events by converting them into messages to the
  * world outside the worker.
@@ -39,7 +42,8 @@ const wireTransmuxerEvents = function(transmuxer) {
     let typedArray = segment.data;
 
     segment.data = typedArray.buffer;
-    window.postMessage({
+
+    selfPostMessage({
       action: 'data',
       segment,
       byteOffset: typedArray.byteOffset,
@@ -49,7 +53,7 @@ const wireTransmuxerEvents = function(transmuxer) {
 
   if (transmuxer.captionStream) {
     transmuxer.captionStream.on('data', function(caption) {
-      window.postMessage({
+      selfPostMessage({
         action: 'caption',
         data: caption
       });
@@ -57,7 +61,7 @@ const wireTransmuxerEvents = function(transmuxer) {
   }
 
   transmuxer.on('done', function(data) {
-    window.postMessage({ action: 'done' });
+    selfPostMessage({ action: 'done' });
   });
 };
 
