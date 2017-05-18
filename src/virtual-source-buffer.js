@@ -421,7 +421,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     removeCuesFromTrack(start, end, this.metadataTrack_);
 
     // Remove Any Captions
-    removeCuesFromTrack(start, end, this.inbandTextTrack_);
+    if (this.inbandTextTracks_) {
+      for (let track in this.inbandTextTracks_) {
+        removeCuesFromTrack(start, end, this.inbandTextTracks_[track]);
+      }
+    }
   }
 
   /**

@@ -179,7 +179,11 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     // of a buffered-range and everything else is reset on seek
     this.mediaSource_.player_.on('seeked', () => {
       removeCuesFromTrack(0, Infinity, this.metadataTrack_);
-      removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
+      if (this.inbandTextTracks_) {
+        for (let track in this.inbandTextTracks_) {
+          removeCuesFromTrack(0, Infinity, this.inbandTextTracks_[track]);
+        }
+      }
     });
 
     this.mediaSource_.player_.tech_.hls.on('dispose', () => {
@@ -245,7 +249,11 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
    */
   remove(start, end) {
     removeCuesFromTrack(start, end, this.metadataTrack_);
-    removeCuesFromTrack(start, end, this.inbandTextTrack_);
+    if (this.inbandTextTracks_) {
+      for (let track in this.inbandTextTracks_) {
+        removeCuesFromTrack(start, end, this.inbandTextTracks_[track]);
+      }
+    }
     this.trigger({ type: 'update' });
     this.trigger({ type: 'updateend' });
   }
