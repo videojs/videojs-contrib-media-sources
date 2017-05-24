@@ -79,7 +79,7 @@
     "global": "^4.3.0",
     "mux.js": "4.1.4",
     "video.js": "^5.17.0",
-    "webworkify": "1.0.2"
+    "webworkify": "^1.4.0"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
