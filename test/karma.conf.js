@@ -13,7 +13,7 @@ module.exports = function(config) {
     }
   };
 
-  // On Travis CI, we can only run in Firefox.
+  // On Travis CI, we can only run in Firefox and Chrome; so, enforce that.
   if (process.env.TRAVIS) {
     config.browsers = ['Firefox', 'travisChrome'];
   }
@@ -26,24 +26,16 @@ module.exports = function(config) {
 
   config.set({
     basePath: '..',
-    frameworks: ['browserify', 'qunit', 'detectBrowsers'],
-
+    frameworks: ['qunit', 'detectBrowsers'],
     files: [
       'node_modules/sinon/pkg/sinon.js',
       'node_modules/sinon/pkg/sinon-ie.js',
+      'test/dist/browserify-test.js',
+      'test/dist/webpack-test.js'
       'node_modules/video.js/dist/video.js',
       'node_modules/video.js/dist/video-js.css',
-      'node_modules/videojs-flash/dist/videojs-flash.js',
-      'test/**/*.js',
-      'dist-test/browserify-test.js',
-      'dist-test/webpack-test.js'
+      'test/dist/bundle.js'
     ],
-    exclude: [
-      'test/bundle.js'
-    ],
-    preprocessors: {
-      'test/**/*.js': ['browserify']
-    },
     customLaunchers: {
       travisChrome: {
         base: 'Chrome',
@@ -56,14 +48,6 @@ module.exports = function(config) {
     colors: true,
     autoWatch: false,
     singleRun: true,
-    concurrency: Infinity,
-    browserify: {
-      debug: true,
-      transform: [
-        'babelify',
-        'browserify-shim'
-      ]
-    }
-
+    concurrency: Infinity
   });
 };
