@@ -2,7 +2,7 @@
  * @file add-text-track-data.js
  */
 import window from 'global/window';
-import videojs from 'video.js';
+
 /**
  * Define properties on a cue for backwards compatability,
  * but warn the user that the way that they are using it
@@ -15,7 +15,7 @@ const deprecateOldCue = function(cue) {
   Object.defineProperties(cue.frame, {
     id: {
       get() {
-        videojs.log.warn(
+        console.warn(
           'cue.frame.id is deprecated. Use cue.value.key instead.'
         );
         return cue.value.key;
@@ -23,7 +23,7 @@ const deprecateOldCue = function(cue) {
     },
     value: {
       get() {
-        videojs.log.warn(
+        console.warn(
           'cue.frame.value is deprecated. Use cue.value.data instead.'
         );
         return cue.value.data;
@@ -31,7 +31,7 @@ const deprecateOldCue = function(cue) {
     },
     privateData: {
       get() {
-        videojs.log.warn(
+        console.warn(
           'cue.frame.privateData is deprecated. Use cue.value.data instead.'
         );
         return cue.value.data;

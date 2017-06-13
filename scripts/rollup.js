@@ -14,13 +14,17 @@ sh.rm('-rf', 'tmp/');
 sh.cp('-R', 'src/', 'tmp/');
 sh.rm('-rf', 'tmp/worker.js');
 
-const br = sh.exec([
-  'browserify src/worker.js',
-  '-t babelify',
-  '-p [ browserify-derequire ]',
-  '-p [ bundle-collapser/plugin.js ]',
-  '> tmp/worker.js'
-].join(' '));
+const worker = (name) => {
+  sh.exec([
+    `browserify src/${name}.js`,
+    '-t babelify',
+    '-p [ browserify-derequire ]',
+    '-p [ bundle-collapser/plugin.js ]',
+    `> tmp/${name}.js`
+  ].join(' '));
+}
+
+worker('workers');
 
 const primedResolve = resolve({
   jsnext: true,
@@ -45,7 +49,7 @@ const primedBabel = babel({
 
 const es = {
   options: {
-    entry: 'tmp/videojs-contrib-hls.js',
+    entry: 'tmp/videojs-contrib-media-sources.js',
     plugins: [
       json(),
       primedBabel,
@@ -64,47 +68,45 @@ const es = {
     legacy: true
   },
   format: 'es',
-  dest: 'dist/videojs-contrib-hls.es.js'
+  dest: 'dist/videojs-contrib-media-sources.es.js'
 };
 
 const cjs = Object.assign({}, es, {
   format: 'cjs',
-  dest: 'dist/videojs-contrib-hls.cjs.js'
+  dest: 'dist/videojs-contrib-media-sources.cjs.js'
 });
 
 const umd = {
   options: {
-    entry: 'tmp/videojs-contrib-hls.js',
+    entry: 'tmp/videojs-contrib-media-sources.js',
     plugins: [
-      ignore([
-        'videojs-contrib-media-sources',
-        'videojs-contrib-media-sources/es5/codec-utils',
-        'videojs-contrib-media-sources/es5/remove-cues-from-track.js',
-      ]),
+      // ignore(['video.js', 'global/window', 'global/document']),
       primedResolve,
       json(),
       primedCjs,
       primedBabel,
-      args.progress ? progress() : {},
-      filesize()
+      // args.progress ? progress() : {},
     ],
     legacy: true,
+    external: ['video.js', 'global/window', 'global/document'],
   },
   globals: {
-    'video.js': 'videojs'
+    'video.js': 'videojs',
+      'global/window': 'window',
+      'global/document': 'document'
   },
-  format: 'iife',
-  dest: 'dist/videojs-contrib-hls.umd.js'
+  format: 'umd',
+  dest: 'dist/videojs-contrib-media-sources.umd.js'
 };
 
-function runRollup({options, format, globals, dest, banner}) {
-  console.log('!!!', format, globals);
+function runRollup({options, format, external, globals, dest, banner}) {
   rollup.rollup(options)
   .then(function(bundle) {
     bundle.write({
       format,
       dest,
       banner,
+      external,
       globals,
       moduleName: 'videojs-contrib-hls',
       sourceMap: false
@@ -115,6 +117,6 @@ function runRollup({options, format, globals, dest, banner}) {
   });
 }
 
-// runRollup(es);
+runRollup(es);
 // runRollup(cjs);
 runRollup(umd);
