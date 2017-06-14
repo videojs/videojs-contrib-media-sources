@@ -8,7 +8,7 @@ import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import {addTextTrackData} from './add-text-track-data';
 import FlashConstants from './flash-constants';
-import * as workers from './workers';
+import FlashTransmuxWorker from 'worker!./flash-transmux-worker-bundle.js';
 
 /**
  * A wrapper around the setTimeout function that uses
@@ -124,7 +124,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
 
-    this.transmuxer_ = workers.flashTransmuxWorker();
+    this.transmuxer_ = new FlashTransmuxWorker();
     this.transmuxer_.postMessage({ action: 'init', options: {} });
     this.transmuxer_.onmessage = (event) => {
       if (event.data.action === 'data') {

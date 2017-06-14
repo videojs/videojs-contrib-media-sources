@@ -134,7 +134,7 @@
     "sinon": "1.14.1",
     "uglify-js": "^3.0.7",
     "videojs-flash": "^1.0.0-RC.1",
-    "videojs-standard": "^4.0.4",
+    "videojs-standard": "^4.0.3",
     "watchify": "^3.6.0",
     "webpack": "^1.13.2"
   },

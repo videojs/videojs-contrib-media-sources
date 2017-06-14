@@ -11,14 +11,10 @@ import resolve from 'rollup-plugin-node-resolve';
 import worker from '@gkatsev/rollup-plugin-bundle-worker';
 
 export default {
-  moduleName: 'worker',
-  entry: 'src/decrypter-worker.js',
-  dest: 'src/worker.js',
+  moduleName: 'flashTransmuxWorker',
+  entry: 'src/flash-transmuxer-worker.js',
+  dest: 'src/flash-transmux-worker-bundle.js',
   format: 'iife',
-  external: ['video.js', 'videojs-flash'],
-  globals: {
-    'video.js': 'videojs'
-  },
   legacy: true,
   plugins: [
     worker(),

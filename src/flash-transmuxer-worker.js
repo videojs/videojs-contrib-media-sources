@@ -104,6 +104,4 @@ const FlashTransmuxerWorker = function(self) {
   };
 };
 
-export default (self) => {
-  return new FlashTransmuxerWorker(self);
-};
+export default new FlashTransmuxerWorker(self);

@@ -11,13 +11,15 @@ import resolve from 'rollup-plugin-node-resolve';
 import worker from '@gkatsev/rollup-plugin-bundle-worker';
 
 export default {
-  moduleName: 'videojs-contrib-media-sources',
+  moduleName: 'videojsContribMediaSources',
   entry: 'src/videojs-contrib-media-sources.js',
   dest: 'dist/videojs-contrib-media-sources.js',
   format: 'umd',
-  external: ['video.js'],
+  external: ['video.js', 'global/window', 'global/document'],
   globals: {
-    'video.js': 'videojs'
+    'video.js': 'videojs',
+    'global/window': 'window',
+    'global/document': 'document'
   },
   legacy: true,
   plugins: [
@@ -28,12 +30,9 @@ export default {
       jsnext: true
     }),
     json(),
-    commonjs({
-      sourceMap: false
-    }),
     babel({
       babelrc: false,
-      exclude: ['node_modules/**', '**/worker.js'],
+      exclude: ['node_modules/**', '**/flash-transmux-worker-bundle.js', '**/transmux-worker-bundle.js'],
       presets: [
         ['es2015', {
           loose: true,

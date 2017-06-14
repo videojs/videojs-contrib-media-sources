@@ -32,3 +32,6 @@ node_modules/
 dist/
 docs/api/
 test/dist/
+
+# this file is generated and shouldn't be checked in
+**/*worker-bundle.js

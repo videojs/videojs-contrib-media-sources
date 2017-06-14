@@ -10,7 +10,7 @@ import json from 'rollup-plugin-json';
 import worker from '@gkatsev/rollup-plugin-bundle-worker';
 
 export default {
-  moduleName: 'videojs-contrib-media-sources',
+  moduleName: 'videojsContribMediaSources',
   entry: 'src/videojs-contrib-media-sources.js',
   external: ['video.js'],
   globals: {
