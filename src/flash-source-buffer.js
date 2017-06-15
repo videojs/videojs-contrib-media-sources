@@ -3,13 +3,12 @@
  */
 import window from 'global/window';
 import videojs from 'video.js';
-import flv from 'mux.js/lib/flv';
+// import flv from 'mux.js/lib/flv';
 import removeCuesFromTrack from './remove-cues-from-track';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import {addTextTrackData} from './add-text-track-data';
-import transmuxWorker from './flash-transmuxer-worker';
-import work from 'webworkify';
 import FlashConstants from './flash-constants';
+import FlashTransmuxWorker from 'worker!./flash-transmux-worker-bundle.js';
 
 /**
  * A wrapper around the setTimeout function that uses
@@ -97,7 +96,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       String.fromCharCode.apply(
         null,
         Array.prototype.slice.call(
-          flv.getFlvHeader()
+          // flv.getFlvHeader()
         )
       )
     );
@@ -125,7 +124,7 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     this.mediaSource_.swfObj.vjs_appendChunkReady(this.flashEncodedHeaderName_);
 
-    this.transmuxer_ = work(transmuxWorker);
+    this.transmuxer_ = new FlashTransmuxWorker();
     this.transmuxer_.postMessage({ action: 'init', options: {} });
     this.transmuxer_.onmessage = (event) => {
       if (event.data.action === 'data') {

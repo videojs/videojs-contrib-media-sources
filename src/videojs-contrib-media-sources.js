@@ -4,6 +4,8 @@
 import window from 'global/window';
 import FlashMediaSource from './flash-media-source';
 import HtmlMediaSource from './html-media-source';
+import removeCuesFromTrack from './remove-cues-from-track';
+import * as codecUtils from './codec-utils.js';
 import videojs from 'video.js';
 let urlCount = 0;
 
@@ -64,7 +66,7 @@ const supportsNativeMediaSources = function() {
  * @link https://developer.mozilla.org/en-US/docs/Web/API/MediaSource/MediaSource
  * @param {Object} options options to use during setup.
  */
-export const MediaSource = function(options) {
+const MediaSource = function(options) {
   let settings = videojs.mergeOptions(defaults, options);
 
   this.MediaSource = {
@@ -92,7 +94,7 @@ MediaSource.supportsNativeMediaSources = supportsNativeMediaSources;
  *
  * @link https://developer.mozilla.org/en-US/docs/Web/API/URL/URL
  */
-export const URL = {
+const URL = {
   /**
    * A wrapper around the native createObjectURL for our objects.
    * This function maps a native or emulated mediaSource to a blob
@@ -130,6 +132,13 @@ export const URL = {
 
     return url;
   }
+};
+
+export {
+  MediaSource,
+  URL,
+  removeCuesFromTrack,
+  codecUtils
 };
 
 videojs.MediaSource = MediaSource;

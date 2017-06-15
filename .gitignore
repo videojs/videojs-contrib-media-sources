@@ -30,6 +30,8 @@ node_modules/
 
 # Build-related directories
 dist/
-dist-test/
 docs/api/
-es5/
+test/dist/
+
+# this file is generated and shouldn't be checked in
+**/*worker-bundle.js

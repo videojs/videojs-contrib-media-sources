@@ -5,9 +5,8 @@ import videojs from 'video.js';
 import createTextTracksIfNecessary from './create-text-tracks-if-necessary';
 import removeCuesFromTrack from './remove-cues-from-track';
 import {addTextTrackData} from './add-text-track-data';
-import work from 'webworkify';
-import transmuxWorker from './transmuxer-worker';
 import {isAudioCodec, isVideoCodec} from './codec-utils';
+import TransmuxWorker from 'worker!./transmux-worker-bundle.js';
 
 // We create a wrapper around the SourceBuffer so that we can manage the
 // state of the `updating` property manually. We have to do this because
@@ -75,7 +74,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
     // append muxed segments to their respective native buffers as
     // soon as they are available
-    this.transmuxer_ = work(transmuxWorker);
+    this.transmuxer_ = new TransmuxWorker();
     this.transmuxer_.postMessage({action: 'init', options });
 
     this.transmuxer_.onmessage = (event) => {
