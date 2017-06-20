@@ -23,6 +23,7 @@ const createTextTracksIfNecessary = function(sourceBuffer, mediaSource, segment)
       kind: 'captions',
       label: 'cc1'
     }, false).track;
+    player.tech_.trigger({type: 'usage', name: 'hls-608'});
   }
 
   if (segment.metadata &&
