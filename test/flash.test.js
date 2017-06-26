@@ -1024,6 +1024,7 @@ QUnit.test('fires loadedmetadata after first segment append', function() {
 
 QUnit.test('cleans up WebVTT cues on hls dispose', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
+  let hls608 = 0;
 
   sourceBuffer.transmuxer_.postMessage = postMessage_;
 
@@ -1067,11 +1068,17 @@ QUnit.test('cleans up WebVTT cues on hls dispose', function() {
     },
     removeRemoteTextTrack(track) {
       removedTracks.push(track);
-    }
+    },
+    tech_: new videojs.EventTarget()
   };
-
+  this.mediaSource.player_.tech_.on('usage', (event) => {
+    if (event.name === 'hls-608') {
+      hls608++;
+    }
+  });
   sourceBuffer.transmuxer_.onmessage(createDataMessage([], [], metadata, captions));
 
+  QUnit.equal(hls608, 1, 'one hls-608 event was triggered');
   QUnit.equal(addedTracks.length, 2, 'created two text tracks');
   QUnit.equal(addedTracks.filter(t => ['captions', 'metadata'].indexOf(t.kind) === -1).length,
               0,

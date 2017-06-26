@@ -1034,6 +1034,7 @@ QUnit.test('translates caption events into WebVTT cues', function() {
   let mediaSource = new videojs.MediaSource();
   let sourceBuffer = mediaSource.addSourceBuffer('video/mp2t');
   let types = [];
+  let hls608 = 0;
 
   mediaSource.player_ = {
     addRemoteTextTrack(options) {
@@ -1050,8 +1051,14 @@ QUnit.test('translates caption events into WebVTT cues', function() {
       };
     },
     remoteTextTracks() {
-    }
+    },
+    tech_: new videojs.EventTarget()
   };
+  mediaSource.player_.tech_.on('usage', (event) => {
+    if (event.name === 'hls-608') {
+      hls608++;
+    }
+  });
   sourceBuffer.timestampOffset = 10;
   sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
     captions: [{
@@ -1063,6 +1070,7 @@ QUnit.test('translates caption events into WebVTT cues', function() {
   sourceBuffer.transmuxer_.onmessage(doneMessage);
   let cues = sourceBuffer.inbandTextTrack_.cues;
 
+  QUnit.equal(hls608, 1, 'one hls-608 event was triggered');
   QUnit.equal(types.length, 1, 'created one text track');
   QUnit.equal(types[0], 'captions', 'the type was captions');
   QUnit.equal(cues.length, 1, 'created one cue');
@@ -1191,7 +1199,8 @@ QUnit.test('removes existing metadata and caption tracks that exist on the playe
     removeRemoteTextTrack(track) {
       removedTracks.push(track);
       addedTracks.splice(addedTracks.indexOf(track), 1);
-    }
+    },
+    tech_: new videojs.EventTarget()
   };
 
   sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
@@ -1257,7 +1266,8 @@ QUnit.test('cleans up WebVTT cues on sourceclose', function() {
     },
     removeRemoteTextTrack(track) {
       removedTracks.push(track);
-    }
+    },
+    tech_: new videojs.EventTarget()
   };
 
   sourceBuffer.transmuxer_.onmessage(createDataMessage('video', new Uint8Array(1), {
