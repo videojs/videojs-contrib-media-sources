@@ -2,6 +2,13 @@ CHANGELOG
 =========
 
 --------------------
+## 4.4.5 (2017-06-27)
+* update mux.js to v4.1.5 [#150](https://github.com/videojs/videojs-contrib-media-sources/pull/150)
+  * Only flush PES packets from TS parsing front end when they are complete
+    * Complete is defined as any time PES_packet_length matches the data’s length OR is a video packets
+    * Works around an issue with incomplete packets getting sent down the pipeline when the source has audio PES packets split between segments
+
+--------------------
 ## 4.4.5 (2017-05-16)
 * update mux.js to 4.1.4 [#144](https://github.com/videojs/videojs-contrib-media-sources/pull/144)
   * ts probe searches packets for first it can successfully parse
