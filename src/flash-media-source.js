@@ -72,7 +72,7 @@ export default class FlashMediaSource extends videojs.EventTarget {
     let sourceBuffer;
 
     // if this is an FLV type, we'll push data to flash
-    if (parsedType.type === 'video/mp2t') {
+    if (parsedType.type === 'video/mp2t' || parsedType.type === 'audio/mp2t') {
       // Flash source buffers
       sourceBuffer = new FlashSourceBuffer(this);
     } else {

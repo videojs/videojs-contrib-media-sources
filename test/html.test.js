@@ -1467,7 +1467,42 @@ function() {
     'active source buffers starts with combined source buffer');
   QUnit.equal(mediaSource.activeSourceBuffers[1], sourceBufferAudio,
     'active source buffers ends with audio source buffer');
+});
 
+QUnit.test('Single buffer always active. Audio disabled depends on audio codec',
+function() {
+  let mediaSource = new videojs.MediaSource();
+  let audioTracks = [{
+    enabled: true,
+    kind: 'main',
+    label: 'main'
+  }];
+
+  this.player.audioTracks = () => audioTracks;
+
+  mediaSource.player_ = this.player;
+
+  let sourceBuffer = mediaSource.addSourceBuffer('video/m2pt');
+
+  // video only
+  sourceBuffer.videoCodec_ = true;
+  sourceBuffer.audioCodec_ = false;
+
+  mediaSource.updateActiveSourceBuffers_();
+
+  QUnit.equal(mediaSource.activeSourceBuffers.length, 1, 'sourceBuffer is active');
+  QUnit.ok(mediaSource.activeSourceBuffers[0].audioDisabled_,
+    'audio is disabled on video only active sourceBuffer');
+
+  // audio only
+  sourceBuffer.videoCodec_ = false;
+  sourceBuffer.audioCodec_ = true;
+
+  mediaSource.updateActiveSourceBuffers_();
+
+  QUnit.equal(mediaSource.activeSourceBuffers.length, 1, 'sourceBuffer is active');
+  QUnit.notOk(mediaSource.activeSourceBuffers[0].audioDisabled_,
+    'audio not disabled on audio only active sourceBuffer');
 });
 
 QUnit.test('video segments with info trigger videooinfo event', function() {

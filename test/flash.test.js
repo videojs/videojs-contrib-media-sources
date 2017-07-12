@@ -230,6 +230,11 @@ QUnit.test('creates FlashSourceBuffers for video/mp2t', function() {
       'create source buffer');
 });
 
+QUnit.test('creates FlashSourceBuffers for audio/mp2t', function() {
+  QUnit.ok(this.mediaSource.addSourceBuffer('audio/mp2t') instanceof FlashSourceBuffer,
+      'create source buffer');
+});
+
 QUnit.test('waits for the next tick to append', function() {
   let sourceBuffer = this.mediaSource.addSourceBuffer('video/mp2t');
 

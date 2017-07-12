@@ -92,10 +92,23 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // Retain the reference but empty the array
       this.activeSourceBuffers_.length = 0;
 
+      // If there is only one source buffer, then it will always be active and audio will
+      // be disabled based on the codec of the source buffer
+      if (this.sourceBuffers.length === 1) {
+        let sourceBuffer = this.sourceBuffers[0];
+
+        sourceBuffer.appendAudioInitSegment_ = true;
+        sourceBuffer.audioDisabled_ = !sourceBuffer.audioCodec_;
+        this.activeSourceBuffers_.push(sourceBuffer);
+        return;
+      }
+
+      // There are 2 source buffers, a combined (possibly video only) source buffer and
+      // and an audio only source buffer.
       // By default, the audio in the combined virtual source buffer is enabled
       // and the audio-only source buffer (if it exists) is disabled.
-      let combined = false;
-      let audioOnly = true;
+      let disableCombined = false;
+      let disableAudioOnly = true;
 
       // TODO: maybe we can store the sourcebuffers on the track objects?
       // safari may do something like this
@@ -105,14 +118,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
         if (track.enabled && track.kind !== 'main') {
           // The enabled track is an alternate audio track so disable the audio in
           // the combined source buffer and enable the audio-only source buffer.
-          combined = true;
-          audioOnly = false;
+          disableCombined = true;
+          disableAudioOnly = false;
           break;
         }
       }
 
-      // Since we currently support a max of two source buffers, add all of the source
-      // buffers (in order).
       this.sourceBuffers.forEach((sourceBuffer) => {
         /* eslinst-disable */
         // TODO once codecs are required, we can switch to using the codecs to determine
@@ -123,17 +134,17 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
         if (sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // combined
-          sourceBuffer.audioDisabled_ = combined;
+          sourceBuffer.audioDisabled_ = disableCombined;
         } else if (sourceBuffer.videoCodec_ && !sourceBuffer.audioCodec_) {
           // If the "combined" source buffer is video only, then we do not want
           // disable the audio-only source buffer (this is mostly for demuxed
           // audio and video hls)
           sourceBuffer.audioDisabled_ = true;
-          audioOnly = false;
+          disableAudioOnly = false;
         } else if (!sourceBuffer.videoCodec_ && sourceBuffer.audioCodec_) {
           // audio only
-          sourceBuffer.audioDisabled_ = audioOnly;
-          if (audioOnly) {
+          sourceBuffer.audioDisabled_ = disableAudioOnly;
+          if (disableAudioOnly) {
             return;
           }
         }
