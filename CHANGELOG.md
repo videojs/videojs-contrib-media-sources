@@ -2,7 +2,13 @@ CHANGELOG
 =========
 
 --------------------
-## 4.4.5 (2017-06-27)
+## 4.4.7 (2017-07-12)
+* Fix disabled audio for a single audio only source buffer [#152](https://github.com/videojs/videojs-contrib-media-sources/pull/152)
+  * disable audio based on codec info when only one source buffer
+  * allow audio only source buffer creation for flash
+
+--------------------
+## 4.4.6 (2017-06-27)
 * update mux.js to v4.1.5 [#150](https://github.com/videojs/videojs-contrib-media-sources/pull/150)
   * Only flush PES packets from TS parsing front end when they are complete
     * Complete is defined as any time PES_packet_length matches the data’s length OR is a video packets
