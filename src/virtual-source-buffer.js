@@ -263,6 +263,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
    * @param {Event} event the done event from the transmuxer
    */
   done_(event) {
+    // Don't process and append data if the mediaSource is closed
+    if (this.mediaSource_.readyState === 'closed') {
+      this.pendingBuffers_.length = 0;
+      return;
+    }
+
     // All buffers should have been flushed from the muxer
     // start processing anything we have received
     this.processPendingSegments_();
