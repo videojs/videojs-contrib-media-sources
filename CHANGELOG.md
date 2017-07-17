@@ -2,6 +2,10 @@ CHANGELOG
 =========
 
 --------------------
+## 4.4.8 (2017-07-17)
+* Fix processing segments when mediaSource is closed [#151](https://github.com/videojs/videojs-contrib-media-sources/pull/151)
+
+--------------------
 ## 4.4.7 (2017-07-12)
 * Fix disabled audio for a single audio only source buffer [#152](https://github.com/videojs/videojs-contrib-media-sources/pull/152)
   * disable audio based on codec info when only one source buffer
