@@ -51,6 +51,8 @@ module.exports = function(config) {
       }
     },
     detectBrowsers: detectBrowsers,
+    // timeout after 2 minutes of no activity
+    browserNoActivityTimeout: 120000,
     reporters: ['dots'],
     port: 9876,
     colors: true,
