@@ -25,7 +25,7 @@ addons:
   # TODO: This should be using latest for firefox. It is currently locked at 54 because
   #       of https://github.com/travis-ci/travis-ci/issues/8242 When this issue is
   #       resolved, this should be updated back to latest
-  firefox: "54.0"
+  firefox: latest
   apt:
     sources:
     - google-chrome
