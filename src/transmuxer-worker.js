@@ -132,6 +132,11 @@ class MessageHandlers {
   flush(data) {
     this.transmuxer.flush();
   }
+
+  resetCaptions() {
+    this.transmuxer.resetCaptions();
+  }
+
 }
 
 /**

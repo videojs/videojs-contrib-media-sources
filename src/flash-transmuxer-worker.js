@@ -76,6 +76,11 @@ class MessageHandlers {
   flush() {
     this.transmuxer.flush();
   }
+
+  resetCaptions() {
+    this.transmuxer.resetCaptions();
+  }
+
 }
 
 /**
