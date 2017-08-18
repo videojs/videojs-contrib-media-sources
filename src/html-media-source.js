@@ -159,7 +159,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       });
     };
 
-    this.onResetHls_ = () => {
+    this.onHlsReset_ = () => {
       this.sourceBuffers.forEach((sourceBuffer) => {
         if (sourceBuffer.transmuxer_) {
           sourceBuffer.transmuxer_.postMessage({action: 'resetCaptions'});
@@ -188,7 +188,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
       this.player_ = videojs(video.parentNode);
 
-      this.player_.tech_.on('hls-reset', this.onResetHls_);
+      this.player_.tech_.on('hls-reset', this.onHlsReset_);
 
       if (this.player_.audioTracks && this.player_.audioTracks()) {
         this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_);
@@ -240,7 +240,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       // event handlers left to unbind anyway
       if (this.player_.el_) {
         this.player_.off('mediachange', this.onPlayerMediachange_);
-        this.player_.tech_.off('hls-reset', this.onResetHls_);
+        this.player_.tech_.off('hls-reset', this.onHlsReset_);
       }
     });
   }

@@ -182,16 +182,14 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
       removeCuesFromTrack(0, Infinity, this.inbandTextTrack_);
     });
 
-    this.mediaSource_.player_.tech_.on('hls-reset', this.resetHls);
+    let onHlsReset = this.onHlsReset_.bind(this);
+
+    this.mediaSource_.player_.tech_.on('hls-reset', onHlsReset);
 
     this.mediaSource_.player_.tech_.hls.on('dispose', () => {
       this.transmuxer_.terminate();
-      this.mediaSource_.player_.tech_.off('hls-reset', this.resetHls);
+      this.mediaSource_.player_.tech_.off('hls-reset', onHlsReset);
     });
-  }
-
-  resetHls() {
-    this.transmuxer_.postMessage({action: 'resetCaptions'});
   }
 
   /**
@@ -545,5 +543,9 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
     }
 
     return tags;
+  }
+
+  onHlsReset_() {
+    this.transmuxer_.postMessage({action: 'resetCaptions'});
   }
 }
