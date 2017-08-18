@@ -69,6 +69,13 @@ const unfakeSTO = function() {
 
 // Create a WebWorker-style message that signals the transmuxer is done
 const createDataMessage = function(data, audioData, metadata, captions) {
+  let captionStreams = {};
+
+  if (captions) {
+    captions.forEach((caption) => {
+      captionStreams[caption.stream] = true;
+    });
+  }
   return {
     data: {
       action: 'data',
@@ -82,7 +89,8 @@ const createDataMessage = function(data, audioData, metadata, captions) {
           }) : []
         },
         metadata,
-        captions
+        captions,
+        captionStreams
       }
     }
   };
@@ -1051,7 +1059,8 @@ QUnit.test('cleans up WebVTT cues on hls dispose', function() {
   let captions = [{
     startTime: 1,
     endTime: 3,
-    text: 'This is an in-band caption'
+    text: 'This is an in-band caption',
+    stream: 'CC1'
   }];
 
   metadata.dispatchType = 0x10;
@@ -1067,6 +1076,11 @@ QUnit.test('cleans up WebVTT cues on hls dispose', function() {
 
       addedTracks.push(trackEl.track);
       return trackEl;
+    },
+    textTracks() {
+      return {
+        getTrackById() {}
+      };
     },
     remoteTextTracks() {
       return addedTracks;

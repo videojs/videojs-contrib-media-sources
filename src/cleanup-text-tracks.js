@@ -26,6 +26,15 @@ export const removeExistingTrack = function(player, kind, label) {
  * @private
  */
 export const cleanupTextTracks = function(player) {
-  removeExistingTrack(player, 'captions', 'cc1');
+  const tracks = player.remoteTextTracks() || [];
+
+  for (let i = tracks.length - 1; i >= 0; i--) {
+    const track = tracks[i];
+
+    if (track.kind === 'captions') {
+      player.removeRemoteTextTrack(track);
+    }
+  }
+
   removeExistingTrack(player, 'metadata', 'Timed Metadata');
 };

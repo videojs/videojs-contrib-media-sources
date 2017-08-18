@@ -16,14 +16,32 @@ const createTextTracksIfNecessary = function(sourceBuffer, mediaSource, segment)
 
   // create an in-band caption track if one is present in the segment
   if (segment.captions &&
-      segment.captions.length &&
-      !sourceBuffer.inbandTextTrack_) {
-    removeExistingTrack(player, 'captions', 'cc1');
-    sourceBuffer.inbandTextTrack_ = player.addRemoteTextTrack({
-      kind: 'captions',
-      label: 'cc1'
-    }, false).track;
-    player.tech_.trigger({type: 'usage', name: 'hls-608'});
+      segment.captions.length) {
+    if (!sourceBuffer.inbandTextTracks_) {
+      sourceBuffer.inbandTextTracks_ = {};
+    }
+
+    for (let trackId in segment.captionStreams) {
+      if (!sourceBuffer.inbandTextTracks_[trackId]) {
+        player.tech_.trigger({type: 'usage', name: 'hls-608'});
+        let track = player.textTracks().getTrackById(trackId);
+
+        if (track) {
+          // Resuse an existing track with a CC# id because this was
+          // very likely created by videojs-contrib-hls from information
+          // in the m3u8 for us to use
+          sourceBuffer.inbandTextTracks_[trackId] = track;
+        } else {
+          // Otherwise, create a track with the default `CC#` label and
+          // without a language
+          sourceBuffer.inbandTextTracks_[trackId] = player.addRemoteTextTrack({
+            kind: 'captions',
+            id: trackId,
+            label: trackId
+          }, false).track;
+        }
+      }
+    }
   }
 
   if (segment.metadata &&

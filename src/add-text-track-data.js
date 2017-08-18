@@ -64,7 +64,9 @@ const addTextTrackData = function(sourceHandler, captionArray, metadataArray) {
 
   if (captionArray) {
     captionArray.forEach(function(caption) {
-      this.inbandTextTrack_.addCue(
+      let track = caption.stream;
+
+      this.inbandTextTracks_[track].addCue(
         new Cue(
           caption.startTime + this.timestampOffset,
           caption.endTime + this.timestampOffset,
