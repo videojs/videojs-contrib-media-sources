@@ -2,6 +2,11 @@ CHANGELOG
 =========
 
 --------------------
+## 4.5.0 (2017-08-18)
+* fix duplicate caption processing [#156](https://github.com/videojs/videojs-contrib-media-sources/pull/156)
+* Support for multiple CEA608 tracks and HLS-provided track names [#140](https://github.com/videojs/videojs-contrib-media-sources/pull/140)
+
+--------------------
 ## 4.4.8 (2017-07-17)
 * Fix processing segments when mediaSource is closed [#151](https://github.com/videojs/videojs-contrib-media-sources/pull/151)
 
