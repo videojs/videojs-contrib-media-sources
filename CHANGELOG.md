@@ -2,6 +2,10 @@ CHANGELOG
 =========
 
 --------------------
+## 4.5.1 (2017-08-28)
+* fix: flv metadata tags now appened when audio info changes [#157](https://github.com/videojs/videojs-contrib-media-sources/pull/157)
+
+--------------------
 ## 4.5.0 (2017-08-18)
 * fix duplicate caption processing [#156](https://github.com/videojs/videojs-contrib-media-sources/pull/156)
 * Support for multiple CEA608 tracks and HLS-provided track names [#140](https://github.com/videojs/videojs-contrib-media-sources/pull/140)
