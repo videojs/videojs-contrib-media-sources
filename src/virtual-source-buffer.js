@@ -60,6 +60,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.videoCodec_ = null;
     this.audioDisabled_ = false;
     this.appendAudioInitSegment_ = true;
+    this.gopBuffer_ = [];
+    this.timeMapping_ = 0;
 
     let options = {
       remux: false
@@ -86,6 +88,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       if (event.data.action === 'done') {
         return this.done_(event);
       }
+
+      if (event.data.action === 'gopInfo') {
+        return this.appendGopInfo_(event);
+      }
     };
 
     // this timestampOffset is a property with the side-effect of resetting
@@ -98,6 +104,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         if (typeof val === 'number' && val >= 0) {
           this.timestampOffset_ = val;
           this.appendAudioInitSegment_ = true;
+
+          // reset gop buffer on timestampoffset as this signals a change in timeline
+          this.gopBuffer_.length = 0;
+          this.timeMapping_ = 0;
 
           // We have to tell the transmuxer to set the baseMediaDecodeTime to
           // the desired timestampOffset for the next segment
@@ -361,6 +371,46 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     });
   }
 
+  gopsSafeToAlignWith_() {
+    console.log('>>> call gopsSafeToAlignWith_');
+    if (!this.mediaSource_.player_ || !this.gopBuffer_.length) {
+      console.log('>>> no player or gopBuffer_ length');
+      console.log('>>> return gopsSafeToAlignWith_');
+
+      return [];
+    }
+
+    const currentTime = this.mediaSource_.player_.currentTime();
+    const techTime = this.mediaSource_.player_.tech_.el_.currentTime;
+    if (currentTime !== techTime) {
+      console.log('>>> TECH TIME DIFF!!!! currentTime', currentTime, 'techTime', techTime);
+    }
+    const currentTimePts = Math.ceil((currentTime - this.timeMapping_) * 90000);
+
+    console.log('>>> currentTime', currentTime, 'timeMapping_', this.timeMapping_);
+    console.log('>>> currentTimePts', currentTimePts);
+    console.log('>>> gopBuffer_\n', this.toStr());
+
+    let i;
+
+    for (i = 0; i < this.gopBuffer_.length; i++) {
+      if (this.gopBuffer_[i].pts > currentTimePts) {
+        break;
+      }
+    }
+
+    // use the next next safe gop
+    i++;
+    // i++;
+
+    // return this.gopBuffer_.slice(i);
+
+    const ret = this.gopBuffer_.slice(i);
+    console.log('>>> selected gops that are safe\n', this.toStr(ret));
+    console.log('>>> return gopsSafeToAlignWith_');
+    return ret;
+  }
+
   /**
    * Emulate the native mediasource function, but our function will
    * send all of the proposed segments to the transmuxer so that we
@@ -383,6 +433,13 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       });
     }
 
+    if (this.videoBuffer_) {
+      this.transmuxer_.postMessage({
+        action: 'alignGopsWith',
+        gopsToAlignWith: this.gopsSafeToAlignWith_()
+      });
+    }
+
     this.transmuxer_.postMessage({
       action: 'push',
       // Send the typed-array of data as an ArrayBuffer so that
@@ -399,6 +456,30 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.transmuxer_.postMessage({action: 'flush'});
   }
 
+  appendGopInfo_(event) {
+    const gopInfo = event.data.gopInfo;
+
+    if (!gopInfo.length) {
+      return;
+    }
+
+    const start = gopInfo[0].pts;
+
+    let i = 0;
+
+    for (i; i < this.gopBuffer_.length; i++) {
+      if (this.gopBuffer_[i].pts >= start) {
+        break;
+      }
+    }
+
+    if (i !== this.gopBuffer_.length) {
+      this.gopBuffer_.splice(i);
+    }
+
+    this.gopBuffer_ = this.gopBuffer_.concat(gopInfo);
+  }
+
   /**
    * Emulate the native mediasource function and remove parts
    * of the buffer from any of our internal buffers that exist
@@ -411,6 +492,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.videoBuffer_.updating = true;
       this.videoBuffer_.remove(start, end);
+      this.removeGopInfo_(start, end);
     }
     if (!this.audioDisabled_ && this.audioBuffer_) {
       this.audioBuffer_.updating = true;
@@ -426,6 +508,63 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         removeCuesFromTrack(start, end, this.inbandTextTracks_[track]);
       }
     }
+  }
+
+  removeGopInfo_(start, end) {
+    console.log('>>> call removeGopInfo_');
+    console.log('>>> remove from', start, 'to', end);
+    console.log('>>> timeMapping_', this.timeMapping_);
+    const startPts = Math.ceil((start - this.timeMapping_) * 90000);
+    const endPts = Math.ceil((end - this.timeMapping_) * 90000);
+    console.log('>>> remove from pts', startPts, 'to pts', endPts);
+    console.log('>>> before remove buffer\n', this.toStr());
+
+    let i = this.gopBuffer_.length;
+
+    while (i--) {
+      if (this.gopBuffer_[i].pts <= endPts) {
+        break;
+      }
+    }
+
+    if (i === -1) {
+      // end of remove range is before start of buffer
+      console.log('end of remove range is before start of buffer');
+      console.log('>>> return removeGopInfo_');
+      return;
+    }
+
+    let j = i + 1;
+
+    while(j--) {
+      if (this.gopBuffer_[j].pts <= startPts) {
+        break;
+      }
+    }
+
+    // clamp remove range start to 0 index
+    j = Math.max(j, 0);
+
+    console.log('>>> remove from index', j, 'to index', i);
+    this.gopBuffer_.splice(j, i - j + 1);
+    console.log('>>> after remove buffer\n', this.toStr());
+    console.log('>>> return removeGopInfo_');
+  }
+
+  toStr(buffer) {
+    if (!buffer) {
+      buffer = this.gopBuffer_;
+    }
+
+    return ('----------\n' + buffer.map((gop, index) => {
+      let prefix = index + ':';
+
+      if (index < 10) {
+        prefix = '0' + prefix;
+      }
+
+      return prefix + ' dts ' + gop.dts + ' pts ' + gop.pts;
+    }).join('\n') + '\n----------');
   }
 
   /**
@@ -508,8 +647,24 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       this.appendAudioInitSegment_ = false;
     }
 
+    let didAppend = false;
+
     // Merge multiple video and audio segments into one and append
-    if (this.videoBuffer_) {
+    if (this.videoBuffer_ && sortedSegments.video.bytes) {
+      if (this.mediaSource_.player_) {
+        console.log('>>> appending video data');
+        const currentTime = this.mediaSource_.player_.currentTime();
+        const techTime = this.mediaSource_.player_.tech_.el_.currentTime;
+        if (currentTime !== techTime) {
+          console.log('>>> TECH TIME DIFF!!!! currentTime', currentTime, 'techTime', techTime);
+        }
+        const currentTimePts = Math.ceil((currentTime - this.timeMapping_) * 90000);
+
+        console.log('>>> currentTime', currentTime, 'timeMapping_', this.timeMapping_);
+        console.log('>>> currentTimePts', currentTimePts);
+      }
+
+      didAppend = true;
       sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
       sortedSegments.video.bytes += sortedSegments.video.initSegment.byteLength;
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
@@ -518,7 +673,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
 
     if (!this.audioDisabled_ && this.audioBuffer_) {
+      didAppend = true;
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
+    }
+
+    if (!didAppend) {
+      console.log('>>> NOTHING WAS ACTUALLY APPENEDED, LOADERS MAY BE STUCK WAITING FOR UPDATEEND');
+    } else {
+      console.log('>>> something was appended, you should see updateend very soon');
     }
 
     this.pendingBuffers_.length = 0;

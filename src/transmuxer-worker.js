@@ -59,6 +59,13 @@ const wireTransmuxerEvents = function(transmuxer) {
   transmuxer.on('done', function(data) {
     window.postMessage({ action: 'done' });
   });
+
+  transmuxer.on('gopInfo', function(gopInfo) {
+    window.postMessage({
+      action: 'gopInfo',
+      gopInfo
+    });
+  });
 };
 
 /**
@@ -137,6 +144,9 @@ class MessageHandlers {
     this.transmuxer.resetCaptions();
   }
 
+  alignGopsWith(data) {
+    this.transmuxer.alignGopsWith(data.gopsToAlignWith.slice());
+  }
 }
 
 /**
