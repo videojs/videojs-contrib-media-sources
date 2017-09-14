@@ -166,6 +166,10 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       });
     };
 
+    this.onHlsSegmentTimeMapping_ = (event) => {
+      this.sourceBuffers.forEach(buffer => buffer.timeMapping_ = event.mapping);
+    };
+
     // Re-emit MediaSource events on the polyfill
     [
       'sourceopen',
@@ -188,6 +192,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       this.player_ = videojs(video.parentNode);
 
       this.player_.tech_.on('hls-reset', this.onHlsReset_);
+      this.player_.tech_.on('hls-segment-time-mapping', this.onHlsSegmentTimeMapping_);
 
       if (this.player_.audioTracks && this.player_.audioTracks()) {
         this.player_.audioTracks().on('change', this.updateActiveSourceBuffers_);
@@ -238,6 +243,7 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       if (this.player_.el_) {
         this.player_.off('mediachange', this.onPlayerMediachange_);
         this.player_.tech_.off('hls-reset', this.onHlsReset_);
+        this.player_.tech_.off('hls-segment-time-mapping', this.onHlsSegmentTimeMapping_);
       }
     });
   }
