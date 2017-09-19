@@ -373,22 +373,21 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     });
   }
 
+  /**
+   * Returns a list of gops in the buffer that have a pts value of 3 seconds or more in
+   * front of current time.
+   *
+   * @return {Array}
+   *         List of gops considered safe to append over
+   */
   gopsSafeToAlignWith_() {
-    console.log('>>> call gopsSafeToAlignWith_');
     if (!this.mediaSource_.player_ || !this.gopBuffer_.length) {
-      console.log('>>> no player or gopBuffer_ length');
-      console.log('>>> return gopsSafeToAlignWith_');
-
       return [];
     }
 
     const currentTime = this.mediaSource_.player_.currentTime();
     // pts value for current time + 3 seconds to give a bit more wiggle room
     const currentTimePts = Math.ceil((currentTime - this.timeMapping_ + 3) * 90000);
-
-    console.log('>>> currentTime', currentTime, 'timeMapping_', this.timeMapping_);
-    console.log('>>> currentTimePts', currentTimePts);
-    console.log('>>> gopBuffer_\n', this.toStr());
 
     let i;
 
@@ -398,22 +397,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       }
     }
 
-    // use the next next safe gop
-    // i++;
-    // i++;
-
-    // return this.gopBuffer_.slice(i);
-
-    const ret = this.gopBuffer_.slice(i);
-    console.log('>>> selected gops that are safe\n', this.toStr(ret));
-    console.log('>>> return gopsSafeToAlignWith_');
-    // if (!ret.length) {
-    //   // if there are no safe gops to align with, lets add the pts value of current time
-    //   // as a gop to align with. this will prevent us from appending gops we've already
-    //   // passed but don't have more in the forward buffer
-    //   ret.push(currentTimePts)
-    // }
-    return ret;
+    return this.gopBuffer_.slice(i);
   }
 
   /**
@@ -461,6 +445,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.transmuxer_.postMessage({action: 'flush'});
   }
 
+  /**
+   * Appends gop information (timing and byteLength) received by the transmuxer for the
+   * gops appended in the last call to appendBuffer
+   *
+   * @param {Event} event
+   *        The gopInfo event from the transmuxer
+   * @param {Array} event.data.gopInfo
+   *        List of gop info to append
+   */
   appendGopInfo_(event) {
     const gopInfo = event.data.gopInfo;
 
@@ -524,14 +517,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
   }
 
+  /**
+   * Removes cached gop info from buffer
+   *
+   * @param {Double} start position to start the remove at
+   * @param {Double} end position to end the remove at
+   */
   removeGopInfo_(start, end) {
-    console.log('>>> call removeGopInfo_');
-    console.log('>>> remove from', start, 'to', end);
-    console.log('>>> timeMapping_', this.timeMapping_);
     const startPts = Math.ceil((start - this.timeMapping_) * 90000);
     const endPts = Math.ceil((end - this.timeMapping_) * 90000);
-    console.log('>>> remove from pts', startPts, 'to pts', endPts);
-    console.log('>>> before remove buffer\n', this.toStr());
 
     let i = this.gopBuffer_.length;
 
@@ -543,14 +537,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
     if (i === -1) {
       // end of remove range is before start of buffer
-      console.log('end of remove range is before start of buffer');
-      console.log('>>> return removeGopInfo_');
       return;
     }
 
     let j = i + 1;
 
-    while(j--) {
+    while (j--) {
       if (this.gopBuffer_[j].pts <= startPts) {
         break;
       }
@@ -559,26 +551,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     // clamp remove range start to 0 index
     j = Math.max(j, 0);
 
-    console.log('>>> remove from index', j, 'to index', i);
     this.gopBuffer_.splice(j, i - j + 1);
-    console.log('>>> after remove buffer\n', this.toStr());
-    console.log('>>> return removeGopInfo_');
-  }
-
-  toStr(buffer) {
-    if (!buffer) {
-      buffer = this.gopBuffer_;
-    }
-
-    return ('----------\n' + buffer.map((gop, index) => {
-      let prefix = index + ':';
-
-      if (index < 10) {
-        prefix = '0' + prefix;
-      }
-
-      return prefix + ' dts ' + gop.dts + ' pts ' + gop.pts;
-    }).join('\n') + '\n----------');
   }
 
   /**
@@ -661,24 +634,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       this.appendAudioInitSegment_ = false;
     }
 
-    let didAppend = false;
-
     // Merge multiple video and audio segments into one and append
     if (this.videoBuffer_ && sortedSegments.video.bytes) {
-      if (this.mediaSource_.player_) {
-        console.log('>>> appending video data');
-        const currentTime = this.mediaSource_.player_.currentTime();
-        const techTime = this.mediaSource_.player_.tech_.el_.currentTime;
-        if (currentTime !== techTime) {
-          console.log('>>> TECH TIME DIFF!!!! currentTime', currentTime, 'techTime', techTime);
-        }
-        const currentTimePts = Math.ceil((currentTime - this.timeMapping_) * 90000);
-
-        console.log('>>> currentTime', currentTime, 'timeMapping_', this.timeMapping_);
-        console.log('>>> currentTimePts', currentTimePts);
-      }
-
-      didAppend = true;
       sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
       sortedSegments.video.bytes += sortedSegments.video.initSegment.byteLength;
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
@@ -687,14 +644,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
 
     if (!this.audioDisabled_ && this.audioBuffer_) {
-      didAppend = true;
       this.concatAndAppendSegments_(sortedSegments.audio, this.audioBuffer_);
-    }
-
-    if (!didAppend) {
-      console.log('>>> NOTHING WAS ACTUALLY APPENEDED, LOADERS MAY BE STUCK WAITING FOR UPDATEEND');
-    } else {
-      console.log('>>> something was appended, you should see updateend very soon');
     }
 
     this.pendingBuffers_.length = 0;
