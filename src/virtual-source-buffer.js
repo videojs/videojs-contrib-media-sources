@@ -62,9 +62,11 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     this.appendAudioInitSegment_ = true;
     this.gopBuffer_ = [];
     this.timeMapping_ = 0;
+    this.safeAppend_ = videojs.browser.IE_VERSION >= 11;
 
     let options = {
-      remux: false
+      remux: false,
+      alignGopsAtEnd: this.safeAppend_
     };
 
     this.codecs_.forEach((codec) => {
@@ -381,11 +383,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
 
     const currentTime = this.mediaSource_.player_.currentTime();
-    const techTime = this.mediaSource_.player_.tech_.el_.currentTime;
-    if (currentTime !== techTime) {
-      console.log('>>> TECH TIME DIFF!!!! currentTime', currentTime, 'techTime', techTime);
-    }
-    const currentTimePts = Math.ceil((currentTime - this.timeMapping_) * 90000);
+    // pts value for current time + 3 seconds to give a bit more wiggle room
+    const currentTimePts = Math.ceil((currentTime - this.timeMapping_ + 3) * 90000);
 
     console.log('>>> currentTime', currentTime, 'timeMapping_', this.timeMapping_);
     console.log('>>> currentTimePts', currentTimePts);
@@ -400,7 +399,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     }
 
     // use the next next safe gop
-    i++;
+    // i++;
     // i++;
 
     // return this.gopBuffer_.slice(i);
@@ -408,6 +407,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     const ret = this.gopBuffer_.slice(i);
     console.log('>>> selected gops that are safe\n', this.toStr(ret));
     console.log('>>> return gopsSafeToAlignWith_');
+    // if (!ret.length) {
+    //   // if there are no safe gops to align with, lets add the pts value of current time
+    //   // as a gop to align with. this will prevent us from appending gops we've already
+    //   // passed but don't have more in the forward buffer
+    //   ret.push(currentTimePts)
+    // }
     return ret;
   }
 
@@ -460,6 +465,15 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     const gopInfo = event.data.gopInfo;
 
     if (!gopInfo.length) {
+      return;
+    }
+
+    if (this.safeAppend_) {
+      // If we are in safe append mode, then completely overwrite the gop buffer
+      // with the most recent appeneded data. This will make sure that when appending
+      // future segments, we only try to align with gops that are both ahead of current
+      // time and in the last segment appended.
+      this.gopBuffer_ = gopInfo.slice();
       return;
     }
 
