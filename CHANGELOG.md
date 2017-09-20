@@ -2,6 +2,10 @@ CHANGELOG
 =========
 
 --------------------
+## 4.5.2 (2017-09-20)
+* let video.js remoteTextTrack auto cleanup take care of text track cleanup [#159](https://github.com/videojs/videojs-contrib-media-sources/pull/159)
+
+--------------------
 ## 4.5.1 (2017-08-28)
 * fix: flv metadata tags now appened when audio info changes [#157](https://github.com/videojs/videojs-contrib-media-sources/pull/157)
 
