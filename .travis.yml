@@ -26,3 +26,4 @@ addons:
   #       of https://github.com/travis-ci/travis-ci/issues/8242 When this issue is
   #       resolved, this should be updated back to latest
   chrome: stable
+  firefox: "54.0"
