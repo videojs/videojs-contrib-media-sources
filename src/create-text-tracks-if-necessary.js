@@ -1,7 +1,6 @@
 /**
  * @file create-text-tracks-if-necessary.js
  */
-import {removeExistingTrack} from './cleanup-text-tracks';
 
 /**
  * Create text tracks on video.js if they exist on a segment.
@@ -47,7 +46,6 @@ const createTextTracksIfNecessary = function(sourceBuffer, mediaSource, segment)
   if (segment.metadata &&
       segment.metadata.length &&
       !sourceBuffer.metadataTrack_) {
-    removeExistingTrack(player, 'metadata', 'Timed Metadata', true);
     sourceBuffer.metadataTrack_ = player.addRemoteTextTrack({
       kind: 'metadata',
       label: 'Timed Metadata'

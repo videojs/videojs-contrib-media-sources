@@ -12,7 +12,6 @@ import {
   parseContentType,
   translateLegacyCodecs
 } from './codec-utils';
-import {cleanupTextTracks} from './cleanup-text-tracks';
 
 /**
  * Our MediaSource implementation in HTML, mimics native
@@ -225,8 +224,6 @@ export default class HtmlMediaSource extends videojs.EventTarget {
       if (!this.player_) {
         return;
       }
-
-      cleanupTextTracks(this.player_);
 
       if (this.player_.audioTracks && this.player_.audioTracks()) {
         this.player_.audioTracks().off('change', this.updateActiveSourceBuffers_);
