@@ -13,9 +13,11 @@ module.exports = function(config) {
     }
   };
 
-  // On Travis CI, we can only run in Firefox.
+  // TODO: This should include firefox. It is currently turned off because
+  //       of https://github.com/travis-ci/travis-ci/issues/8242 When this issue is
+  //       resolved, this should be updated to include firefox
   if (process.env.TRAVIS) {
-    config.browsers = ['Firefox', 'travisChrome'];
+    config.browsers = ['ChromeHeadless'];
   }
 
   // If no browsers are specified, we enable `karma-detect-browsers`
@@ -43,12 +45,6 @@ module.exports = function(config) {
     ],
     preprocessors: {
       'test/**/*.js': ['browserify']
-    },
-    customLaunchers: {
-      travisChrome: {
-        base: 'Chrome',
-        flags: ['--no-sandbox']
-      }
     },
     detectBrowsers: detectBrowsers,
     reporters: ['dots'],
