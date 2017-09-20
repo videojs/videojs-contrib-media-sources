@@ -25,8 +25,4 @@ addons:
   # TODO: This should be using latest for firefox. It is currently turned off because
   #       of https://github.com/travis-ci/travis-ci/issues/8242 When this issue is
   #       resolved, this should be updated back to latest
-  apt:
-    sources:
-    - google-chrome
-    packages:
-    - google-chrome-stable
+  chrome: stable
