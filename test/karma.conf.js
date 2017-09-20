@@ -15,7 +15,7 @@ module.exports = function(config) {
 
   // TODO: This should include firefox. It is currently turned off because
   //       of https://github.com/travis-ci/travis-ci/issues/8242 When this issue is
-  //       resolved, this should be updated back to latest
+  //       resolved, this should be updated to include firefox
   if (process.env.TRAVIS) {
     config.browsers = ['ChromeHeadless'];
   }
@@ -45,12 +45,6 @@ module.exports = function(config) {
     ],
     preprocessors: {
       'test/**/*.js': ['browserify']
-    },
-    customLaunchers: {
-      travisChrome: {
-        base: 'Chrome',
-        flags: ['--no-sandbox']
-      }
     },
     detectBrowsers: detectBrowsers,
     reporters: ['dots'],
