@@ -35,6 +35,128 @@ const makeWrappedSourceBuffer = function(mediaSource, mimeType) {
 };
 
 /**
+ * Returns a list of gops in the buffer that have a pts value of 3 seconds or more in
+ * front of current time.
+ *
+ * @param {Array} buffer
+ *        The current buffer of gop information
+ * @param {Player} player
+ *        The player instance
+ * @param {Double} mapping
+ *        Offset to map display time to stream presentation time
+ * @return {Array}
+ *         List of gops considered safe to append over
+ */
+export const gopsSafeToAlignWith = (buffer, player, mapping) => {
+  if (!player || !buffer.length) {
+    return [];
+  }
+
+  // pts value for current time + 3 seconds to give a bit more wiggle room
+  const currentTimePts = Math.ceil((player.currentTime() - mapping + 3) * 90000);
+
+  let i;
+
+  for (i = 0; i < buffer.length; i++) {
+    if (buffer[i].pts > currentTimePts) {
+      break;
+    }
+  }
+
+  return buffer.slice(i);
+};
+
+/**
+ * Appends gop information (timing and byteLength) received by the transmuxer for the
+ * gops appended in the last call to appendBuffer
+ *
+ * @param {Array} buffer
+ *        The current buffer of gop information
+ * @param {Array} gops
+ *        List of new gop information
+ * @param {boolean} replace
+ *        If true, replace the buffer with the new gop information. If false, append the
+ *        new gop information to the buffer in the right location of time.
+ * @return {Array}
+ *         Updated list of gop information
+ */
+export const updateGopBuffer = (buffer, gops, replace) => {
+  if (!gops.length) {
+    return buffer;
+  }
+
+  if (replace) {
+    // If we are in safe append mode, then completely overwrite the gop buffer
+    // with the most recent appeneded data. This will make sure that when appending
+    // future segments, we only try to align with gops that are both ahead of current
+    // time and in the last segment appended.
+    return gops.slice();
+  }
+
+  const start = gops[0].pts;
+
+  let i = 0;
+
+  for (i; i < buffer.length; i++) {
+    if (buffer[i].pts >= start) {
+      break;
+    }
+  }
+
+  i = i % buffer.length;
+
+  updatedBuffer = buffer.slice(i);
+
+  return updatedBuffer.concat(gops);
+};
+
+/**
+ * Removes gop information in buffer that overlaps with provided start and end
+ *
+ * @param {Array} buffer
+ *        The current buffer of gop information
+ * @param {Double} start
+ *        position to start the remove at
+ * @param {Double} end
+ *        position to end the remove at
+ * @param {Double} mapping
+ *        Offset to map display time to stream presentation time
+ */
+export const removeGopInfo = (buffer, start, end, mapping) => {
+  const startPts = Math.ceil((start - mapping) * 90000);
+  const endPts = Math.ceil((end - mapping) * 90000);
+  const updatedBuffer = buffer.slice();
+
+  let i = buffer.length;
+
+  while (i--) {
+    if (buffer[i].pts <= endPts) {
+      break;
+    }
+  }
+
+  if (i === -1) {
+    // no removal because end of remove range is before start of buffer
+    return updatedBuffer;
+  }
+
+  let j = i + 1;
+
+  while (j--) {
+    if (buffer[j].pts <= startPts) {
+      break;
+    }
+  }
+
+  // clamp remove range start to 0 index
+  j = Math.max(j, 0);
+
+  updatedBuffer.splice(j, i - j + 1);
+
+  return updatedBuffer;
+};
+
+/**
  * VirtualSourceBuffers exist so that we can transmux non native formats
  * into a native format, but keep the same api as a native source buffer.
  * It creates a transmuxer, that works in its own thread (a web worker) and
@@ -374,33 +496,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   }
 
   /**
-   * Returns a list of gops in the buffer that have a pts value of 3 seconds or more in
-   * front of current time.
-   *
-   * @return {Array}
-   *         List of gops considered safe to append over
-   */
-  gopsSafeToAlignWith_() {
-    if (!this.mediaSource_.player_ || !this.gopBuffer_.length) {
-      return [];
-    }
-
-    const currentTime = this.mediaSource_.player_.currentTime();
-    // pts value for current time + 3 seconds to give a bit more wiggle room
-    const currentTimePts = Math.ceil((currentTime - this.timeMapping_ + 3) * 90000);
-
-    let i;
-
-    for (i = 0; i < this.gopBuffer_.length; i++) {
-      if (this.gopBuffer_[i].pts > currentTimePts) {
-        break;
-      }
-    }
-
-    return this.gopBuffer_.slice(i);
-  }
-
-  /**
    * Emulate the native mediasource function, but our function will
    * send all of the proposed segments to the transmuxer so that we
    * can transmux them before we append them to our internal
@@ -425,7 +520,9 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.transmuxer_.postMessage({
         action: 'alignGopsWith',
-        gopsToAlignWith: this.gopsSafeToAlignWith_()
+        gopsToAlignWith: gopsSafeToAlignWith(this.gopBuffer_,
+                                             this.mediaSource_.player_,
+                                             this.timeMapping_)
       });
     }
 
@@ -457,34 +554,9 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
   appendGopInfo_(event) {
     const gopInfo = event.data.gopInfo;
 
-    if (!gopInfo.length) {
-      return;
-    }
-
-    if (this.safeAppend_) {
-      // If we are in safe append mode, then completely overwrite the gop buffer
-      // with the most recent appeneded data. This will make sure that when appending
-      // future segments, we only try to align with gops that are both ahead of current
-      // time and in the last segment appended.
-      this.gopBuffer_ = gopInfo.slice();
-      return;
-    }
-
-    const start = gopInfo[0].pts;
-
-    let i = 0;
-
-    for (i; i < this.gopBuffer_.length; i++) {
-      if (this.gopBuffer_[i].pts >= start) {
-        break;
-      }
-    }
-
-    if (i !== this.gopBuffer_.length) {
-      this.gopBuffer_.splice(i);
-    }
-
-    this.gopBuffer_ = this.gopBuffer_.concat(gopInfo);
+    this.gopBuffer_ = updateGopBuffer(this.gopBuffer_,
+                                      event.data.gopInfo,
+                                      this.safeAppend_);
   }
 
   /**
@@ -499,7 +571,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.videoBuffer_.updating = true;
       this.videoBuffer_.remove(start, end);
-      this.removeGopInfo_(start, end);
+      this.gopBuffer_ = removeGopInfo(this.gopBuffer_, start, end, this.timeMapping_);
     }
     if (!this.audioDisabled_ && this.audioBuffer_) {
       this.audioBuffer_.updating = true;
@@ -515,43 +587,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         removeCuesFromTrack(start, end, this.inbandTextTracks_[track]);
       }
     }
-  }
-
-  /**
-   * Removes cached gop info from buffer
-   *
-   * @param {Double} start position to start the remove at
-   * @param {Double} end position to end the remove at
-   */
-  removeGopInfo_(start, end) {
-    const startPts = Math.ceil((start - this.timeMapping_) * 90000);
-    const endPts = Math.ceil((end - this.timeMapping_) * 90000);
-
-    let i = this.gopBuffer_.length;
-
-    while (i--) {
-      if (this.gopBuffer_[i].pts <= endPts) {
-        break;
-      }
-    }
-
-    if (i === -1) {
-      // end of remove range is before start of buffer
-      return;
-    }
-
-    let j = i + 1;
-
-    while (j--) {
-      if (this.gopBuffer_[j].pts <= startPts) {
-        break;
-      }
-    }
-
-    // clamp remove range start to 0 index
-    j = Math.max(j, 0);
-
-    this.gopBuffer_.splice(j, i - j + 1);
   }
 
   /**
