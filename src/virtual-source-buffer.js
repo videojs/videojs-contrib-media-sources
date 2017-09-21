@@ -105,9 +105,7 @@ export const updateGopBuffer = (buffer, gops, replace) => {
 
   i = i % buffer.length;
 
-  updatedBuffer = buffer.slice(i);
-
-  return updatedBuffer.concat(gops);
+  return buffer.slice(i).concat(gops);
 };
 
 /**
@@ -122,7 +120,7 @@ export const updateGopBuffer = (buffer, gops, replace) => {
  * @param {Double} mapping
  *        Offset to map display time to stream presentation time
  */
-export const removeGopInfo = (buffer, start, end, mapping) => {
+export const removeGopBuffer = (buffer, start, end, mapping) => {
   const startPts = Math.ceil((start - mapping) * 90000);
   const endPts = Math.ceil((end - mapping) * 90000);
   const updatedBuffer = buffer.slice();
@@ -571,7 +569,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
     if (this.videoBuffer_) {
       this.videoBuffer_.updating = true;
       this.videoBuffer_.remove(start, end);
-      this.gopBuffer_ = removeGopInfo(this.gopBuffer_, start, end, this.timeMapping_);
+      this.gopBuffer_ = removeGopBuffer(this.gopBuffer_, start, end, this.timeMapping_);
     }
     if (!this.audioDisabled_ && this.audioBuffer_) {
       this.audioBuffer_.updating = true;
