@@ -103,9 +103,7 @@ export const updateGopBuffer = (buffer, gops, replace) => {
     }
   }
 
-  i = i % buffer.length;
-
-  return buffer.slice(i).concat(gops);
+  return buffer.slice(0, i).concat(gops);
 };
 
 /**
@@ -550,8 +548,6 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
    *        List of gop info to append
    */
   appendGopInfo_(event) {
-    const gopInfo = event.data.gopInfo;
-
     this.gopBuffer_ = updateGopBuffer(this.gopBuffer_,
                                       event.data.gopInfo,
                                       this.safeAppend_);
