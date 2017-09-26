@@ -663,6 +663,8 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       this.appendAudioInitSegment_ = false;
     }
 
+    let triggerUpdateend = false;
+
     // Merge multiple video and audio segments into one and append
     if (this.videoBuffer_ && sortedSegments.video.bytes) {
       sortedSegments.video.segments.unshift(sortedSegments.video.initSegment);
@@ -670,6 +672,14 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       this.concatAndAppendSegments_(sortedSegments.video, this.videoBuffer_);
       // TODO: are video tracks the only ones with text tracks?
       addTextTrackData(this, sortedSegments.captions, sortedSegments.metadata);
+    } else if (this.videoBuffer_ && (this.audioDisabled_ || !this.audioBuffer_)) {
+      // The transmuxer did not return any bytes of video, meaning it was all trimmed
+      // for gop alignment. Since we have a video buffer and audio is disabled, updateend
+      // will never be triggered by this source buffer, which will cause contrib-hls
+      // to be stuck forever waiting for updateend. If audio is not disabled, updateend
+      // will be triggered by the audio buffer, which will be sent upwards since the video
+      // buffer will not be in an updating state.
+      triggerUpdateend = true;
     }
 
     if (!this.audioDisabled_ && this.audioBuffer_) {
@@ -680,6 +690,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
     // We are no longer in the internal "updating" state
     this.bufferUpdating_ = false;
+
+    if (triggerUpdateend) {
+      this.trigger('updateend');
+    }
   }
 
   /**
