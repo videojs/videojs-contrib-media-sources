@@ -688,12 +688,12 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
 
     this.pendingBuffers_.length = 0;
 
-    // We are no longer in the internal "updating" state
-    this.bufferUpdating_ = false;
-
     if (triggerUpdateend) {
       this.trigger('updateend');
     }
+
+    // We are no longer in the internal "updating" state
+    this.bufferUpdating_ = false;
   }
 
   /**
