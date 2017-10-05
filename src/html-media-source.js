@@ -191,7 +191,12 @@ export default class HtmlMediaSource extends videojs.EventTarget {
 
       this.player_ = videojs(video.parentNode);
 
+      // hls-reset is fired by videojs.Hls on to the tech after the main SegmentLoader
+      // resets its state and flushes the buffer
       this.player_.tech_.on('hls-reset', this.onHlsReset_);
+      // hls-segment-time-mapping is fired by videojs.Hls on to the tech after the main
+      // SegmentLoader inspects an MTS segment and has an accurate stream to display
+      // time mapping
       this.player_.tech_.on('hls-segment-time-mapping', this.onHlsSegmentTimeMapping_);
 
       if (this.player_.audioTracks && this.player_.audioTracks()) {

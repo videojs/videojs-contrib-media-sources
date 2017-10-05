@@ -188,6 +188,8 @@ export default class FlashSourceBuffer extends videojs.EventTarget {
 
     let onHlsReset = this.onHlsReset_.bind(this);
 
+    // hls-reset is fired by videojs.Hls on to the tech after the main SegmentLoader
+    // resets its state and flushes the buffer
     this.mediaSource_.player_.tech_.on('hls-reset', onHlsReset);
 
     this.mediaSource_.player_.tech_.hls.on('dispose', () => {
