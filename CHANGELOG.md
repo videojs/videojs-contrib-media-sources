@@ -2,6 +2,11 @@ CHANGELOG
 =========
 
 --------------------
+## 4.5.3 (2017-10-11)
+* update mux.js to 4.2.2 [#162](https://github.com/videojs/videojs-contrib-media-sources/pull/162)
+  * Use the first audio and video tracks in the PMT
+
+--------------------
 ## 4.5.2 (2017-09-20)
 * let video.js remoteTextTrack auto cleanup take care of text track cleanup [#159](https://github.com/videojs/videojs-contrib-media-sources/pull/159)
 
