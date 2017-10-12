@@ -149,17 +149,17 @@ class MessageHandlers {
 const TransmuxerWorker = function(self) {
   self.onmessage = function(event) {
     if (event.data.action === 'init' && event.data.options) {
-      this.messageHandlers = new MessageHandlers(event.data.options);
+      self.messageHandlers = new MessageHandlers(event.data.options);
       return;
     }
 
-    if (!this.messageHandlers) {
-      this.messageHandlers = new MessageHandlers();
+    if (!self.messageHandlers) {
+      self.messageHandlers = new MessageHandlers();
     }
 
     if (event.data && event.data.action && event.data.action !== 'init') {
-      if (this.messageHandlers[event.data.action]) {
-        this.messageHandlers[event.data.action](event.data);
+      if (self.messageHandlers[event.data.action]) {
+        self.messageHandlers[event.data.action](event.data);
       }
     }
   };
