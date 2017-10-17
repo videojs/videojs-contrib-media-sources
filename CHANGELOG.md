@@ -2,6 +2,13 @@ CHANGELOG
 =========
 
 --------------------
+## 4.6.0 (2017-10-17)
+* Append video data at end of buffer in HTML mode for IE11 for safe quality switch [#164](https://github.com/videojs/videojs-contrib-media-sources/pull/164)
+  * make sure appended gops align with whats in the buffer
+  * safe append mode for ie11
+  * update mux.js to 4.3.0
+
+--------------------
 ## 4.5.3 (2017-10-11)
 * update mux.js to 4.2.2 [#162](https://github.com/videojs/videojs-contrib-media-sources/pull/162)
   * Use the first audio and video tracks in the PMT
