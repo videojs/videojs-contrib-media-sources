@@ -2,6 +2,12 @@ CHANGELOG
 =========
 
 --------------------
+## 4.6.1 (2017-10-24)
+* update mux.js to 4.3.1 [#165](https://github.com/videojs/videojs-contrib-media-sources/pull/165)
+  * Set active data channel per-field instead of globally for CEA-608
+    * Fixed an issue with captions being placed in the wrong CC
+
+--------------------
 ## 4.6.0 (2017-10-17)
 * Append video data at end of buffer in HTML mode for IE11 for safe quality switch [#164](https://github.com/videojs/videojs-contrib-media-sources/pull/164)
   * make sure appended gops align with whats in the buffer
