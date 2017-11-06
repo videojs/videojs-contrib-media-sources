@@ -2,6 +2,10 @@ CHANGELOG
 =========
 
 ## HEAD (Unreleased)
+_(none)_
+
+--------------------
+## 4.6.2 (2017-11-06)
 * update mux.js to 4.3.2 [#166](https://github.com/videojs/videojs-contrib-media-sources/pull/166)
   * flush pes packets when there is enough data
 
