@@ -78,7 +78,7 @@
   "dependencies": {
     "global": "^4.3.0",
     "mux.js": "4.3.2",
-    "video.js": "^5.17.0",
+    "video.js": "^5.17.0 || ^6.2.0",
     "webworkify": "1.0.2"
   },
   "devDependencies": {
