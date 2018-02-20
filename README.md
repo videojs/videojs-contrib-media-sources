@@ -1,5 +1,7 @@
 # videojs-media-sources
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/videojs/videojs-contrib-media-sources.svg)](https://greenkeeper.io/)
+
 A [Media Source Extensions](https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html) shim for video.js.
 
 Media Source Extensions (MSE) is a W3C draft specification that makes it possible to feed data directly to a video element.
