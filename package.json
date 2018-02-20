@@ -1,6 +1,6 @@
 {
   "name": "videojs-contrib-media-sources",
-  "version": "4.4.5",
+  "version": "4.6.2",
   "description": "A Media Source Extensions plugin for video.js",
   "main": "es5/videojs-contrib-media-sources.js",
   "scripts": {
@@ -77,8 +77,8 @@
   ],
   "dependencies": {
     "global": "^4.3.0",
-    "mux.js": "4.1.4",
-    "video.js": "^5.17.0",
+    "mux.js": "4.3.2",
+    "video.js": "^5.17.0 || ^6.2.0",
     "webworkify": "1.0.2"
   },
   "devDependencies": {
@@ -95,7 +95,7 @@
     "jsdoc": "^3.4.0",
     "karma": "^0.13.0",
     "karma-browserify": "^4.4.0",
-    "karma-chrome-launcher": "^0.2.0",
+    "karma-chrome-launcher": "^2.2.0",
     "karma-detect-browsers": "^2.0.0",
     "karma-firefox-launcher": "^0.1.0",
     "karma-ie-launcher": "^0.2.0",
