@@ -5,6 +5,12 @@ CHANGELOG
 _(none)_
 
 --------------------
+## 4.7.0 (2018-03-06)
+* use webwackify for webworkers to support webpack bundle ([#173](https://github.com/videojs/videojs-contrib-media-sources/pull/173))
+* update travis config ([#174](https://github.com/videojs/videojs-contrib-media-sources/pull/174))
+* Update video.js dependency to allow for v6 to be installed. ([#169](https://github.com/videojs/videojs-contrib-media-sources/pull/169))
+
+--------------------
 ## 4.6.2 (2017-11-06)
 * update mux.js to 4.3.2 [#166](https://github.com/videojs/videojs-contrib-media-sources/pull/166)
   * flush pes packets when there is enough data
