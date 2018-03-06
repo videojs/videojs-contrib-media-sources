@@ -1,30 +1,22 @@
 module.exports = function(config) {
   var detectBrowsers = {
-    enabled: false,
     usePhantomJS: false,
-    postDetection: function(availableBrowsers) {
-      var safariIndex = availableBrowsers.indexOf('Safari');
 
-      if(safariIndex !== -1) {
-        availableBrowsers.splice(safariIndex, 1);
-        console.log("Disabled Safari as it was/is not supported");
+    // detect what browsers are installed on the system and
+    // use headless mode and flags to allow for playback
+    postDetection: function(browsers) {
+      var newBrowsers = [];
+      if (browsers.indexOf('Chrome') !== -1) {
+        newBrowsers.push('ChromeHeadlessWithFlags');
       }
-      return availableBrowsers;
+
+      if (browsers.indexOf('Firefox') !== -1) {
+        newBrowsers.push('FirefoxHeadless');
+      }
+
+      return newBrowsers;
     }
   };
-
-  // TODO: This should include firefox. It is currently turned off because
-  //       of https://github.com/travis-ci/travis-ci/issues/8242 When this issue is
-  //       resolved, this should be updated to include firefox
-  if (process.env.TRAVIS) {
-    config.browsers = ['ChromeHeadless'];
-  }
-
-  // If no browsers are specified, we enable `karma-detect-browsers`
-  // this will detect all browsers that are available for testing
-  if (!config.browsers.length) {
-    detectBrowsers.enabled = true;
-  }
 
   config.set({
     basePath: '..',
@@ -46,13 +38,27 @@ module.exports = function(config) {
     preprocessors: {
       'test/**/*.js': ['browserify']
     },
+    customLaunchers: {
+      ChromeHeadlessWithFlags: {
+        base: 'ChromeHeadless',
+        flags: [
+          '--mute-audio',
+          '--no-sandbox',
+          '--no-user-gesture-required'
+        ]
+      }
+    },
     detectBrowsers: detectBrowsers,
     reporters: ['dots'],
     port: 9876,
     colors: true,
     autoWatch: false,
     singleRun: true,
-    concurrency: Infinity,
+    concurrency: 1,
+    captureTimeout: 300000,
+    browserNoActivityTimeout: 300000,
+    browserDisconnectTimeout: 300000,
+    browserDisconnectTolerance: 3,
     browserify: {
       debug: true,
       transform: [
