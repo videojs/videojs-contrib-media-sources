@@ -5,6 +5,10 @@ CHANGELOG
 _(none)_
 
 --------------------
+## 4.7.1 (2018-03-15)
+* package: update webwackify to 0.1.5 ([#175](https://github.com/videojs/videojs-contrib-media-sources/pull/175))
+
+--------------------
 ## 4.7.0 (2018-03-06)
 * use webwackify for webworkers to support webpack bundle ([#173](https://github.com/videojs/videojs-contrib-media-sources/pull/173))
 * update travis config ([#174](https://github.com/videojs/videojs-contrib-media-sources/pull/174))
