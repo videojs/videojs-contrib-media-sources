@@ -5,6 +5,10 @@ CHANGELOG
 _(none)_
 
 --------------------
+## 4.7.2 (2018-03-20)
+* update webwackify to 0.1.6 ([#176](https://github.com/videojs/videojs-contrib-media-sources/pull/176))
+
+--------------------
 ## 4.7.1 (2018-03-15)
 * package: update webwackify to 0.1.5 ([#175](https://github.com/videojs/videojs-contrib-media-sources/pull/175))
 
