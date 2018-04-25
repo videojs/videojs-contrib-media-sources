@@ -13,26 +13,43 @@ import {isAudioCodec, isVideoCodec} from './codec-utils';
 // state of the `updating` property manually. We have to do this because
 // Firefox changes `updating` to false long before triggering `updateend`
 // events and that was causing strange problems in videojs-contrib-hls
-const makeWrappedSourceBuffer = function(mediaSource, mimeType) {
-  const sourceBuffer = mediaSource.addSourceBuffer(mimeType);
-  const wrapper = Object.create(null);
+export class WrappedSourceBuffer {
+  constructor(mediaSource, mimeType) {
+    const sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+    const wrapper = Object.create(null);
 
-  wrapper.updating = false;
-  wrapper.realBuffer_ = sourceBuffer;
+    wrapper.updating = false;
+    wrapper.realBuffer_ = sourceBuffer;
 
-  for (let key in sourceBuffer) {
-    if (typeof sourceBuffer[key] === 'function') {
-      wrapper[key] = (...params) => sourceBuffer[key](...params);
-    } else if (typeof wrapper[key] === 'undefined') {
-      Object.defineProperty(wrapper, key, {
-        get: () => sourceBuffer[key],
-        set: (v) => sourceBuffer[key] = v
-      });
+    for (let key in sourceBuffer) {
+      if (key === 'appendBuffer' || key === 'appendStream' || key === 'remove') {
+        wrapper[key] = (...params) => {
+          try {
+            wrapper.updating = true;
+            sourceBuffer[key](...params);
+          } catch (error) {
+            wrapper.updating = false;
+            throw error;
+          }
+        };
+      } else if (key === 'abort') {
+        wrapper[key] = (...params) => {
+          wrapper.updating = false;
+          sourceBuffer[key](...params);
+        };
+      } else if (typeof sourceBuffer[key] === 'function') {
+        wrapper[key] = (...params) => sourceBuffer[key](...params);
+      } else if (typeof wrapper[key] === 'undefined') {
+        Object.defineProperty(wrapper, key, {
+          get: () => sourceBuffer[key],
+          set: (v) => sourceBuffer[key] = v
+        });
+      }
     }
-  }
 
-  return wrapper;
-};
+    return wrapper;
+  }
+}
 
 /**
  * Returns a list of gops in the buffer that have a pts value of 3 seconds or more in
@@ -64,6 +81,42 @@ export const gopsSafeToAlignWith = (buffer, player, mapping) => {
   }
 
   return buffer.slice(i);
+};
+
+/**
+ * Returns the start time of the current GOP
+ *
+ * @param {Array} buffer
+ *        The current buffer of gop information
+ * @param {Player} player
+ *        The player instance
+ * @param {Double} mapping
+ *        Offset to map display time to stream presentation time
+ * @return {Double}
+ *         Time of current GOP
+ */
+export const currentGOPStart = (buffer, player, mapping) => {
+  if (!player || !buffer.length) {
+    return null;
+  }
+
+  // pts value for current time
+  const currentTimePts = Math.ceil((player.currentTime() - mapping) * 90000);
+
+  let i;
+
+  for (i = 0; i < buffer.length; i++) {
+    if (buffer[i].pts > currentTimePts) {
+      break;
+    }
+  }
+
+  if (i === 0 || buffer[i - 1].pts > currentTimePts) {
+    return null;
+  }
+
+  // This should maybe be Math.floor'd to prevent rounding errors
+  return (buffer[i - 1].pts / 90000) + mapping;
 };
 
 /**
@@ -449,7 +502,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
         const codecProperty = `${type}Codec_`;
         const mimeType = `${type}/mp4;codecs="${this[codecProperty]}"`;
 
-        buffer = makeWrappedSourceBuffer(this.mediaSource_.nativeMediaSource_, mimeType);
+        buffer = new WrappedSourceBuffer(this.mediaSource_.nativeMediaSource_, mimeType);
 
         this.mediaSource_[`${type}Buffer_`] = buffer;
       }
@@ -474,7 +527,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
             if (t === 'audio' && this.audioDisabled_) {
               return true;
             }
-            // if the other type if updating we don't trigger
+            // if the other type is updating we don't trigger
             if (type !== t &&
                 this[`${t}Buffer_`] &&
                 this[`${t}Buffer_`].updating) {
@@ -563,12 +616,10 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
    */
   remove(start, end) {
     if (this.videoBuffer_) {
-      this.videoBuffer_.updating = true;
       this.videoBuffer_.remove(start, end);
       this.gopBuffer_ = removeGopBuffer(this.gopBuffer_, start, end, this.timeMapping_);
     }
     if (!this.audioDisabled_ && this.audioBuffer_) {
-      this.audioBuffer_.updating = true;
       this.audioBuffer_.remove(start, end);
     }
 
@@ -718,17 +769,18 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       });
 
       try {
-        destinationBuffer.updating = true;
         destinationBuffer.appendBuffer(tempBuffer);
       } catch (error) {
-        if (this.mediaSource_.player_) {
-          this.mediaSource_.player_.error({
-            code: -3,
-            type: 'APPEND_BUFFER_ERR',
-            message: error.message,
-            originalError: error
-          });
-        }
+        let currGOPStart = currentGOPStart(this.gopBuffer_,
+                                           this.mediaSource_.player_,
+                                           this.timeMapping_);
+
+        this.trigger({
+          safeRemovePoint: currGOPStart,
+          segment: tempBuffer,
+          target: destinationBuffer,
+          type: 'bufferMaxed'
+        });
       }
     }
   }

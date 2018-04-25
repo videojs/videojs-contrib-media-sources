@@ -5,7 +5,9 @@ import sinon from 'sinon';
 import videojs from 'video.js';
 import HtmlMediaSource from '../src/html-media-source';
 import {
+  WrappedSourceBuffer,
   gopsSafeToAlignWith,
+  currentGOPStart,
   updateGopBuffer,
   removeGopBuffer
 } from '../src/virtual-source-buffer';
@@ -237,17 +239,17 @@ function() {
     }
   };
   mediaSource.videoBuffer_.remove = function(start, end) {
-    if (start === 3 && end === 10) {
+    if (start === 10 && end === 20) {
       removes++;
     }
   };
   mediaSource.audioBuffer_.remove = function(start, end) {
-    if (start === 3 && end === 10) {
+    if (start === 10 && end === 20) {
       removes++;
     }
   };
 
-  sourceBuffer.remove(3, 10);
+  sourceBuffer.remove(10, 20);
 
   QUnit.equal(removes, 2, 'called remove on both sourceBuffers');
   QUnit.equal(
@@ -258,7 +260,7 @@ function() {
   QUnit.equal(
     removedCue[0].text,
     'delete me',
-    'the cue that overlapped the remove region was removed'
+    'the cue contained within the remove region was removed'
   );
 });
 
@@ -316,17 +318,17 @@ QUnit.test('removing doesn\'t happen with audio disabled', function() {
     }
   };
   mediaSource.videoBuffer_.remove = function(start, end) {
-    if (start === 3 && end === 10) {
+    if (start === 10 && end === 20) {
       removes++;
     }
   };
   mediaSource.audioBuffer_.remove = function(start, end) {
-    if (start === 3 && end === 10) {
+    if (start === 10 && end === 20) {
       removes++;
     }
   };
 
-  muxedBuffer.remove(3, 10);
+  muxedBuffer.remove(10, 20);
 
   QUnit.equal(removes, 1, 'called remove on only one source buffer');
   QUnit.equal(muxedBuffer.inbandTextTracks_.CC1.cues.length,
@@ -334,7 +336,7 @@ QUnit.test('removing doesn\'t happen with audio disabled', function() {
               'one cue remains after remove');
   QUnit.equal(removedCue[0].text,
               'delete me',
-              'the cue that overlapped the remove region was removed');
+              'the cue contained within the remove region was removed');
 });
 
 QUnit.test('readyState delegates to the native implementation', function() {
@@ -386,11 +388,16 @@ QUnit.test('appendBuffer error triggers on the player', function() {
   initializeNativeSourceBuffers(sourceBuffer);
 
   sourceBuffer.videoBuffer_.appendBuffer = () => {
+    QUnit.equal(sourceBuffer.videoBuffer_.updating, true,
+      'updating is true before error');
     throw new Error();
   };
 
-  this.player.on('error', () => error = true);
-
+  sourceBuffer.on('bufferMaxed', (event) => {
+    QUnit.ok(true, 'event called');
+    QUnit.equal(event.target, sourceBuffer.videoBuffer_,
+      'target of bufferMaxed event is (wrapped) buffer that exceeded quota');
+  });
   // send fake data to the source buffer from the transmuxer to append to native buffer
   // initializeNativeSourceBuffers does the same thing to trigger the creation of
   // native source buffers.
@@ -399,8 +406,6 @@ QUnit.test('appendBuffer error triggers on the player', function() {
   fakeTransmuxerMessage(sourceBuffer);
 
   this.clock.tick(1);
-
-  QUnit.ok(error, 'error triggered on player');
 });
 
 QUnit.test('transmuxes mp2t segments', function() {
@@ -1602,6 +1607,47 @@ QUnit.test('gopsSafeToAlignWith returns correct list', function() {
     'empty array when no gops in buffer come after currentTime');
 });
 
+QUnit.test('currentGOPStart returns time of most recent GOP', function(assert) {
+  const pts = (time) => Math.ceil(time * 90000);
+  let mapping = 0;
+  let currentTime = 0;
+  let buffer = [];
+  let player;
+  let actual;
+  let expected = null;
+
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, expected, 'null when player is undefined');
+
+  player = { currentTime: () => currentTime };
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, expected, 'null when buffer is empty');
+
+  buffer = [
+    { pts: pts(1) },
+    { pts: pts(2.2) },
+    { pts: pts(3) }
+  ];
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, expected, 'null when entire buffer is ahead of currentTime');
+
+  currentTime = 1.5;
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, 1, 'uses previous GOP when between GOP starts');
+
+  currentTime = 2.2;
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, 2.200011111111111, 'uses currentTime when currentTime === GOP start');
+
+  currentTime = 3;
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, 3, 'uses currentTime when currentTime === GOP start');
+
+  currentTime = 4.5;
+  actual = currentGOPStart(buffer, player, mapping);
+  QUnit.deepEqual(actual, 3, 'uses previous GOP when currentTime is after entire buffer');
+});
+
 QUnit.test('updateGopBuffer correctly processes new gop information', function() {
   let buffer = [];
   let gops = [];
@@ -1956,4 +2002,66 @@ QUnit.test('removeGopBuffer correctly removes range from buffer', function() {
   actual = removeGopBuffer(buffer, start, end, mapping);
   QUnit.deepEqual(actual, expected,
     'removes entire buffer when buffer inside remove range');
+});
+
+QUnit.test('WrappedSourceBuffer', function() {
+  let wrappedSourceBuffer;
+  let someFnCalled = false;
+  const tryFn = fn => data => {
+    QUnit.equal(wrappedSourceBuffer.updating, true,
+      'wrapped source buffer is updating during ' + fn);
+    throw Error('error during ' + fn);
+  };
+  let fakeSourceBuffer = {
+    appendBuffer: tryFn('appendBuffer'),
+    appendStream: tryFn('appendStream'),
+    remove: tryFn('remove'),
+    abort: () => {},
+    someFn: () => {
+      someFnCalled = true;
+    },
+    someProp: 'getter test'
+  };
+  const mediaSource = {
+    addSourceBuffer: (mimeType) => fakeSourceBuffer
+  };
+
+  wrappedSourceBuffer = new WrappedSourceBuffer(mediaSource, 'dummy');
+
+  try {
+    wrappedSourceBuffer.appendBuffer();
+  } catch (e) {
+    QUnit.ok(e, 'error rethrown when appendBuffer fails');
+    QUnit.equal(wrappedSourceBuffer.updating, false,
+      'wrapped source buffer is no longer updating after appendBuffer fails');
+  }
+
+  try {
+    wrappedSourceBuffer.appendStream();
+  } catch (e) {
+    QUnit.ok(e, 'error rethrown when appendStream fails');
+    QUnit.equal(wrappedSourceBuffer.updating, false,
+      'wrapped source buffer is no longer updating after appendStream fails');
+  }
+
+  try {
+    wrappedSourceBuffer.appendBuffer();
+  } catch (e) {
+    QUnit.ok(e, 'error rethrown when remove fails');
+    QUnit.equal(wrappedSourceBuffer.updating, false,
+      'wrapped source buffer is no longer updating after remove fails');
+  }
+
+  wrappedSourceBuffer.updating = true;
+  wrappedSourceBuffer.abort();
+  QUnit.equal(wrappedSourceBuffer.updating, false,
+    'wrapped source buffer is no longer updating after abort() is called');
+
+  wrappedSourceBuffer.someFn();
+  QUnit.equal(someFnCalled, true, 'someFn called');
+
+  QUnit.equal(wrappedSourceBuffer.someProp, 'getter test', 'property getter works');
+  wrappedSourceBuffer.someProp = 'setter test';
+  QUnit.equal(fakeSourceBuffer.someProp, 'setter test', 'property setter works');
+
 });
