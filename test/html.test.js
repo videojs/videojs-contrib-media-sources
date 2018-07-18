@@ -394,7 +394,6 @@ QUnit.test('appendBuffer error triggers on the player', function() {
   };
 
   sourceBuffer.on('bufferMaxed', (event) => {
-    QUnit.ok(true, 'event called');
     QUnit.equal(event.target, sourceBuffer.videoBuffer_,
       'target of bufferMaxed event is (wrapped) buffer that exceeded quota');
   });
@@ -1608,19 +1607,19 @@ QUnit.test('gopsSafeToAlignWith returns correct list', function() {
 });
 
 QUnit.test('currentGOPStart returns time of most recent GOP', function(assert) {
-  const pts = (time) => Math.ceil(time * 90000);
+  const pts = (time) => time * 90000;
   let mapping = 0;
-  let currentTime = 0;
   let buffer = [];
-  let player;
   let actual;
   let expected = null;
 
-  actual = currentGOPStart(buffer, player, mapping);
-  QUnit.deepEqual(actual, expected, 'null when player is undefined');
+  actual = currentGOPStart(buffer, undefined, mapping);
+  QUnit.deepEqual(actual, expected, 'null when currentTime is undefined');
 
-  player = { currentTime: () => currentTime };
-  actual = currentGOPStart(buffer, player, mapping);
+  actual = currentGOPStart(buffer, null, mapping);
+  QUnit.deepEqual(actual, expected, 'null when currentTime is null');
+
+  actual = currentGOPStart(buffer, 0, mapping);
   QUnit.deepEqual(actual, expected, 'null when buffer is empty');
 
   buffer = [
@@ -1628,23 +1627,19 @@ QUnit.test('currentGOPStart returns time of most recent GOP', function(assert) {
     { pts: pts(2.2) },
     { pts: pts(3) }
   ];
-  actual = currentGOPStart(buffer, player, mapping);
+  actual = currentGOPStart(buffer, 0, mapping);
   QUnit.deepEqual(actual, expected, 'null when entire buffer is ahead of currentTime');
 
-  currentTime = 1.5;
-  actual = currentGOPStart(buffer, player, mapping);
+  actual = currentGOPStart(buffer, 1.5, mapping);
   QUnit.deepEqual(actual, 1, 'uses previous GOP when between GOP starts');
 
-  currentTime = 2.2;
-  actual = currentGOPStart(buffer, player, mapping);
-  QUnit.deepEqual(actual, 2.200011111111111, 'uses currentTime when currentTime === GOP start');
+  actual = currentGOPStart(buffer, 2.2, mapping);
+  QUnit.deepEqual(actual, 2.2, 'uses currentTime when currentTime === GOP start');
 
-  currentTime = 3;
-  actual = currentGOPStart(buffer, player, mapping);
+  actual = currentGOPStart(buffer, 3, mapping);
   QUnit.deepEqual(actual, 3, 'uses currentTime when currentTime === GOP start');
 
-  currentTime = 4.5;
-  actual = currentGOPStart(buffer, player, mapping);
+  actual = currentGOPStart(buffer, 4.5, mapping);
   QUnit.deepEqual(actual, 3, 'uses previous GOP when currentTime is after entire buffer');
 });
 
@@ -2045,7 +2040,7 @@ QUnit.test('WrappedSourceBuffer', function() {
   }
 
   try {
-    wrappedSourceBuffer.appendBuffer();
+    wrappedSourceBuffer.remove();
   } catch (e) {
     QUnit.ok(e, 'error rethrown when remove fails');
     QUnit.equal(wrappedSourceBuffer.updating, false,

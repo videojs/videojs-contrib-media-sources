@@ -84,24 +84,24 @@ export const gopsSafeToAlignWith = (buffer, player, mapping) => {
 };
 
 /**
- * Returns the start time of the current GOP
+ * Return the currently-displayed GOP's starting PTS as a time on the media timeline
  *
  * @param {Array} buffer
  *        The current buffer of gop information
- * @param {Player} player
- *        The player instance
+ * @param {Number} currentTime
+ *        The currentTime of the player
  * @param {Double} mapping
  *        Offset to map display time to stream presentation time
  * @return {Double}
- *         Time of current GOP
+ *         Start time (in seconds) of currently-displayed GOP
  */
-export const currentGOPStart = (buffer, player, mapping) => {
-  if (!player || !buffer.length) {
+export const currentGOPStart = (buffer, currentTime, mapping) => {
+  if (currentTime === undefined || currentTime === null || !buffer.length) {
     return null;
   }
 
   // pts value for current time
-  const currentTimePts = Math.ceil((player.currentTime() - mapping) * 90000);
+  const currentTimePts = Math.ceil((currentTime - mapping) * 90000);
 
   let i;
 
@@ -771,16 +771,20 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       try {
         destinationBuffer.appendBuffer(tempBuffer);
       } catch (error) {
-        let currGOPStart = currentGOPStart(this.gopBuffer_,
-                                           this.mediaSource_.player_,
-                                           this.timeMapping_);
+        if (error instanceof DOMException && error.code === 22) {
+          let currGOPStart = currentGOPStart(this.gopBuffer_,
+                                             this.mediaSource_.player_.currentTime(),
+                                             this.timeMapping_);
 
-        this.trigger({
-          safeRemovePoint: currGOPStart,
-          segment: tempBuffer,
-          target: destinationBuffer,
-          type: 'bufferMaxed'
-        });
+          this.trigger({
+            safeRemovePoint: currGOPStart,
+            segment: tempBuffer,
+            target: destinationBuffer,
+            type: 'bufferMaxed'
+          });
+        } else {
+          throw error;
+        }
       }
     }
   }
