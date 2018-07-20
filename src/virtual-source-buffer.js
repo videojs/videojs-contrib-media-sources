@@ -100,23 +100,23 @@ export const currentGOPStart = (buffer, currentTime, mapping) => {
     return null;
   }
 
-  // pts value for current time
+  // current time as a PTS value
   const currentTimePts = Math.ceil((currentTime - mapping) * 90000);
+  let gopIndex;
 
-  let i;
+  if (buffer[0].pts > currentTimePts) {
+    return null;
+  }
 
-  for (i = 0; i < buffer.length; i++) {
-    if (buffer[i].pts > currentTimePts) {
+  for (gopIndex = 0; gopIndex < buffer.length; gopIndex++) {
+    if (buffer[gopIndex].pts <= currentTimePts &&
+        (gopIndex === buffer.length - 1 || buffer[gopIndex + 1].pts > currentTimePts)) {
       break;
     }
   }
 
-  if (i === 0 || buffer[i - 1].pts > currentTimePts) {
-    return null;
-  }
-
   // This should maybe be Math.floor'd to prevent rounding errors
-  return (buffer[i - 1].pts / 90000) + mapping;
+  return (buffer[gopIndex].pts / 90000) + mapping;
 };
 
 /**
