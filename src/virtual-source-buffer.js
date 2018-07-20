@@ -771,7 +771,7 @@ export default class VirtualSourceBuffer extends videojs.EventTarget {
       try {
         destinationBuffer.appendBuffer(tempBuffer);
       } catch (error) {
-        if (error instanceof DOMException && error.code === 22) {
+        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
           let currGOPStart = currentGOPStart(this.gopBuffer_,
                                              this.mediaSource_.player_.currentTime(),
                                              this.timeMapping_);

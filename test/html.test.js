@@ -390,7 +390,7 @@ QUnit.test('appendBuffer error triggers on the player', function() {
   sourceBuffer.videoBuffer_.appendBuffer = () => {
     QUnit.equal(sourceBuffer.videoBuffer_.updating, true,
       'updating is true before error');
-    throw new Error();
+    throw new DOMException('QuotaExceededError', 'QuotaExceededError');
   };
 
   sourceBuffer.on('bufferMaxed', (event) => {
