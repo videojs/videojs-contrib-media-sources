@@ -1,5 +1,7 @@
 # videojs-media-sources
 
+# Notice: this project will be deprecated and is succeeded by [videojs-http-streaming](https://github.com/videojs/http-streaming). VHS supports HLS and DASH and is built into video.js 7, see the [video.js 7 blog post](https://blog.videojs.com/video-js-7-is-here/)
+
 A [Media Source Extensions](https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html) shim for video.js.
 
 Media Source Extensions (MSE) is a W3C draft specification that makes it possible to feed data directly to a video element.
